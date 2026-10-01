@@ -13,6 +13,20 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('attendances.index'));
 
+// Helper route to run migrations & clear cache on live cPanel/hosting server
+Route::get('/run-live-setup', function () {
+    try {
+        \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+        \Illuminate\Support\Facades\Artisan::call('config:clear');
+        \Illuminate\Support\Facades\Artisan::call('cache:clear');
+        \Illuminate\Support\Facades\Artisan::call('view:clear');
+        \Illuminate\Support\Facades\Artisan::call('route:clear');
+        return '<div style="font-family:sans-serif;padding:30px;background:#f0fdf4;color:#166534;border-radius:10px"><h2>✓ Live Server Setup Completed Successfully!</h2><p>Database migrations executed & system cache cleared.</p><a href="/attendances">Go to Attendances Dashboard</a></div>';
+    } catch (\Exception $e) {
+        return '<div style="font-family:sans-serif;padding:30px;background:#fee2e2;color:#991b1b;border-radius:10px"><h2>X Error running setup:</h2><pre>' . $e->getMessage() . '</pre></div>';
+    }
+});
+
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');

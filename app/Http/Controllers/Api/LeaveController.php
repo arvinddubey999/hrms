@@ -10,12 +10,20 @@ class LeaveController extends Controller
 {
     public function index(Request $request)
     {
-        $items = LeaveRequest::query()
-            ->where('user_id', $request->user()->id)
-            ->latest()
+        $user = $request->user();
+
+        $query = LeaveRequest::query()->with('user');
+
+        if (!$user->isManager()) {
+            $query->where('user_id', $user->id);
+        }
+
+        $items = $query->latest()
             ->get()
             ->map(fn (LeaveRequest $r) => [
                 'id' => $r->id,
+                'user_id' => $r->user_id,
+                'user_name' => $r->user?->displayName() ?? 'Unknown',
                 'leave_type' => $r->leave_type,
                 'from_date' => $r->from_date->toDateString(),
                 'to_date' => $r->to_date->toDateString(),
@@ -39,5 +47,23 @@ class LeaveController extends Controller
         $leave = LeaveRequest::query()->create($data);
 
         return response()->json(['data' => $leave], 201);
+    }
+
+    public function updateStatus(Request $request, LeaveRequest $leaveRequest)
+    {
+        if (!$request->user()->isManager()) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $data = $request->validate([
+            'status' => 'required|in:pending,approved,rejected',
+        ]);
+
+        $leaveRequest->update([
+            'status' => $data['status'],
+            'updated_by' => $request->user()->id,
+        ]);
+
+        return response()->json(['data' => $leaveRequest]);
     }
 }

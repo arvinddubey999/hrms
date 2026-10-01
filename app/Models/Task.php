@@ -14,6 +14,11 @@ class Task extends Model
         'due_date' => 'date',
     ];
 
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
+    }
+
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');

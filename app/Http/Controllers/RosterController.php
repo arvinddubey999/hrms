@@ -18,4 +18,72 @@ class RosterController extends Controller
 
         return view('roster.index', compact('employees', 'month', 'year', 'days', 'attendance'));
     }
+
+    public function exportExcel(Request $request, AttendanceService $attendance)
+    {
+        $month = (int) $request->get('m', now()->month);
+        $year = (int) $request->get('y', now()->year);
+        $employees = User::query()->where('status', 'active')->orderBy('first_name')->get();
+        $days = Carbon::create($year, $month, 1)->daysInMonth;
+
+        $filename = "monthly-roster-{$year}-{$month}.csv";
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () use ($employees, $year, $month, $days, $attendance) {
+            $out = fopen('php://output', 'w');
+            $headerRow = ['Employee Code', 'Employee Name', 'Department'];
+            for ($d = 1; $d <= $days; $d++) {
+                $headerRow[] = sprintf('%02d', $d);
+            }
+            fputcsv($out, $headerRow);
+
+            foreach ($employees as $emp) {
+                $row = [$emp->employee_code, $emp->displayName(), $emp->department ?: '-'];
+                for ($d = 1; $d <= $days; $d++) {
+                    $date = Carbon::create($year, $month, $d);
+                    $st = $attendance->dayStatus($emp, $date);
+                    $ins = \App\Models\AttendancePunch::where('user_id', $emp->id)->whereDate('work_date', $date)->where('type', 'in')->orderBy('punched_at')->first();
+                    $outs = \App\Models\AttendancePunch::where('user_id', $emp->id)->whereDate('work_date', $date)->where('type', 'out')->orderByDesc('punched_at')->first();
+
+                    $stCode = match($st) {
+                        'present' => 'P',
+                        'late' => 'P(L)',
+                        'wop' => 'WOP',
+                        'absent' => 'A',
+                        'leave' => 'L',
+                        'week_off' => 'WO',
+                        'holiday' => 'H',
+                        default => '-'
+                    };
+
+                    $times = '';
+                    if ($ins) {
+                        $times .= ' IN:' . $ins->punched_at->format('H:i');
+                    }
+                    if ($outs) {
+                        $times .= ' OUT:' . $outs->punched_at->format('H:i');
+                    }
+
+                    $row[] = $stCode . ($times ? " ({$times})" : '');
+                }
+                fputcsv($out, $row);
+            }
+            fclose($out);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    public function exportPdf(Request $request, AttendanceService $attendance)
+    {
+        $month = (int) $request->get('m', now()->month);
+        $year = (int) $request->get('y', now()->year);
+        $employees = User::query()->where('status', 'active')->orderBy('first_name')->get();
+        $days = Carbon::create($year, $month, 1)->daysInMonth;
+
+        return view('roster.pdf', compact('employees', 'month', 'year', 'days', 'attendance'));
+    }
 }

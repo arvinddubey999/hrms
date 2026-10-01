@@ -113,6 +113,27 @@ class User extends Authenticatable
         return $token;
     }
 
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class, 'department_id');
+    }
+
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(Expense::class);
+    }
+
+    public static function generateNextEmployeeCode(): string
+    {
+        $maxId = static::max('id') ?? 0;
+        return sprintf('%05d', $maxId + 1);
+    }
+
     public function displayName(): string
     {
         return trim($this->first_name.' '.$this->last_name) ?: $this->name;

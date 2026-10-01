@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Proposal & Commercial Quote - Smart Attendance & Task Management System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary: #1e293b;
+            --accent: #2563eb;
+            --accent-light: #eff6ff;
+            --text-dark: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --bg-light: #f8fafc;
+            --success: #16a34a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f1f5f9;
+            color: var(--text-dark);
+            line-height: 1.6;
+            padding: 40px 20px;
+        }
+
+        .paper {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+            padding: 48px;
+            position: relative;
+        }
+
+        .no-print-bar {
+            max-width: 900px;
+            margin: 0 auto 20px auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn-print {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+            transition: all 0.2s;
+        }
+
+        .btn-print:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 24px;
+            margin-bottom: 32px;
+        }
+
+        .header-left h1 {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--primary);
+            letter-spacing: -0.5px;
+        }
+
+        .header-left p {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .badge-quote {
+            background: var(--accent-light);
+            color: var(--accent);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 13px;
+            display: inline-block;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--primary);
+            margin: 32px 0 16px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-left: 4px solid var(--accent);
+            padding-left: 12px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--bg-light);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .card h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 8px;
+        }
+
+        .card p {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        ul.module-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        ul.module-list li {
+            position: relative;
+            padding-left: 24px;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        ul.module-list li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            top: 0;
+            color: var(--success);
+            font-weight: 800;
+        }
+
+        .table-custom {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+            font-size: 14px;
+        }
+
+        .table-custom th,
+        .table-custom td {
+            padding: 14px 16px;
+            border: 1px solid var(--border);
+            text-align: left;
+        }
+
+        .table-custom th {
+            background: var(--primary);
+            color: white;
+            font-weight: 700;
+        }
+
+        .table-custom tr:nth-child(even) {
+            background: var(--bg-light);
+        }
+
+        .total-row td {
+            font-weight: 800;
+            font-size: 16px;
+            background: #f1f5f9 !important;
+            color: var(--primary);
+        }
+
+        .highlight-box {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 24px;
+        }
+
+        .highlight-box h4 {
+            color: #166534;
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .highlight-box p {
+            color: #15803d;
+            font-size: 13px;
+        }
+
+        .footer {
+            margin-top: 48px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .paper {
+                box-shadow: none;
+                padding: 0;
+            }
+
+            .no-print-bar {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="no-print-bar">
+        <span style="font-size:14px;color:#475569;font-weight:600">📄 Project Proposal & Estimate Document</span>
+        <button class="btn-print" onclick="window.print()">🖨️ Download PDF / Print Document</button>
+    </div>
+
+    <div class="paper">
+        <div class="header">
+            <div class="header-left">
+                <h1>Smart Attendance & Task Management System</h1>
+                <p>Custom Software Development Proposal & Technical Architecture</p>
+            </div>
+            <div>
+                <span class="badge-quote">Freelancer Project Proposal</span>
+            </div>
+        </div>
+
+        <div class="section-title">1. Executive Summary</div>
+        <p style="font-size:14px;color:#334155">
+            This document outlines the scope, functional modules, timeline, and commercial estimation for building a
+            full-suite <strong>Smart Attendance & Task Management System</strong>. The project includes a modern Web
+            Administration Portal built with Laravel 12 & MySQL, paired with a Cross-Platform Mobile Application
+            (Android & iOS) built with Flutter.
+        </p>
+
+        <div class="section-title">2. Complete System Modules</div>
+
+        <div class="grid-2" style="margin-bottom:20px">
+            <div class="card">
+                <h3>👥 Employee & Staff Profile Management</h3>
+                <ul class="module-list">
+                    <li>Employee Directory with instant search and dynamic filters.</li>
+                    <li>Auto-generated unique Employee Codes & Company Master.</li>
+                    <li>Staff Profile with monthly attendance matrix calendar view.</li>
+                    <li>Bulk Shift assignment & Bulk Attendance marking tools.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>⏱️ Smart Attendance & Punch System</h3>
+                <ul class="module-list">
+                    <li>Single & Multiple Punch IN/OUT tracking per day.</li>
+                    <li>GPS Location tracking (Geo-coordinates & Address).</li>
+                    <li>Face Recognition Attendance integration.</li>
+                    <li>Live Attendance Statistics Dashboard (Present, Absent, Late, Early, Leave).</li>
+                    <li>Admin Manual Attendance Punch Override with remarks.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="card">
+                <h3>📋 Task Assignment & Workflow</h3>
+                <ul class="module-list">
+                    <li>Department-scoped Task Creation & Employee Assignment.</li>
+                    <li>Priority levels (Low, Medium, High) & Due Date tracking.</li>
+                    <li>Instant Email & Mobile Push Notifications to assigned staff.</li>
+                    <li>Task detail timeline, status updates, and attachments.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>🗺️ Live Tracking & Movement History</h3>
+                <ul class="module-list">
+                    <li>Real-time Employee GPS Live Location Tracking on Map.</li>
+                    <li>Daily Movement Route Timeline with stop locations & distance.</li>
+                    <li>Leave & WOP Request submission & Approval Workflow.</li>
+                    <li>Master Shift configuration & Monthly Roster scheduling.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div style="margin-top:20px" class="card">
+            <h3>📊 Comprehensive Reports Engine</h3>
+            <ul class="module-list">
+                <li><strong>Daywise Attendance Report:</strong> Excel & PDF export with Company header branding.</li>
+                <li><strong>Multiple Punch IN/OUT Report:</strong> Detailed timestamps breakdown per employee.</li>
+                <li><strong>Monthly Summary ZIP Export:</strong> One-click bulk ZIP download of employee monthly cards.
+                </li>
+                <li><strong>Working Hours & Overtime Report:</strong> Cumulative monthly duration calculations.</li>
+                <li><strong>Colorful Staff Monthly PDF:</strong> PDF download matching official header layouts.</li>
+            </ul>
+        </div>
+
+        <div class="section-title">3. Freelancer Development Cost Estimation (INR)</div>
+        <p style="font-size:14px;color:#334155;margin-bottom:12px">
+            Commercial quote tailored for Indian clients based on standard Freelance Full-Stack Developer rates:
+        </p>
+
+        <table class="table-custom">
+            <thead>
+                <tr>
+                    <th>Module / Component</th>
+                    <th>Scope & Technical Deliverables</th>
+                    <th>Estimated Cost (INR)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Web Admin Portal</strong></td>
+                    <td>Laravel 12, MySQL, Dashboard KPIs, Employee Profiles, Task System, Shift Roster & Masters</td>
+                    <td>₹45,000 – ₹60,000</td>
+                </tr>
+                <tr>
+                    <td><strong>Mobile Application</strong></td>
+                    <td>Flutter App (Android & iOS), GPS Location Capture, Face Attendance, Mobile Tasks & Leaves</td>
+                    <td>₹40,000 – ₹50,000</td>
+                </tr>
+                <tr>
+                    <td><strong>Reports & Live Tracking</strong></td>
+                    <td>PDF/Excel Exports with Branding, Live Map Timeline History, Push Notifications & ZIP Engine</td>
+                    <td>₹20,000 – ₹30,000</td>
+                </tr>
+                <tr class="total-row">
+                    <td colspan="2">Total Project Cost (Turnkey Freelancer Package)</td>
+                    <td>₹1,05,000 – ₹1,40,000 INR</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="section-title">4. Project Timeline & Delivery Schedule</div>
+        <table class="table-custom">
+            <thead>
+                <tr>
+                    <th>Phase</th>
+                    <th>Milestone</th>
+                    <th>Duration</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Phase 1</strong></td>
+                    <td>Requirement Finalization, Database Schema & UI Mockups</td>
+                    <td>1 Week</td>
+                </tr>
+                <tr>
+                    <td><strong>Phase 2</strong></td>
+                    <td>Web Admin Portal Development (Laravel 12 & MySQL)</td>
+                    <td>2 Weeks</td>
+                </tr>
+                <tr>
+                    <td><strong>Phase 3</strong></td>
+                    <td>Mobile App Development (Flutter Android & iOS)</td>
+                    <td>2 Weeks</td>
+                </tr>
+                <tr>
+                    <td><strong>Phase 4</strong></td>
+                    <td>Reports Engine, GPS Live Tracking, Testing & Final Deployment</td>
+                    <td>1 Week</td>
+                </tr>
+                <tr class="total-row">
+                    <td colspan="2">Total Delivery Timeline</td>
+                    <td>5 – 6 Weeks</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="highlight-box">
+            <h4>💡 SaaS / Recurring Maintenance Option (Optional)</h4>
+            <p>If client prefers a monthly SaaS subscription model: <strong>₹3,500 / month</strong> (up to 50 employees)
+                month</strong> including server hosting maintenance & updates.</p>
+        </div>
+
+        <div class="footer">
+            <span>Confidential Project Proposal</span>
+            <span>Generated on September 30, 2026</span>
+        </div>
+    </div>
+
+</body>
+
+</html>

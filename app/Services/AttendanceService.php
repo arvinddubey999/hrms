@@ -7,6 +7,8 @@ use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\FirebaseNotificationService;
+use App\Services\GeoService;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
@@ -71,7 +73,7 @@ class AttendanceService
 
         $greeting = $type === 'in' ? GeoService::greetingFor($user, $now) : 'Have a good day '.$user->first_name;
 
-        return AttendancePunch::query()->create([
+        $punch = AttendancePunch::query()->create([
             'user_id' => $user->id,
             'marked_by' => $markedBy?->id,
             'work_date' => $now->toDateString(),
@@ -86,6 +88,10 @@ class AttendanceService
             'greeting' => $greeting,
             'remarks' => $remarks,
         ]);
+
+        FirebaseNotificationService::sendPunchNotification($user, $type, $punch->location_text);
+
+        return $punch;
     }
 
     public function autoOutIfOutside(User $user, float $lat, float $lng, ?string $address = null): ?AttendancePunch
@@ -108,7 +114,7 @@ class AttendanceService
             return null;
         }
 
-        return AttendancePunch::query()->create([
+        $punch = AttendancePunch::query()->create([
             'user_id' => $user->id,
             'work_date' => $today,
             'type' => 'out',
@@ -120,6 +126,10 @@ class AttendanceService
             'face_detected' => false,
             'greeting' => 'You left the company location. Attendance marked OUT.',
         ]);
+
+        FirebaseNotificationService::sendPunchNotification($user, 'out', $punch->location_text);
+
+        return $punch;
     }
 
     public function isPresentOnDate(User $user, Carbon $date): bool

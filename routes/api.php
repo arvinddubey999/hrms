@@ -31,16 +31,25 @@ Route::post('/reset-password', function (Request $request) {
 
 Route::middleware('api.token')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
+    Route::post('/profile/update', [AuthController::class, 'updateProfile']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/team', [AuthController::class, 'team']);
 
     Route::post('/attendance/punch', [AttendanceController::class, 'punch']);
     Route::get('/attendance/today', [AttendanceController::class, 'today']);
     Route::get('/attendance/history', [AttendanceController::class, 'history']);
+    Route::post('/register-fcm-token', [AttendanceController::class, 'registerFcmToken']);
 
     Route::get('/leaves', [LeaveController::class, 'index']);
     Route::post('/leaves', [LeaveController::class, 'store']);
     Route::post('/leaves/{leaveRequest}/status', [LeaveController::class, 'updateStatus']);
+
+    // Requests Module Routes
+    Route::get('/requests/dashboard', [\App\Http\Controllers\Api\RequestController::class, 'dashboard']);
+    Route::get('/requests', [\App\Http\Controllers\Api\RequestController::class, 'index']);
+    Route::post('/requests/leave', [\App\Http\Controllers\Api\RequestController::class, 'storeLeave']);
+    Route::post('/requests/loan', [\App\Http\Controllers\Api\RequestController::class, 'storeLoan']);
+    Route::post('/requests/{id}/status', [\App\Http\Controllers\Api\RequestController::class, 'updateStatus']);
 
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::post('/tasks', [TaskController::class, 'store']);

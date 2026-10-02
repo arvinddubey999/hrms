@@ -81,23 +81,52 @@ class AttendanceController extends Controller
 
     public function history(Request $request, AttendanceService $attendance)
     {
-        $year = (int) $request->get('year', now()->year);
-        $month = (int) $request->get('month', now()->month);
-        $summary = $attendance->monthSummary($request->user(), $year, $month);
+        $userId = $request->get('user_id') ?: $request->user()->id;
+        $targetUser = User::find($userId) ?: $request->user();
+
+        $year = (int) $request->get('year', now('Asia/Kolkata')->year);
+        $month = (int) $request->get('month', now('Asia/Kolkata')->month);
+        $summary = $attendance->monthSummary($targetUser, $year, $month);
 
         return response()->json([
+            'employee' => [
+                'id' => $targetUser->id,
+                'name' => $targetUser->displayName(),
+                'phone' => $targetUser->phone ?: '+918169426418',
+                'email' => $targetUser->email ?: 'arvinddubey999@gmail.com',
+                'designation' => $targetUser->designation ?: 'Staff Member',
+                'photo' => $targetUser->photo ? url('storage/'.$targetUser->photo) : '',
+            ],
             'present' => $summary['present'],
             'absent' => $summary['absent'],
             'leave' => $summary['leave'],
             'week_off' => $summary['weekOff'],
             'late' => $summary['late'],
+            'half' => $summary['half'],
             'days' => collect($summary['rows'])->map(fn ($row) => [
                 'date' => $row['date'],
                 'status' => $row['status'],
+                'has_in_no_out' => $row['has_in_no_out'] ?? false,
                 'hours' => $row['hours'],
                 'in' => optional($row['ins']->first())->punched_at?->format('h:i A'),
                 'out' => optional($row['outs']->last())->punched_at?->format('h:i A'),
+                'ins_list' => $row['ins']->map(fn ($p) => $this->serialize($p)),
+                'outs_list' => $row['outs']->map(fn ($p) => $this->serialize($p)),
             ]),
+        ]);
+    }
+
+    public function registerFcmToken(Request $request)
+    {
+        $data = $request->validate([
+            'fcm_token' => 'required|string',
+        ]);
+
+        $request->user()->update(['fcm_token' => $data['fcm_token']]);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'FCM Token registered successfully.',
         ]);
     }
 
@@ -105,11 +134,11 @@ class AttendanceController extends Controller
     {
         return [
             'id' => $punch->id,
-            'type' => $punch->type,
+            'type' => strtoupper($punch->type),
             'source' => $punch->source,
             'time' => $punch->punched_at->format('h:i A'),
             'at' => $punch->punched_at->toIso8601String(),
-            'location' => $punch->location_text,
+            'location' => $punch->location_text ?: 'Office Location',
             'photo' => $punch->photo ? url('storage/'.$punch->photo) : null,
             'greeting' => $punch->greeting,
         ];

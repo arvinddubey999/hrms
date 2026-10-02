@@ -436,8 +436,11 @@ class EmployeeController extends Controller
 
         $data['name'] = trim($data['first_name'].' '.($data['last_name'] ?? ''));
         $data['role'] = $data['role'] ?? 'employee';
-        if (empty($data['password'])) {
+
+        if (empty($data['password']) || $data['password'] === '********' || trim($data['password']) === '') {
             unset($data['password']);
+        } else {
+            $data['password'] = \Illuminate\Support\Facades\Hash::make($data['password']);
         }
         if ($request->hasFile('profile_photo')) {
             $data['profile_photo'] = $request->file('profile_photo')->store('profiles', 'public');

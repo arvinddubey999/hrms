@@ -90,6 +90,87 @@ class AuthController extends Controller
         return response()->json(['data' => $staff]);
     }
 
+    public function updateProfile(Request $request)
+    {
+        $actor = $request->user();
+        $targetId = $request->get('user_id') ?: $actor->id;
+
+        if ($targetId != $actor->id && !$actor->isManager()) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $targetUser = User::findOrFail($targetId);
+
+        $data = $request->validate([
+            'first_name' => 'nullable|string',
+            'last_name' => 'nullable|string',
+            'phone' => 'nullable|string',
+            'email' => 'nullable|email',
+            'employee_code' => 'nullable|string',
+            'designation' => 'nullable|string',
+            'department' => 'nullable|string',
+            'vendor_name' => 'nullable|string',
+            'password' => 'nullable|string',
+            'birthday' => 'nullable|date',
+            'date_of_joining' => 'nullable|date',
+            'salary' => 'nullable|numeric',
+            'pay_type' => 'nullable|string',
+            'profile_photo' => 'nullable|image|max:10240',
+        ]);
+
+        if (!empty($data['first_name'])) {
+            $targetUser->first_name = $data['first_name'];
+        }
+        if (isset($data['last_name'])) {
+            $targetUser->last_name = $data['last_name'];
+        }
+        $targetUser->name = trim($targetUser->first_name . ' ' . ($targetUser->last_name ?? ''));
+
+        if (!empty($data['phone'])) {
+            $targetUser->phone = $data['phone'];
+        }
+        if (!empty($data['email'])) {
+            $targetUser->email = $data['email'];
+        }
+        if (isset($data['employee_code'])) {
+            $targetUser->employee_code = $data['employee_code'];
+        }
+        if (isset($data['designation'])) {
+            $targetUser->designation = $data['designation'];
+        }
+        if (isset($data['department'])) {
+            $targetUser->department = $data['department'];
+        }
+        if (isset($data['vendor_name'])) {
+            $targetUser->vendor_name = $data['vendor_name'];
+        }
+
+        // Handle password safely without corrupting login password!
+        if (!empty($data['password']) && $data['password'] !== '********' && trim($data['password']) !== '') {
+            $targetUser->password = Hash::make($data['password']);
+        }
+
+        if ($request->hasFile('profile_photo')) {
+            $path = $request->file('profile_photo')->store('profiles', 'public');
+            $targetUser->profile_photo = $path;
+        }
+
+        // Toggles
+        foreach (['mobile_attendance', 'multiple_attendance', 'ai_selfie', 'live_tracking', 'self_odometer', 'esi_applicable', 'overtime_applicable'] as $flag) {
+            if ($request->has($flag)) {
+                $targetUser->$flag = $request->boolean($flag);
+            }
+        }
+
+        $targetUser->save();
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Profile updated successfully!',
+            'user' => $this->payload($targetUser),
+        ]);
+    }
+
     private function payload(User $user): array
     {
         return [
@@ -99,13 +180,18 @@ class AuthController extends Controller
             'name' => $user->displayName(),
             'phone' => $user->phone,
             'email' => $user->email,
+            'employee_code' => $user->employee_code,
             'role' => $user->role,
             'designation' => $user->designation,
             'department' => $user->department,
+            'vendor_name' => $user->vendor_name,
             'mobile_attendance' => $user->mobile_attendance,
             'multiple_attendance' => $user->multiple_attendance,
             'ai_selfie' => $user->ai_selfie,
             'live_tracking' => $user->live_tracking,
+            'self_odometer' => $user->self_odometer,
+            'esi_applicable' => $user->esi_applicable,
+            'overtime_applicable' => $user->overtime_applicable,
             'punch_from' => $user->punch_from,
             'view_self_salary' => $user->view_self_salary,
             'photo' => $user->profile_photo ? url('storage/'.$user->profile_photo) : null,

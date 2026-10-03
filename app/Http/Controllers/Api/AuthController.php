@@ -115,7 +115,7 @@ class AuthController extends Controller
             'date_of_joining' => 'nullable|date',
             'salary' => 'nullable|numeric',
             'pay_type' => 'nullable|string',
-            'profile_photo' => 'nullable|image|max:10240',
+            'profile_photo' => 'nullable|file|max:10240',
         ]);
 
         if (!empty($data['first_name'])) {
@@ -124,7 +124,7 @@ class AuthController extends Controller
         if (isset($data['last_name'])) {
             $targetUser->last_name = $data['last_name'];
         }
-        $targetUser->name = trim($targetUser->first_name . ' ' . ($targetUser->last_name ?? ''));
+        $targetUser->name = trim(($targetUser->first_name ?? '') . ' ' . ($targetUser->last_name ?? ''));
 
         if (!empty($data['phone'])) {
             $targetUser->phone = $data['phone'];
@@ -158,7 +158,8 @@ class AuthController extends Controller
         // Toggles
         foreach (['mobile_attendance', 'multiple_attendance', 'ai_selfie', 'live_tracking', 'self_odometer', 'esi_applicable', 'overtime_applicable'] as $flag) {
             if ($request->has($flag)) {
-                $targetUser->$flag = $request->boolean($flag);
+                $val = $request->input($flag);
+                $targetUser->$flag = filter_var($val, FILTER_VALIDATE_BOOLEAN);
             }
         }
 

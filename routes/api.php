@@ -39,6 +39,7 @@ Route::middleware('api.token')->group(function () {
     Route::get('/attendance/today', [AttendanceController::class, 'today']);
     Route::get('/attendance/history', [AttendanceController::class, 'history']);
     Route::get('/attendance/statistics', [AttendanceController::class, 'statistics']);
+    Route::get('/attendance/monthly-report', [AttendanceController::class, 'monthlyReport']);
     Route::post('/register-fcm-token', [AttendanceController::class, 'registerFcmToken']);
 
     Route::get('/leaves', [LeaveController::class, 'index']);

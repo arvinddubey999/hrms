@@ -238,6 +238,22 @@ class AttendanceController extends Controller
         ]);
     }
 
+    public function monthlyReport(Request $request, AttendanceService $attendance)
+    {
+        $userId = $request->get('user_id') ?: $request->user()->id;
+        $targetUser = User::findOrFail($userId);
+
+        $year = (int) $request->get('year', now('Asia/Kolkata')->year);
+        $month = (int) $request->get('month', now('Asia/Kolkata')->month);
+
+        return view('employees.monthly-print', [
+            'staff' => $targetUser,
+            'summary' => $attendance->monthSummary($targetUser, $year, $month),
+            'year' => $year,
+            'month' => $month,
+        ]);
+    }
+
     public function registerFcmToken(Request $request)
     {
         $data = $request->validate([

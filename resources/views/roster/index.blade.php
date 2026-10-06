@@ -3,18 +3,43 @@
 <div class="page-head">
     <h1>Monthly Roster Report</h1>
     <div class="row">
-        <a class="btn light" href="{{ route('roster.export.excel', ['m'=>$month,'y'=>$year]) }}"><i class="fa-solid fa-file-excel"></i> Export Excel</a>
-        <a class="btn light" href="{{ route('roster.export.pdf', ['m'=>$month,'y'=>$year]) }}" target="_blank"><i class="fa-solid fa-file-pdf"></i> Export PDF</a>
-        <form method="get" class="row">
-            <select name="m" style="width:140px">
-                @for($i=1;$i<=12;$i++)
-                    <option value="{{ $i }}" {{ $month==$i?'selected':'' }}>{{ date('F', mktime(0,0,0,$i,1)) }}</option>
-                @endfor
-            </select>
-            <input type="number" name="y" value="{{ $year }}" style="width:90px">
-            <button class="btn">Go</button>
-        </form>
+        <a class="btn light" href="{{ route('roster.export.excel', ['m'=>$month,'y'=>$year, 'employee_id'=>$employeeId, 'department_id'=>$departmentId, 'company_id'=>$companyId]) }}"><i class="fa-solid fa-file-excel" style="color:#16a34a"></i> Excel</a>
+        <a class="btn light" href="{{ route('roster.export.pdf', ['m'=>$month,'y'=>$year, 'employee_id'=>$employeeId, 'department_id'=>$departmentId, 'company_id'=>$companyId]) }}" target="_blank"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> PDF</a>
     </div>
+</div>
+
+<div class="card" style="margin-bottom:14px;padding:12px 18px">
+    <form method="get" class="row" style="gap:10px;flex-wrap:wrap">
+        <select name="company_id" onchange="this.form.submit()" style="width:160px">
+            <option value="">All Companies</option>
+            @foreach($companies as $comp)
+                <option value="{{ $comp->id }}" {{ $companyId==$comp->id?'selected':'' }}>{{ $comp->name }}</option>
+            @endforeach
+        </select>
+
+        <select name="department_id" onchange="this.form.submit()" style="width:160px">
+            <option value="">All Departments</option>
+            @foreach($departments as $dept)
+                <option value="{{ $dept->id }}" {{ $departmentId==$dept->id?'selected':'' }}>{{ $dept->name }}</option>
+            @endforeach
+        </select>
+
+        <select name="employee_id" onchange="this.form.submit()" style="width:180px">
+            <option value="">All Employees</option>
+            @foreach($allEmployees as $e)
+                <option value="{{ $e->id }}" {{ $employeeId==$e->id?'selected':'' }}>{{ $e->displayName() }}</option>
+            @endforeach
+        </select>
+
+        <select name="m" onchange="this.form.submit()" style="width:130px">
+            @for($i=1;$i<=12;$i++)
+                <option value="{{ $i }}" {{ $month==$i?'selected':'' }}>{{ date('F', mktime(0,0,0,$i,1)) }}</option>
+            @endfor
+        </select>
+
+        <input type="number" name="y" value="{{ $year }}" style="width:90px" onchange="this.form.submit()">
+        <a class="btn light" href="{{ route('roster.index') }}">Reset Filters</a>
+    </form>
 </div>
 
 <!-- COLOR CODE ICON LEGEND DISPLAY -->
@@ -30,11 +55,11 @@
     </div>
 </div>
 
-<div class="card" style="overflow-x:auto">
-    <table class="table" style="font-size:12px;white-space:nowrap">
-        <thead>
+<div class="card" style="max-height: calc(100vh - 260px); overflow: auto; padding: 0; border-radius: 12px; border: 1px solid #e2e8f0">
+    <table class="table" style="font-size:12px;white-space:nowrap;margin:0">
+        <thead style="position:sticky;top:0;z-index:20;background:#f8fafc">
         <tr>
-            <th style="position:sticky;left:0;background:#fff;z-index:10;min-width:160px">Employee</th>
+            <th style="position:sticky;left:0;top:0;background:#f8fafc;z-index:30;min-width:170px;box-shadow:2px 0 5px rgba(0,0,0,0.05)">Employee</th>
             @for($d=1;$d<=$days;$d++)
                 @php $date = \Carbon\Carbon::create($year,$month,$d); @endphp
                 <th style="text-align:center;min-width:70px">

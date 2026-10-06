@@ -42,6 +42,7 @@ class User extends Authenticatable
             'view_self_salary' => 'boolean',
             'salary' => 'decimal:2',
             'last_location_at' => 'datetime',
+            'permissions' => 'array',
         ];
     }
 

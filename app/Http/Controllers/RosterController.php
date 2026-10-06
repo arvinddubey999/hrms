@@ -13,10 +13,38 @@ class RosterController extends Controller
     {
         $month = (int) $request->get('m', now()->month);
         $year = (int) $request->get('y', now()->year);
-        $employees = User::query()->where('status', 'active')->orderBy('first_name')->get();
+        $employeeId = $request->get('employee_id');
+        $departmentId = $request->get('department_id');
+        $companyId = $request->get('company_id');
+
+        $query = User::query()->where('status', 'active');
+
+        if ($employeeId) {
+            $query->where('id', $employeeId);
+        }
+        if ($departmentId) {
+            $query->where('department_id', $departmentId);
+        }
+        if ($companyId) {
+            $query->where('company_id', $companyId);
+        }
+
+        $employees = $query->orderBy('first_name')->get();
         $days = Carbon::create($year, $month, 1)->daysInMonth;
 
-        return view('roster.index', compact('employees', 'month', 'year', 'days', 'attendance'));
+        return view('roster.index', [
+            'employees' => $employees,
+            'month' => $month,
+            'year' => $year,
+            'days' => $days,
+            'attendance' => $attendance,
+            'employeeId' => $employeeId,
+            'departmentId' => $departmentId,
+            'companyId' => $companyId,
+            'allEmployees' => User::where('status', 'active')->orderBy('first_name')->get(),
+            'departments' => \App\Models\Department::orderBy('name')->get(),
+            'companies' => \App\Models\Company::orderBy('name')->get(),
+        ]);
     }
 
     public function exportExcel(Request $request, AttendanceService $attendance)

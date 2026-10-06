@@ -10,6 +10,7 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
     <h1>Employees</h1>
     <div class="row">
         <a class="btn light" href="{{ route('tracking.realtime') }}"><i class="fa-solid fa-location-dot"></i> Live View</a>
+        <button class="btn light" onclick="openExcelImportModal()"><i class="fa-solid fa-file-excel" style="color:#16a34a"></i> Excel Import</button>
         <button class="btn light" onclick="openBulkShiftModal()"><i class="fa-solid fa-clock"></i> Bulk Shift</button>
         <button class="btn light" onclick="openBulkMarkModal()"><i class="fa-solid fa-check-double"></i> Bulk Attendance</button>
         <a class="btn" href="{{ route('employees.create') }}">+ Add employee</a>
@@ -32,6 +33,7 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
     </div>
 </div>
 
+<!-- Attendance Statistics Card -->
 <div class="card" style="margin-top:14px">
     <div class="stats">
         <div>
@@ -46,9 +48,7 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
                 <div style="cursor:pointer" onclick="openStatModal('late')"><span class="bar" style="background:#eab308"></span><small>LATE</small><b>{{ $stats['late'] }}</b></div>
                 <div style="cursor:pointer" onclick="openStatModal('leave')"><span class="bar" style="background:#f97316"></span><small>LEAVE</small><b>{{ $stats['leave'] }}</b></div>
                 <div style="cursor:pointer" onclick="openStatModal('early')"><span class="bar" style="background:#fb923c"></span><small>EARLY</small><b>{{ $stats['early'] }}</b></div>
-                <!-- EMPLOYEE LATE ALERTS (Standard KPI size matching screenshot) -->
                 <div style="cursor:pointer" onclick="openStatModal('late')"><span class="bar" style="background:#dc2626"></span><small style="color:#991b1b;font-weight:700">LATE ALERTS</small><b style="color:#dc2626">{{ $stats['late'] }}</b></div>
-                <!-- PENDING TASK COUNT LINK -->
                 <div style="cursor:pointer" onclick="location.href='{{ route('tasks.index', ['status'=>'pending']) }}'"><span class="bar" style="background:#ea580c"></span><small style="color:#ea580c;font-weight:700">PENDING TASK</small><b style="color:#ea580c">{{ $stats['pending_tasks'] ?? 0 }}</b></div>
             </div>
             <div class="kpi" style="margin-top:14px;padding-top:12px;border-top:1px dashed #e5e7eb">
@@ -60,6 +60,50 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
             </div>
         </div>
     </div>
+</div>
+
+<!-- TODAY'S BIRTHDAYS SECTION (Placed directly below Attendance Statistics as per prompt & screenshot) -->
+@php
+    $todayBirthdays = \App\Models\User::whereNotNull('birthday')
+        ->whereRaw("DATE_FORMAT(birthday, '%m-%d') = ?", [now('Asia/Kolkata')->format('m-d')])
+        ->where('status', 'active')
+        ->get();
+@endphp
+<div class="card" style="margin-top:14px;background:linear-gradient(135deg, #ffffff 0%, #fff5f5 100%);border:1px solid #fecdd3">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="width:36px;height:36px;background:#ffe4e6;color:#e11d48;border-radius:10px;display:grid;place-items:center;font-size:18px">
+            🎂
+        </div>
+        <div>
+            <h3 style="margin:0;color:#9f1239">Today's Birthdays</h3>
+            <span class="muted" style="font-size:12px">Celebrations for {{ now('Asia/Kolkata')->format('j F, Y') }}</span>
+        </div>
+    </div>
+
+    @if($todayBirthdays->count() > 0)
+        <div class="row" style="gap:16px;flex-wrap:wrap">
+            @foreach($todayBirthdays as $bEmp)
+                <div style="display:flex;align-items:center;gap:12px;background:#fff;padding:10px 16px;border-radius:12px;border:1px solid #ffe4e6;box-shadow:0 2px 4px rgba(225,29,72,0.05)">
+                    @if($bEmp->profile_photo)
+                        <img src="{{ asset('storage/'.$bEmp->profile_photo) }}" alt="Photo" style="width:46px;height:46px;border-radius:50%;object-fit:cover;border:2px solid #f43f5e">
+                    @else
+                        <div style="width:46px;height:46px;background:#ffe4e6;color:#e11d48;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:16px;border:2px solid #f43f5e">
+                            {{ $bEmp->initials() }}
+                        </div>
+                    @endif
+                    <div>
+                        <div style="font-weight:700;color:#111827">{{ $bEmp->displayName() }}</div>
+                        <div style="font-size:12px;color:#e11d48;font-weight:600">
+                            🎉 Turns {{ \Carbon\Carbon::parse($bEmp->birthday)->age }} today!
+                        </div>
+                        <small class="muted">{{ $bEmp->department ?: ($bEmp->company->name ?? 'Staff') }}</small>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    @else
+        <div class="muted" style="font-size:13px;padding:4px 0"><i class="fa-solid fa-cake-candles" style="color:#fda4af;margin-right:6px"></i> No staff birthdays scheduled for today.</div>
+    @endif
 </div>
 
 <!-- Filter Bar & Search/Sort controls -->
@@ -294,10 +338,34 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
     </div>
 </div>
 
+<!-- Modal: Excel Employee Import -->
+<div id="excelImportModal" class="modal-bg">
+    <div class="modal">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h3 style="margin:0"><i class="fa-solid fa-file-excel" style="color:#16a34a"></i> Employee Import Via Excel / CSV</h3>
+            <a href="{{ route('employees.sample-csv') }}" class="btn light" style="font-size:12px;color:#16a34a;border:1px solid #16a34a"><i class="fa-solid fa-download"></i> Download Sample CSV</a>
+        </div>
+        <p class="muted">Upload CSV / Excel file with columns: <b>First Name, Last Name, Phone, Email, Employee Code, Designation, Department, Base Salary</b></p>
+        <form method="post" action="{{ route('employees.import') }}" enctype="multipart/form-data">
+            @csrf
+            <div style="background:#f8fafc;padding:16px;border-radius:10px;border:1px dashed #cbd5e1;margin-bottom:16px;text-align:center">
+                <input type="file" name="excel_file" accept=".csv,.txt,.xlsx,.xls" required>
+            </div>
+            <div class="row" style="justify-content:flex-end;gap:10px">
+                <button type="button" class="btn light" onclick="document.getElementById('excelImportModal').classList.remove('open')">Cancel</button>
+                <button class="btn"><i class="fa-solid fa-upload"></i> Upload & Import</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @endsection
 
 @section('scripts')
 <script>
+function openExcelImportModal() {
+    document.getElementById('excelImportModal').classList.add('open');
+}
 function toggleSortMenu() {
     var menu = document.getElementById('sortMenu');
     menu.style.display = menu.style.display === 'none' ? 'block' : 'none';

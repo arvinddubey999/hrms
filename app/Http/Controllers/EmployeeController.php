@@ -192,14 +192,21 @@ class EmployeeController extends Controller
             'type' => 'required|in:in,out',
             'time' => 'nullable',
             'remarks' => 'nullable|string',
+            'photo' => 'nullable|image|max:5120',
         ]);
+
+        $photoPath = null;
+        if ($request->hasFile('photo')) {
+            $photoPath = $request->file('photo')->store('punches', 'public');
+        }
+
         $punch = $attendance->punch(
             $employee,
             $data['type'],
             (float) Setting::current()->office_lat,
             (float) Setting::current()->office_lng,
             Setting::current()->company_name.' office',
-            null,
+            $request->file('photo'),
             true,
             'admin',
             $request->user(),
@@ -210,7 +217,7 @@ class EmployeeController extends Controller
             $punch->update(['punched_at' => Carbon::parse($punch->work_date->toDateString().' '.$data['time'])]);
         }
 
-        return back()->with('ok', 'Attendance marked.');
+        return back()->with('ok', 'Attendance marked with photo.');
     }
 
     public function bulkMark(Request $request, AttendanceService $attendance)
@@ -363,6 +370,98 @@ class EmployeeController extends Controller
         ]);
     }
 
+    public function sampleCsv()
+    {
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="employee_sample_import.csv"',
+        ];
+
+        $callback = function () {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, ['First Name', 'Last Name', 'Phone', 'Email', 'Employee Code', 'Designation', 'Department', 'Base Salary']);
+            fputcsv($file, ['Rajiv', 'Rakhecha', '9825100001', 'rajiv@rakhecha.com', 'RI00001', 'Managing Director', 'Management', '50000.00']);
+            fputcsv($file, ['Aarav', 'Sharma', '9825100002', 'aarav@tulsi.com', 'RI00002', 'Senior Accountant', 'Accounts', '35000.00']);
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    public function importExcel(Request $request)
+    {
+        $request->validate([
+            'excel_file' => 'required|file|mimes:csv,txt,xlsx,xls',
+        ]);
+
+        $file = $request->file('excel_file');
+        $handle = fopen($file->getRealPath(), 'r');
+        if (!$handle) {
+            return back()->with('error', 'Unable to open file.');
+        }
+
+        $header = fgetcsv($handle);
+        $importedCount = 0;
+
+        while (($row = fgetcsv($handle)) !== false) {
+            if (empty($row[0])) continue;
+
+            $firstName = trim($row[0]);
+            $lastName = isset($row[1]) ? trim($row[1]) : '';
+            $phone = isset($row[2]) ? trim($row[2]) : '';
+            $email = isset($row[3]) ? trim($row[3]) : null;
+            $empCode = isset($row[4]) ? trim($row[4]) : User::generateNextEmployeeCode();
+            $designation = isset($row[5]) ? trim($row[5]) : null;
+            $departmentName = isset($row[6]) ? trim($row[6]) : null;
+            $salary = isset($row[7]) ? (float) $row[7] : 0.00;
+
+            if (empty($phone)) {
+                $phone = '98000' . rand(10000, 99999);
+            }
+
+            $deptId = null;
+            if ($departmentName) {
+                $dept = Department::firstOrCreate(['name' => $departmentName]);
+                $deptId = $dept->id;
+            }
+
+            User::create([
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'name' => trim($firstName . ' ' . $lastName),
+                'phone' => $phone,
+                'email' => $email,
+                'employee_code' => $empCode,
+                'designation' => $designation,
+                'department_id' => $deptId,
+                'department' => $departmentName,
+                'salary' => $salary,
+                'status' => 'active',
+                'role' => 'employee',
+                'password' => \Illuminate\Support\Facades\Hash::make('123456'),
+                'mobile_attendance' => true,
+            ]);
+
+            $importedCount++;
+        }
+
+        fclose($handle);
+
+        return back()->with('ok', "Successfully imported {$importedCount} employees.");
+    }
+
+    public function quickStoreDepartment(Request $request)
+    {
+        $data = $request->validate(['name' => 'required|string']);
+        $dept = Department::firstOrCreate(['name' => $data['name']]);
+
+        if ($request->wantsJson() || $request->ajax() || $request->isJson() || $request->acceptsJson()) {
+            return response()->json(['success' => true, 'department' => $dept]);
+        }
+
+        return response()->json(['success' => true, 'department' => $dept]);
+    }
+
     private function persist(Request $request, User $staff): void
     {
         $data = $request->validate([
@@ -373,6 +472,7 @@ class EmployeeController extends Controller
             'password' => $staff->exists ? 'nullable|string|min:6' : 'required|string|min:6',
             'status' => 'required|in:active,archived',
             'role' => 'nullable|in:admin,manager,employee',
+            'permissions' => 'nullable|array',
             'country' => 'nullable|string',
             'address' => 'nullable|string',
             'birthday' => 'nullable|date',
@@ -417,6 +517,8 @@ class EmployeeController extends Controller
             'overtime_applicable' => 'nullable|boolean',
             'view_self_salary' => 'nullable|boolean',
         ]);
+
+        $data['salary'] = $data['salary'] ?? 0.00;
 
         if (empty($data['employee_code'])) {
             $data['employee_code'] = User::generateNextEmployeeCode();

@@ -85,9 +85,17 @@ class SettingsController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string',
+            'location' => 'nullable|string',
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
+            'code_prefix' => 'nullable|string',
+            'salary_calculation_days' => 'nullable|string',
+            'pt_enabled' => 'nullable|boolean',
+            'pt_threshold' => 'nullable|numeric',
+            'pt_amount' => 'nullable|numeric',
         ]);
+
+        $data['pt_enabled'] = $request->has('pt_enabled') ? $request->boolean('pt_enabled') : true;
 
         if ($request->hasFile('logo')) {
             $data['logo'] = $request->file('logo')->store('companies', 'public');
@@ -102,9 +110,17 @@ class SettingsController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string',
+            'location' => 'nullable|string',
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
+            'code_prefix' => 'nullable|string',
+            'salary_calculation_days' => 'nullable|string',
+            'pt_enabled' => 'nullable|boolean',
+            'pt_threshold' => 'nullable|numeric',
+            'pt_amount' => 'nullable|numeric',
         ]);
+
+        $data['pt_enabled'] = $request->has('pt_enabled') ? $request->boolean('pt_enabled') : false;
 
         if ($request->hasFile('logo')) {
             $data['logo'] = $request->file('logo')->store('companies', 'public');
@@ -112,7 +128,7 @@ class SettingsController extends Controller
 
         $company->update($data);
 
-        return back()->with('ok', 'Company updated.');
+        return back()->with('ok', 'Company updated successfully.');
     }
 
     public function destroyCompany(Company $company)
@@ -135,7 +151,7 @@ class SettingsController extends Controller
         $data = $request->validate(['name' => 'required|string']);
         $department->update($data);
 
-        return back()->with('ok', 'Department updated.');
+        return back()->with('ok', 'Department updated successfully.');
     }
 
     public function destroyDepartment(Department $department)
@@ -152,6 +168,7 @@ class SettingsController extends Controller
             'date' => 'required|date',
             'description' => 'nullable|string',
             'company_ids' => 'nullable|array',
+            'department_ids' => 'nullable|array',
         ]);
 
         Holiday::create($data);
@@ -166,6 +183,7 @@ class SettingsController extends Controller
             'date' => 'required|date',
             'description' => 'nullable|string',
             'company_ids' => 'nullable|array',
+            'department_ids' => 'nullable|array',
         ]);
 
         $holiday->update($data);
@@ -201,7 +219,7 @@ class SettingsController extends Controller
         ]);
         $shift->update($data);
 
-        return back()->with('ok', 'Shift updated.');
+        return back()->with('ok', 'Shift updated successfully.');
     }
 
     public function destroyShift(Shift $shift)

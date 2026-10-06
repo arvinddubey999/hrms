@@ -162,6 +162,8 @@ class AttendanceController extends Controller
                 'phone' => $u->phone,
                 'email' => $u->email,
                 'role' => $u->role,
+                'company_id' => $u->company_id,
+                'company_name' => $u->company?->name ?? 'Default Company',
                 'department' => $u->department ?: 'General',
                 'designation' => $u->designation ?: 'Employee',
                 'photo' => $u->profile_photo ? url('storage/'.$u->profile_photo) : null,
@@ -179,6 +181,18 @@ class AttendanceController extends Controller
                 'out_photo' => $lastOut && $lastOut->photo ? url('storage/'.$lastOut->photo) : null,
             ];
         }
+
+        $todayBirthdays = User::whereNotNull('birthday')
+            ->whereRaw("DATE_FORMAT(birthday, '%m-%d') = ?", [$todayStr = now('Asia/Kolkata')->format('m-d')])
+            ->where('status', 'active')
+            ->get()
+            ->map(fn ($b) => [
+                'id' => $b->id,
+                'name' => $b->displayName(),
+                'photo' => $b->profile_photo ? url('storage/'.$b->profile_photo) : null,
+                'age' => \Carbon\Carbon::parse($b->birthday)->age,
+                'department' => $b->department ?: ($b->company?->name ?? 'Staff'),
+            ]);
 
         $counts = [
             'not_marked' => count($notMarkedUserIds),
@@ -198,6 +212,7 @@ class AttendanceController extends Controller
             'date' => now('Asia/Kolkata')->format('M d, Y'),
             'counts' => $counts,
             'employees' => $employeesList,
+            'birthdays' => $todayBirthdays,
         ]);
     }
 

@@ -82,6 +82,40 @@ class FirebaseNotificationService
             ]);
         }
     }
+    /**
+     * Send Push Notification for Task Creation & Re-Assignment.
+     */
+    public static function sendTaskNotification(User $employee, string $title, string $message, ?int $taskId = null): void
+    {
+        try {
+            if (empty($employee->fcm_token)) {
+                Log::info("FCM task notification skipped for user {$employee->id}: No fcm_token");
+                return;
+            }
+
+            self::sendFcmV1Message([
+                'token' => $employee->fcm_token,
+                'notification' => [
+                    'title' => $title,
+                    'body' => $message,
+                ],
+                'data' => [
+                    'task_id' => (string) ($taskId ?? ''),
+                    'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+                    'type' => 'task',
+                ],
+                'android' => [
+                    'priority' => 'HIGH',
+                    'notification' => [
+                        'sound' => 'default',
+                        'channel_id' => 'task_channel',
+                    ],
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Task Push Notification Error: ' . $e->getMessage());
+        }
+    }
 
     /**
      * Send payload to FCM HTTP v1 API using Google OAuth2 Access Token.

@@ -40,6 +40,9 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/employees/create', [EmployeeController::class, 'create'])->name('employees.create');
     Route::post('/employees', [EmployeeController::class, 'store'])->name('employees.store');
+    Route::get('/employees/sample-csv', [EmployeeController::class, 'sampleCsv'])->name('employees.sample-csv');
+    Route::post('/employees/import', [EmployeeController::class, 'importExcel'])->name('employees.import');
+    Route::post('/departments/quick', [EmployeeController::class, 'quickStoreDepartment'])->name('departments.quick-store');
     Route::get('/employees/{employee}', [EmployeeController::class, 'show'])->name('employees.show');
     Route::get('/employees/{employee}/edit', [EmployeeController::class, 'edit'])->name('employees.edit');
     Route::put('/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
@@ -69,6 +72,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/tasks/export/pdf', [TaskController::class, 'exportPdf'])->name('tasks.export.pdf');
     Route::get('/tasks/{task}', [TaskController::class, 'show'])->name('tasks.show');
     Route::put('/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
+    Route::post('/tasks/{task}/reply', [TaskController::class, 'reply'])->name('tasks.reply');
+    Route::post('/tasks/{task}/reassign', [TaskController::class, 'reassign'])->name('tasks.reassign');
+    Route::post('/tasks/{task}/remind', [TaskController::class, 'remind'])->name('tasks.remind');
+    Route::post('/tasks/{task}/attachment', [TaskController::class, 'uploadAttachment'])->name('tasks.attachment');
     Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
 
     // Reports

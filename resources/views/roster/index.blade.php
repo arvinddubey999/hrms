@@ -67,6 +67,12 @@
                     <small style="font-weight:normal;color:#6b7280">{{ strtoupper($date->format('D')) }}</small>
                 </th>
             @endfor
+            <th style="text-align:center;background:#e0f2fe;color:#0369a1;min-width:50px">P</th>
+            <th style="text-align:center;background:#fee2e2;color:#991b1b;min-width:50px">A</th>
+            <th style="text-align:center;background:#fef08a;color:#854d0e;min-width:50px">H</th>
+            <th style="text-align:center;background:#f3f4f6;color:#4b5563;min-width:50px">WO</th>
+            <th style="text-align:center;background:#dbeafe;color:#1e40af;min-width:50px">WOP</th>
+            <th style="text-align:center;background:#dcfce7;color:#166534;font-weight:bold;min-width:90px">TOTAL PAYABLE</th>
         </tr>
         </thead>
         <tbody>
@@ -116,6 +122,20 @@
                         @endif
                     </td>
                 @endforeach
+                @php
+                    $cntP = $sum['present'] ?? 0;
+                    $cntA = $sum['absent'] ?? 0;
+                    $cntH = $sum['holiday'] ?? 0;
+                    $cntWO = $sum['weekOff'] ?? 0;
+                    $cntWOP = $sum['wop'] ?? 0;
+                    $totPayable = $cntP + $cntH + $cntWO + $cntWOP;
+                @endphp
+                <td style="text-align:center;background:#e0f2fe;font-weight:bold">{{ $cntP }}</td>
+                <td style="text-align:center;background:#fee2e2;font-weight:bold;color:#dc2626">{{ $cntA }}</td>
+                <td style="text-align:center;background:#fef08a;font-weight:bold">{{ $cntH }}</td>
+                <td style="text-align:center;background:#f3f4f6;font-weight:bold">{{ $cntWO }}</td>
+                <td style="text-align:center;background:#dbeafe;font-weight:bold">{{ $cntWOP }}</td>
+                <td style="text-align:center;background:#dcfce7;font-weight:bold;color:#166534;font-size:14px">{{ $totPayable }}</td>
             </tr>
         @endforeach
         </tbody>

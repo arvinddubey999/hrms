@@ -26,10 +26,13 @@ class AttendanceService
         string $source = 'mobile',
         ?User $markedBy = null,
         bool $skipGeofence = false,
-        ?string $remarks = null
+        ?string $remarks = null,
+        ?string $customWorkDate = null,
+        ?string $customPunchedAt = null
     ): AttendancePunch {
         $setting = Setting::current();
-        $now = now('Asia/Kolkata');
+        $now = $customPunchedAt ? Carbon::parse($customPunchedAt) : now('Asia/Kolkata');
+        $workDate = $customWorkDate ?: ($customPunchedAt ? Carbon::parse($customPunchedAt)->toDateString() : $now->toDateString());
         $type = strtolower($type) === 'out' ? 'out' : 'in';
 
         if ($user->punch_from === 'geofence' && ! $skipGeofence && $source === 'mobile') {
@@ -46,23 +49,23 @@ class AttendanceService
 
         $openIn = AttendancePunch::query()
             ->where('user_id', $user->id)
-            ->whereDate('work_date', $now->toDateString())
+            ->whereDate('work_date', $workDate)
             ->where('type', 'in')
             ->orderByDesc('punched_at')
             ->first();
 
         $last = AttendancePunch::query()
             ->where('user_id', $user->id)
-            ->whereDate('work_date', $now->toDateString())
+            ->whereDate('work_date', $workDate)
             ->orderByDesc('punched_at')
             ->first();
 
-        if (! $user->multiple_attendance) {
+        if (! $user->multiple_attendance && $source !== 'admin') {
             if ($type === 'in' && $openIn && (! $last || $last->type === 'in')) {
-                throw ValidationException::withMessages(['type' => 'Already punched IN today.']);
+                throw ValidationException::withMessages(['type' => 'Already punched IN for this date.']);
             }
             if ($type === 'out' && (! $openIn || ($last && $last->type === 'out'))) {
-                throw ValidationException::withMessages(['type' => 'No open IN punch to mark OUT.']);
+                throw ValidationException::withMessages(['type' => 'No open IN punch to mark OUT for this date.']);
             }
         }
 
@@ -76,7 +79,7 @@ class AttendanceService
         $punch = AttendancePunch::query()->create([
             'user_id' => $user->id,
             'marked_by' => $markedBy?->id,
-            'work_date' => $now->toDateString(),
+            'work_date' => $workDate,
             'type' => $type,
             'source' => $source,
             'punched_at' => $now,

@@ -190,15 +190,15 @@ class EmployeeController extends Controller
     {
         $data = $request->validate([
             'type' => 'required|in:in,out',
+            'date' => 'nullable|date',
             'time' => 'nullable',
             'remarks' => 'nullable|string',
             'photo' => 'nullable|image|max:5120',
         ]);
 
-        $photoPath = null;
-        if ($request->hasFile('photo')) {
-            $photoPath = $request->file('photo')->store('punches', 'public');
-        }
+        $targetDate = $data['date'] ?? now('Asia/Kolkata')->toDateString();
+        $targetTime = !empty($data['time']) ? $data['time'] : now('Asia/Kolkata')->format('H:i:s');
+        $customPunchedAt = Carbon::parse($targetDate.' '.$targetTime)->toDateTimeString();
 
         $punch = $attendance->punch(
             $employee,
@@ -211,13 +211,12 @@ class EmployeeController extends Controller
             'admin',
             $request->user(),
             true,
-            $data['remarks'] ?? null
+            $data['remarks'] ?? null,
+            $targetDate,
+            $customPunchedAt
         );
-        if (! empty($data['time'])) {
-            $punch->update(['punched_at' => Carbon::parse($punch->work_date->toDateString().' '.$data['time'])]);
-        }
 
-        return back()->with('ok', 'Attendance marked with photo.');
+        return back()->with('ok', 'Attendance punch recorded successfully for ' . $targetDate);
     }
 
     public function bulkMark(Request $request, AttendanceService $attendance)
@@ -379,9 +378,9 @@ class EmployeeController extends Controller
 
         $callback = function () {
             $file = fopen('php://output', 'w');
-            fputcsv($file, ['First Name', 'Last Name', 'Phone', 'Email', 'Employee Code', 'Designation', 'Department', 'Base Salary']);
-            fputcsv($file, ['Rajiv', 'Rakhecha', '9825100001', 'rajiv@rakhecha.com', 'RI00001', 'Managing Director', 'Management', '50000.00']);
-            fputcsv($file, ['Aarav', 'Sharma', '9825100002', 'aarav@tulsi.com', 'RI00002', 'Senior Accountant', 'Accounts', '35000.00']);
+            fputcsv($file, ['First Name', 'Last Name', 'Phone', 'Email', 'Employee Code', 'Designation', 'Department', 'Base Salary', 'Company Name']);
+            fputcsv($file, ['Rajiv', 'Rakhecha', '9825100001', 'rajiv@rakhecha.com', '', 'Managing Director', 'Management', '50000.00', 'Tulsi Fabrics']);
+            fputcsv($file, ['Aarav', 'Sharma', '9825100002', 'aarav@tulsi.com', '', 'Senior Accountant', 'Accounts', '35000.00', 'Tulsi Fabrics']);
             fclose($file);
         };
 
@@ -410,19 +409,33 @@ class EmployeeController extends Controller
             $lastName = isset($row[1]) ? trim($row[1]) : '';
             $phone = isset($row[2]) ? trim($row[2]) : '';
             $email = isset($row[3]) ? trim($row[3]) : null;
-            $empCode = isset($row[4]) ? trim($row[4]) : User::generateNextEmployeeCode();
+            $empCodeInput = isset($row[4]) ? trim($row[4]) : null;
             $designation = isset($row[5]) ? trim($row[5]) : null;
             $departmentName = isset($row[6]) ? trim($row[6]) : null;
             $salary = isset($row[7]) ? (float) $row[7] : 0.00;
+            $companyName = isset($row[8]) ? trim($row[8]) : null;
 
             if (empty($phone)) {
                 $phone = '98000' . rand(10000, 99999);
+            }
+
+            $companyId = null;
+            $companyObj = null;
+            if ($companyName) {
+                $companyObj = Company::firstOrCreate(['name' => $companyName]);
+                $companyId = $companyObj->id;
             }
 
             $deptId = null;
             if ($departmentName) {
                 $dept = Department::firstOrCreate(['name' => $departmentName]);
                 $deptId = $dept->id;
+            }
+
+            if (empty($empCodeInput) || User::where('employee_code', $empCodeInput)->exists()) {
+                $empCode = User::generateNextEmployeeCode($companyObj ?: $companyId);
+            } else {
+                $empCode = $empCodeInput;
             }
 
             User::create([
@@ -433,6 +446,7 @@ class EmployeeController extends Controller
                 'email' => $email,
                 'employee_code' => $empCode,
                 'designation' => $designation,
+                'company_id' => $companyId,
                 'department_id' => $deptId,
                 'department' => $departmentName,
                 'salary' => $salary,

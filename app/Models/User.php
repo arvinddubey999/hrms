@@ -106,6 +106,25 @@ class User extends Authenticatable
         return in_array($this->role, ['admin', 'manager'], true);
     }
 
+    public function scopedEmployeesQuery()
+    {
+        $query = static::query()->where('status', 'active');
+        if ($this->isAdmin()) {
+            return $query;
+        }
+        if ($this->role === 'manager') {
+            return $query->where(function ($q) {
+                if ($this->department_id) {
+                    $q->orWhere('department_id', $this->department_id);
+                }
+                if ($this->company_id) {
+                    $q->orWhere('company_id', $this->company_id);
+                }
+            });
+        }
+        return $query->where('id', $this->id);
+    }
+
     public function issueApiToken(): string
     {
         $token = Str::random(60);
@@ -129,10 +148,31 @@ class User extends Authenticatable
         return $this->hasMany(Expense::class);
     }
 
-    public static function generateNextEmployeeCode(): string
+    public static function generateNextEmployeeCode($companyOrPrefix = null): string
     {
-        $maxId = static::max('id') ?? 0;
-        return sprintf('%05d', $maxId + 1);
+        $prefix = 'EMP';
+        if ($companyOrPrefix instanceof Company) {
+            $prefix = $companyOrPrefix->code_prefix ?: strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $companyOrPrefix->name ?? ''), 0, 3));
+        } elseif (is_numeric($companyOrPrefix)) {
+            $company = Company::find($companyOrPrefix);
+            if ($company) {
+                $prefix = $company->code_prefix ?: strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $company->name ?? ''), 0, 3));
+            }
+        } elseif (is_string($companyOrPrefix) && !empty($companyOrPrefix)) {
+            $prefix = $companyOrPrefix;
+        }
+
+        if (empty($prefix)) {
+            $prefix = 'EMP';
+        }
+
+        $nextId = (static::max('id') ?? 0) + 1;
+        $code = sprintf('%s-%05d', strtoupper($prefix), $nextId);
+        while (static::where('employee_code', $code)->exists()) {
+            $nextId++;
+            $code = sprintf('%s-%05d', strtoupper($prefix), $nextId);
+        }
+        return $code;
     }
 
     public function displayName(): string
@@ -151,7 +191,7 @@ class User extends Authenticatable
         return $letters ?: 'ST';
     }
 
-    public function dailyRate(): float
+    public function dailyRate(?int $daysInMonth = null): float
     {
         if ((float) $this->salary <= 0) {
             return 0;
@@ -163,6 +203,20 @@ class User extends Authenticatable
             return (float) $this->salary * 8;
         }
 
-        return round(((float) $this->salary) / 30, 3);
+        $setting = Setting::current();
+        $basis = $setting->salary_day_basis ?? 'month_days'; // 30, 31, 26, or month_days
+
+        $divider = 30;
+        if ($basis === '26') {
+            $divider = 26;
+        } elseif ($basis === '31') {
+            $divider = 31;
+        } elseif ($basis === '30') {
+            $divider = 30;
+        } else {
+            $divider = $daysInMonth ?: now('Asia/Kolkata')->daysInMonth;
+        }
+
+        return round(((float) $this->salary) / $divider, 4);
     }
 }

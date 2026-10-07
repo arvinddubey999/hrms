@@ -38,7 +38,7 @@
                     <td><i class="fa-solid fa-location-dot" style="color:#ef4444"></i> {{ $p->location_text ?: 'Office Premises' }}</td>
                     <td>
                         @if($p->photo)
-                            <a href="{{ asset('storage/'.$p->photo) }}" target="_blank">
+                            <a href="javascript:void(0)" onclick="openPhotoZoomModal('{{ asset('storage/'.$p->photo) }}')">
                                 <img src="{{ asset('storage/'.$p->photo) }}" width="48" height="48" style="border-radius:8px;object-fit:cover;border:1px solid #cbd5e1">
                             </a>
                         @else
@@ -54,9 +54,11 @@
 
     <hr style="margin:16px 0;border:0;border-top:1px solid #e2e8f0">
     
-    <h3 style="margin:0 0 10px 0"><i class="fa-solid fa-camera"></i> Mark Attendance & Photo Upload</h3>
+    <h3 style="margin:0 0 10px 0"><i class="fa-solid fa-camera"></i> Mark Attendance & Photo Upload (Date: {{ $date }})</h3>
     <form method="post" action="{{ route('employees.mark', $staff) }}" enctype="multipart/form-data" class="grid-3" style="align-items:end;gap:12px;background:#f8fafc;padding:14px;border-radius:10px;border:1px solid #e2e8f0">
         @csrf
+        <input type="hidden" name="date" value="{{ $date }}">
+
         <div>
             <label>Punch Type *</label>
             <select name="type" required>
@@ -64,17 +66,42 @@
                 <option value="out" {{ optional($punches->last())->type === 'in' ? 'selected' : '' }}>Punch OUT</option>
             </select>
         </div>
+
+        <div>
+            <label>Punch Time *</label>
+            <input type="time" name="time" value="{{ now('Asia/Kolkata')->format('H:i') }}" required>
+        </div>
+
         <div>
             <label>Punch Photo (Camera / File)</label>
             <input type="file" name="photo" accept="image/*">
         </div>
-        <div>
-            <label>Remarks / Notes</label>
-            <input name="remarks" placeholder="Manual marking reason...">
-        </div>
-        <div style="grid-column:1/-1;display:flex;justify-content:flex-end">
-            <button class="btn"><i class="fa-solid fa-check"></i> Mark Attendance Punch</button>
+
+        <div style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+            <input name="remarks" placeholder="Manual marking reason..." style="flex:1;margin-right:12px">
+            <button class="btn" style="white-space:nowrap"><i class="fa-solid fa-check"></i> Mark Attendance Punch</button>
         </div>
     </form>
 </div>
+
+<!-- Modal: Photo Zoom Preview -->
+<div id="photoZoomModal" class="modal-bg" onclick="closePhotoZoomModal()">
+    <div class="modal" style="max-width:540px;text-align:center;background:#111827;padding:16px" onclick="event.stopPropagation()">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h4 style="margin:0;color:#fff"><i class="fa-solid fa-image"></i> Punch Photo Clear View</h4>
+            <button type="button" onclick="closePhotoZoomModal()" class="btn light" style="padding:4px 10px;font-size:12px">✕ Close</button>
+        </div>
+        <img id="photoZoomImg" src="" style="width:100%;max-height:480px;object-fit:contain;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+    </div>
+</div>
+
+<script>
+function openPhotoZoomModal(url) {
+    document.getElementById('photoZoomImg').src = url;
+    document.getElementById('photoZoomModal').style.display = 'block';
+}
+function closePhotoZoomModal() {
+    document.getElementById('photoZoomModal').style.display = 'none';
+}
+</script>
 @endsection

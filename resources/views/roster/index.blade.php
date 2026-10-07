@@ -55,11 +55,11 @@
     </div>
 </div>
 
-<div class="card" style="max-height: calc(100vh - 260px); overflow: auto; padding: 0; border-radius: 12px; border: 1px solid #e2e8f0">
-    <table class="table" style="font-size:12px;white-space:nowrap;margin:0">
+<div class="card" style="max-height: calc(100vh - 220px); overflow: auto; padding: 0; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+    <table class="table" style="font-size:12px;white-space:nowrap;margin:0;border-collapse:separate;border-spacing:0">
         <thead style="position:sticky;top:0;z-index:20;background:#f8fafc">
         <tr>
-            <th style="position:sticky;left:0;top:0;background:#f8fafc;z-index:30;min-width:170px;box-shadow:2px 0 5px rgba(0,0,0,0.05)">Employee</th>
+            <th style="position:sticky;left:0;top:0;background:#f8fafc;z-index:30;min-width:170px;box-shadow:2px 0 5px rgba(0,0,0,0.05);border-bottom:1px solid #cbd5e1">Employee</th>
             @for($d=1;$d<=$days;$d++)
                 @php $date = \Carbon\Carbon::create($year,$month,$d); @endphp
                 <th style="text-align:center;min-width:70px">

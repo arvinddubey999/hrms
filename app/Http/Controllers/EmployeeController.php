@@ -378,9 +378,42 @@ class EmployeeController extends Controller
 
         $callback = function () {
             $file = fopen('php://output', 'w');
-            fputcsv($file, ['First Name', 'Last Name', 'Phone', 'Email', 'Employee Code', 'Designation', 'Department', 'Base Salary', 'Company Name']);
-            fputcsv($file, ['Rajiv', 'Rakhecha', '9825100001', 'rajiv@rakhecha.com', '', 'Managing Director', 'Management', '50000.00', 'Tulsi Fabrics']);
-            fputcsv($file, ['Aarav', 'Sharma', '9825100002', 'aarav@tulsi.com', '', 'Senior Accountant', 'Accounts', '35000.00', 'Tulsi Fabrics']);
+            fputcsv($file, [
+                'First Name', 'Last Name', 'Phone', 'Email', 'Employee Code',
+                'Company Name', 'Department', 'Designation', 'Category', 'Role',
+                'Base Salary', 'Status', 'Gender', 'Date of Joining', 'Birthdate',
+                'Blood Group', 'Address', 'Emergency Contact Name', 'Emergency Contact Phone',
+                'PAN Card Number', 'Aadhaar Card Number', 'Bank Account Number', 'IFSC Code',
+                'Bank Name', 'Branch Name', 'Bank A/C Holder Name', 'Pay Type',
+                'Week Off Day', 'PF Number', 'UAN', 'ESI Applicable',
+                'Overtime Applicable', 'View Self Salary', 'Mobile Attendance',
+                'Multiple Attendance', 'Shiftwise Attendance', 'Live Tracking',
+                'AI Selfie', 'Punch From'
+            ]);
+            fputcsv($file, [
+                'Rajiv', 'Rakhecha', '9825100001', 'rajiv@rakhecha.com', '',
+                'Tulsi Fabrics', 'Management', 'Managing Director', 'Management', 'employee',
+                '50000.00', 'active', 'Male', '2025-01-01', '1990-05-15',
+                'O+', 'Surat, Gujarat', 'Emergency Contact', '9825199999',
+                'ABCDE1234F', '123456789012', '918010001234', 'HDFC0001234',
+                'HDFC Bank', 'Main Branch', 'Rajiv Rakhecha', 'monthly',
+                'Sunday', 'PF123456', 'UAN123456', '1',
+                '1', '1', '1',
+                '0', '0', '0',
+                '1', 'geofence'
+            ]);
+            fputcsv($file, [
+                'Aarav', 'Sharma', '9825100002', 'aarav@tulsi.com', '',
+                'Tulsi Fabrics', 'Accounts', 'Senior Accountant', 'Staff', 'employee',
+                '35000.00', 'active', 'Male', '2025-02-01', '1995-08-20',
+                'B+', 'Ahmedabad, Gujarat', 'Sunita Sharma', '9825188888',
+                'XYZPQ5678K', '987654321098', '918010005678', 'SBIN0005678',
+                'SBI', 'CG Road Branch', 'Aarav Sharma', 'monthly',
+                'Sunday', '', '', '0',
+                '1', '1', '1',
+                '0', '0', '0',
+                '1', 'geofence'
+            ]);
             fclose($file);
         };
 
@@ -405,15 +438,45 @@ class EmployeeController extends Controller
         while (($row = fgetcsv($handle)) !== false) {
             if (empty($row[0])) continue;
 
-            $firstName = trim($row[0]);
-            $lastName = isset($row[1]) ? trim($row[1]) : '';
-            $phone = isset($row[2]) ? trim($row[2]) : '';
-            $email = isset($row[3]) ? trim($row[3]) : null;
-            $empCodeInput = isset($row[4]) ? trim($row[4]) : null;
-            $designation = isset($row[5]) ? trim($row[5]) : null;
-            $departmentName = isset($row[6]) ? trim($row[6]) : null;
-            $salary = isset($row[7]) ? (float) $row[7] : 0.00;
-            $companyName = isset($row[8]) ? trim($row[8]) : null;
+            $firstName             = trim($row[0]);
+            $lastName              = isset($row[1]) ? trim($row[1]) : '';
+            $phone                 = isset($row[2]) ? trim($row[2]) : '';
+            $email                 = isset($row[3]) ? trim($row[3]) : null;
+            $empCodeInput          = isset($row[4]) ? trim($row[4]) : null;
+            $companyName           = isset($row[5]) ? trim($row[5]) : null;
+            $departmentName        = isset($row[6]) ? trim($row[6]) : null;
+            $designation           = isset($row[7]) ? trim($row[7]) : null;
+            $categoryName          = isset($row[8]) ? trim($row[8]) : null;
+            $role                  = isset($row[9]) && in_array(strtolower(trim($row[9])), ['admin', 'manager', 'employee']) ? strtolower(trim($row[9])) : 'employee';
+            $salary                = isset($row[10]) ? (float) $row[10] : 0.00;
+            $status                = isset($row[11]) ? (strtolower(trim($row[11])) === 'archived' ? 'archived' : 'active') : 'active';
+            $gender                = isset($row[12]) ? trim($row[12]) : null;
+            $dateOfJoining         = isset($row[13]) && !empty(trim($row[13])) ? trim($row[13]) : null;
+            $birthday              = isset($row[14]) && !empty(trim($row[14])) ? trim($row[14]) : null;
+            $bloodGroup            = isset($row[15]) ? trim($row[15]) : null;
+            $address               = isset($row[16]) ? trim($row[16]) : null;
+            $emergencyContactName  = isset($row[17]) ? trim($row[17]) : null;
+            $emergencyContactPhone = isset($row[18]) ? trim($row[18]) : null;
+            $pan                   = isset($row[19]) ? trim($row[19]) : null;
+            $aadhaar               = isset($row[20]) ? trim($row[20]) : null;
+            $bankAccount           = isset($row[21]) ? trim($row[21]) : null;
+            $ifsc                  = isset($row[22]) ? trim($row[22]) : null;
+            $bankName              = isset($row[23]) ? trim($row[23]) : null;
+            $branchName            = isset($row[24]) ? trim($row[24]) : null;
+            $bankHolder            = isset($row[25]) ? trim($row[25]) : null;
+            $payType               = isset($row[26]) ? trim($row[26]) : 'monthly';
+            $weekOffDay            = isset($row[27]) ? trim($row[27]) : 'Sunday';
+            $pfNumber              = isset($row[28]) ? trim($row[28]) : null;
+            $uan                   = isset($row[29]) ? trim($row[29]) : null;
+            $esiApplicable         = isset($row[30]) ? in_array(strtolower(trim($row[30])), ['1', 'true', 'yes']) : false;
+            $overtimeApplicable    = isset($row[31]) ? in_array(strtolower(trim($row[31])), ['1', 'true', 'yes']) : false;
+            $viewSelfSalary        = isset($row[32]) ? in_array(strtolower(trim($row[32])), ['1', 'true', 'yes']) : false;
+            $mobileAttendance      = isset($row[33]) ? in_array(strtolower(trim($row[33])), ['1', 'true', 'yes']) : true;
+            $multipleAttendance    = isset($row[34]) ? in_array(strtolower(trim($row[34])), ['1', 'true', 'yes']) : false;
+            $shiftwiseAttendance   = isset($row[35]) ? in_array(strtolower(trim($row[35])), ['1', 'true', 'yes']) : false;
+            $liveTracking          = isset($row[36]) ? in_array(strtolower(trim($row[36])), ['1', 'true', 'yes']) : false;
+            $aiSelfie              = isset($row[37]) ? in_array(strtolower(trim($row[37])), ['1', 'true', 'yes']) : true;
+            $punchFrom             = isset($row[38]) ? trim($row[38]) : 'geofence';
 
             if (empty($phone)) {
                 $phone = '98000' . rand(10000, 99999);
@@ -432,6 +495,12 @@ class EmployeeController extends Controller
                 $deptId = $dept->id;
             }
 
+            $categoryId = null;
+            if ($categoryName) {
+                $cat = Category::firstOrCreate(['name' => $categoryName]);
+                $categoryId = $cat->id;
+            }
+
             if (empty($empCodeInput) || User::where('employee_code', $empCodeInput)->exists()) {
                 $empCode = User::generateNextEmployeeCode($companyObj ?: $companyId);
             } else {
@@ -439,21 +508,48 @@ class EmployeeController extends Controller
             }
 
             User::create([
-                'first_name' => $firstName,
-                'last_name' => $lastName,
-                'name' => trim($firstName . ' ' . $lastName),
-                'phone' => $phone,
-                'email' => $email,
-                'employee_code' => $empCode,
-                'designation' => $designation,
-                'company_id' => $companyId,
-                'department_id' => $deptId,
-                'department' => $departmentName,
-                'salary' => $salary,
-                'status' => 'active',
-                'role' => 'employee',
-                'password' => \Illuminate\Support\Facades\Hash::make('123456'),
-                'mobile_attendance' => true,
+                'first_name'             => $firstName,
+                'last_name'              => $lastName,
+                'name'                   => trim($firstName . ' ' . $lastName),
+                'phone'                  => $phone,
+                'email'                  => $email,
+                'employee_code'          => $empCode,
+                'designation'            => $designation,
+                'company_id'             => $companyId,
+                'department_id'          => $deptId,
+                'department'             => $departmentName,
+                'category_id'            => $categoryId,
+                'salary'                 => $salary,
+                'status'                 => $status,
+                'role'                   => $role,
+                'gender'                 => $gender,
+                'date_of_joining'        => $dateOfJoining,
+                'birthday'               => $birthday,
+                'blood_group'            => $bloodGroup,
+                'address'                => $address,
+                'emergency_contact_name' => $emergencyContactName,
+                'emergency_contact_phone'=> $emergencyContactPhone,
+                'pan'                    => $pan,
+                'aadhaar'                => $aadhaar,
+                'bank_account'           => $bankAccount,
+                'ifsc'                   => $ifsc,
+                'bank_name'              => $bankName,
+                'branch_name'            => $branchName,
+                'bank_holder'            => $bankHolder,
+                'pay_type'               => $payType,
+                'week_off_day'           => $weekOffDay,
+                'pf_number'              => $pfNumber,
+                'uan'                    => $uan,
+                'esi_applicable'         => $esiApplicable,
+                'overtime_applicable'    => $overtimeApplicable,
+                'view_self_salary'       => $viewSelfSalary,
+                'mobile_attendance'      => $mobileAttendance,
+                'multiple_attendance'    => $multipleAttendance,
+                'shiftwise_attendance'   => $shiftwiseAttendance,
+                'live_tracking'          => $liveTracking,
+                'ai_selfie'              => $aiSelfie,
+                'punch_from'             => $punchFrom,
+                'password'               => \Illuminate\Support\Facades\Hash::make('123456'),
             ]);
 
             $importedCount++;

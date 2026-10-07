@@ -275,11 +275,15 @@ class AttendanceController extends Controller
             'fcm_token' => 'required|string',
         ]);
 
-        $request->user()->update(['fcm_token' => $data['fcm_token']]);
+        $user = $request->user();
+        if ($user) {
+            $user->forceFill(['fcm_token' => $data['fcm_token']])->save();
+        }
 
         return response()->json([
             'ok' => true,
             'message' => 'FCM Token registered successfully.',
+            'fcm_token' => $user?->fcm_token,
         ]);
     }
 

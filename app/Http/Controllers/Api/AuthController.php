@@ -27,6 +27,10 @@ class AuthController extends Controller
             return response()->json(['message' => 'Account is archived'], 403);
         }
 
+        if ($request->filled('fcm_token')) {
+            $user->forceFill(['fcm_token' => $request->input('fcm_token')])->save();
+        }
+
         $token = $user->issueApiToken();
         $setting = Setting::current();
 
@@ -161,6 +165,10 @@ class AuthController extends Controller
                 $val = $request->input($flag);
                 $targetUser->$flag = filter_var($val, FILTER_VALIDATE_BOOLEAN);
             }
+        }
+
+        if ($request->filled('fcm_token')) {
+            $targetUser->forceFill(['fcm_token' => $request->input('fcm_token')]);
         }
 
         $targetUser->save();

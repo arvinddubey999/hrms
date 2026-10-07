@@ -55,7 +55,11 @@ Route::middleware('api.token')->group(function () {
 
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::post('/tasks', [TaskController::class, 'store']);
+    Route::get('/tasks/{task}', [TaskController::class, 'show']);
     Route::post('/tasks/{task}/status', [TaskController::class, 'updateStatus']);
+    Route::post('/tasks/{task}/reply', [TaskController::class, 'reply']);
+    Route::post('/tasks/{task}/reassign', [TaskController::class, 'reassign']);
+    Route::post('/tasks/{task}/remind', [TaskController::class, 'remind']);
     Route::get('/department-employees', [TaskController::class, 'departmentEmployees']);
 
     Route::get('/payroll', [PayrollController::class, 'me']);

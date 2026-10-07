@@ -100,6 +100,11 @@
                         <td onclick="event.stopPropagation()"><input type="checkbox" class="task-checkbox" value="{{ $task->id }}"></td>
                         <td>
                             <strong style="color:#111827;font-size:14px">{{ $task->title }}</strong>
+                            @if($task->replies && $task->replies->count() > 0)
+                                <span class="chip" style="background:#e0e7ff;color:#3730a3;font-size:11px;margin-left:6px;font-weight:bold" onclick="event.stopPropagation(); openTaskDetailsDrawer({{ json_encode($task->load(['assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])) }}, 'reports')" title="View {{ $task->replies->count() }} replies">
+                                    <i class="fa-solid fa-comments"></i> {{ $task->replies->count() }} {{ Str::plural('Reply', $task->replies->count()) }}
+                                </span>
+                            @endif
                             @if($task->client)
                                 <div style="font-size:11px;color:#6b7280"><i class="fa-solid fa-user-tie"></i> Client: {{ $task->client }}</div>
                             @endif
@@ -276,6 +281,9 @@
                         <option value="daily">Daily</option>
                         <option value="weekly">Weekly</option>
                         <option value="monthly">Monthly</option>
+                        <option value="quarterly">Quarterly</option>
+                        <option value="half_yearly">Half-Yearly (Semi-Annually)</option>
+                        <option value="yearly">Yearly (Annually)</option>
                     </select>
                 </div>
             </div>
@@ -483,7 +491,7 @@ function closeTaskDrawer() {
     document.getElementById('taskDrawer').style.right = '-540px';
 }
 
-function openTaskDetailsDrawer(task) {
+function openTaskDetailsDrawer(task, initialTab = 'details') {
     currentActiveTask = task;
     document.getElementById('drawerHeaderTitle').innerText = "Task Details";
     document.getElementById('newTaskForm').style.display = 'none';
@@ -524,7 +532,7 @@ function openTaskDetailsDrawer(task) {
     renderReplies(task.replies || []);
     renderHistories(task.histories || []);
 
-    switchDrawerTab('details');
+    switchDrawerTab(initialTab);
 
     document.getElementById('taskDrawerOverlay').style.display = 'block';
     document.getElementById('taskDrawer').style.right = '0';

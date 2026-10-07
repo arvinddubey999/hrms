@@ -78,7 +78,7 @@ class TaskController extends Controller
             'priority' => 'required|in:low,medium,high',
             'due_date' => 'nullable|date',
             'due_time' => 'nullable',
-            'repeat_type' => 'nullable|string',
+            'repeat_type' => 'nullable|in:none,daily,weekly,monthly,quarterly,half_yearly,yearly',
             'department_id' => 'nullable|exists:departments,id',
             'assigned_to' => 'nullable|exists:users,id',
             'others' => 'nullable|array',
@@ -156,7 +156,7 @@ class TaskController extends Controller
             'priority' => 'required|in:low,medium,high',
             'due_date' => 'nullable|date',
             'due_time' => 'nullable',
-            'repeat_type' => 'nullable|string',
+            'repeat_type' => 'nullable|in:none,daily,weekly,monthly,quarterly,half_yearly,yearly',
             'department_id' => 'nullable|exists:departments,id',
             'assigned_to' => 'nullable|exists:users,id',
             'others' => 'nullable|array',
@@ -203,6 +203,20 @@ class TaskController extends Controller
         ]);
 
         $task->logHistory('replied', "Reply added: " . Str::limit($data['message'], 50), $request->user()->id);
+
+        // Notify task creator and assignees via FCM Push Notification
+        $assigneeIds = $task->assignees()->pluck('users.id')->toArray();
+        $targetUserIds = array_unique(array_filter(array_merge([$task->created_by, $task->assigned_to], $assigneeIds)));
+        $notifyUsers = User::whereIn('id', $targetUserIds)->where('id', '!=', $request->user()->id)->get();
+
+        foreach ($notifyUsers as $user) {
+            \App\Services\FirebaseNotificationService::sendTaskNotification(
+                $user,
+                'New Reply on Task: ' . $task->title,
+                $request->user()->displayName() . ': ' . Str::limit($data['message'], 60),
+                $task->id
+            );
+        }
 
         return back()->with('ok', 'Reply posted successfully.');
     }

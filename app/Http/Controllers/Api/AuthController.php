@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
@@ -108,9 +109,9 @@ class AuthController extends Controller
         $data = $request->validate([
             'first_name' => 'nullable|string',
             'last_name' => 'nullable|string',
-            'phone' => 'nullable|string',
-            'email' => 'nullable|email',
-            'employee_code' => 'nullable|string',
+            'phone' => ['nullable', 'string', Rule::unique('users', 'phone')->ignore($targetUser->id)],
+            'email' => ['nullable', 'email', Rule::unique('users', 'email')->ignore($targetUser->id)],
+            'employee_code' => ['nullable', 'string', Rule::unique('users', 'employee_code')->ignore($targetUser->id)],
             'designation' => 'nullable|string',
             'department' => 'nullable|string',
             'vendor_name' => 'nullable|string',
@@ -120,6 +121,10 @@ class AuthController extends Controller
             'salary' => 'nullable|numeric',
             'pay_type' => 'nullable|string',
             'profile_photo' => 'nullable|file|max:10240',
+        ], [
+            'email.unique' => "Please change the email ID because this email is already registered to another employee.",
+            'phone.unique' => "Please change the phone number because this phone number is already registered to another employee.",
+            'employee_code.unique' => "Please change the employee code because this code is already assigned to another employee.",
         ]);
 
         if (!empty($data['first_name'])) {

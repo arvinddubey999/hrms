@@ -17,6 +17,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class EmployeeController extends Controller
 {
@@ -684,8 +685,9 @@ class EmployeeController extends Controller
         $data = $request->validate([
             'first_name' => 'required|string|max:80',
             'last_name' => 'nullable|string|max:80',
-            'phone' => 'required|string|max:20',
-            'email' => 'nullable|email',
+            'phone' => ['required', 'string', 'max:20', Rule::unique('users', 'phone')->ignore($staff->id)],
+            'email' => ['nullable', 'email', Rule::unique('users', 'email')->ignore($staff->id)],
+            'employee_code' => ['nullable', 'string', Rule::unique('users', 'employee_code')->ignore($staff->id)],
             'password' => $staff->exists ? 'nullable|string|min:6' : 'required|string|min:6',
             'status' => 'required|in:active,archived,resigned,inactive',
             'resignation_date' => 'nullable|date',
@@ -716,7 +718,6 @@ class EmployeeController extends Controller
             'department_id' => 'nullable|exists:departments,id',
             'designation' => 'nullable|string',
             'department' => 'nullable|string',
-            'employee_code' => 'nullable|string',
             'gender' => 'nullable|string',
             'date_of_joining' => 'nullable|date',
             'bank_account' => 'nullable|string',
@@ -741,7 +742,15 @@ class EmployeeController extends Controller
             'week_off_day' => 'nullable|string',
             'overtime_applicable' => 'nullable|boolean',
             'view_self_salary' => 'nullable|boolean',
+        ], [
+            'email.unique' => "Please change the email ID because this email is already registered to another employee.",
+            'phone.unique' => "Please change the phone number because this phone number is already registered to another employee.",
+            'employee_code.unique' => "Please change the employee code because this code is already assigned to another employee.",
         ]);
+
+        if (isset($data['email']) && trim((string)$data['email']) === '') {
+            $data['email'] = null;
+        }
 
         $data['salary'] = $data['salary'] ?? 0.00;
 

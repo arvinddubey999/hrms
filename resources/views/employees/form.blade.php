@@ -5,7 +5,7 @@
     <button class="btn" form="staff-form">{{ $staff->exists ? 'Save Staff Member' : 'Create Staff Member' }}</button>
 </div>
 
-<form id="staff-form" method="post" enctype="multipart/form-data" action="{{ $staff->exists ? route('employees.update', $staff) : route('employees.store') }}">
+<form id="staff-form" method="post" enctype="multipart/form-data" action="{{ $staff->exists ? route('employees.update', $staff) : route('employees.store') }}" autocomplete="off">
     @csrf
     @if($staff->exists) @method('put') @endif
     <div class="form-tabs">
@@ -32,7 +32,10 @@
             </div>
             <div>
                 <label>Employee Code *</label>
-                <input id="employee_code_input" name="employee_code" value="{{ old('employee_code', $staff->employee_code ?: \App\Models\User::generateNextEmployeeCode()) }}" required style="background:#f8fafc;font-weight:700;letter-spacing:0.5px">
+                <input id="employee_code_input" name="employee_code" value="{{ old('employee_code', $staff->employee_code ?: \App\Models\User::generateNextEmployeeCode()) }}" required style="background:#f8fafc;font-weight:700;letter-spacing:0.5px" autocomplete="off">
+                @error('employee_code')
+                    <small style="color:#dc2626;font-weight:600;display:block;margin-top:2px"><i class="fa-solid fa-triangle-exclamation"></i> {{ $message }}</small>
+                @enderror
                 <small class="muted" style="display:block;margin-top:2px">Rule: Auto prefixes when Company is selected (e.g. RI00001)</small>
             </div>
             <div>
@@ -45,8 +48,8 @@
         </div>
 
         <div class="grid-2">
-            <div><label>First Name *</label><input name="first_name" value="{{ old('first_name', $staff->first_name) }}" required></div>
-            <div><label>Last Name</label><input name="last_name" value="{{ old('last_name', $staff->last_name) }}"></div>
+            <div><label>First Name *</label><input name="first_name" value="{{ old('first_name', $staff->first_name) }}" required autocomplete="off"></div>
+            <div><label>Last Name</label><input name="last_name" value="{{ old('last_name', $staff->last_name) }}" autocomplete="off"></div>
         </div>
 
         <label>Employee Status & Resignation Details</label>
@@ -72,12 +75,30 @@
         </div>
 
         <div class="grid-2">
-            <div><label>Phone Number *</label><input name="phone" value="{{ old('phone', $staff->phone) }}" required></div>
-            <div><label>Email Address</label><input name="email" value="{{ old('email', $staff->email) }}"></div>
+            <div>
+                <label>Phone Number *</label>
+                <input name="phone" value="{{ old('phone', $staff->phone) }}" required autocomplete="off">
+                @error('phone')
+                    <small style="color:#dc2626;font-weight:600;display:block;margin-top:2px"><i class="fa-solid fa-triangle-exclamation"></i> {{ $message }}</small>
+                @enderror
+            </div>
+            <div>
+                <label>Email Address</label>
+                <input name="email" type="email" value="{{ old('email', $staff->email) }}" autocomplete="off">
+                @error('email')
+                    <small style="color:#dc2626;font-weight:600;display:block;margin-top:2px"><i class="fa-solid fa-triangle-exclamation"></i> {{ $message }}</small>
+                @enderror
+            </div>
         </div>
 
         <div class="grid-2">
-            <div><label>Password</label><input type="password" name="password" placeholder="{{ $staff->exists ? 'Leave blank to keep current' : 'Enter password (default 123456)' }}"></div>
+            <div>
+                <label>Password</label>
+                <input type="password" name="password" autocomplete="new-password" placeholder="{{ $staff->exists ? 'Leave blank to keep current' : 'Enter password (default 123456)' }}">
+                @error('password')
+                    <small style="color:#dc2626;font-weight:600;display:block;margin-top:2px"><i class="fa-solid fa-triangle-exclamation"></i> {{ $message }}</small>
+                @enderror
+            </div>
             <div>
                 <label>Assign System Role *</label>
                 <select name="role" id="role_select" onchange="toggleManagerPermissions()">

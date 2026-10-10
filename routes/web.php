@@ -103,7 +103,12 @@ Route::middleware('auth')->group(function () {
     Route::put('/settings/categories/{category}', [SettingsController::class, 'updateCategory'])->name('settings.categories.update');
     Route::delete('/settings/categories/{category}', [SettingsController::class, 'destroyCategory'])->name('settings.categories.destroy');
 
-    // Designations & Permissions Master
+    // Role & Permission Master
+    Route::post('/settings/roles', [SettingsController::class, 'storeRole'])->name('settings.roles.store');
+    Route::put('/settings/roles/{role}', [SettingsController::class, 'updateRole'])->name('settings.roles.update');
+    Route::delete('/settings/roles/{role}', [SettingsController::class, 'destroyRole'])->name('settings.roles.destroy');
+
+    // Designations & Permissions Master (Backward compatibility)
     Route::post('/settings/designations', [SettingsController::class, 'storeDesignation'])->name('settings.designations.store');
     Route::put('/settings/designations/{designation}', [SettingsController::class, 'updateDesignation'])->name('settings.designations.update');
     Route::delete('/settings/designations/{designation}', [SettingsController::class, 'destroyDesignation'])->name('settings.designations.destroy');

@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Company;
 use App\Models\Department;
 use App\Models\Holiday;
+use App\Models\Role;
 use App\Models\Setting;
 use App\Models\Shift;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ class SettingsController extends Controller
             'companies' => Company::orderBy('name')->get(),
             'departments' => Department::orderBy('name')->get(),
             'holidays' => Holiday::orderByDesc('date')->get(),
+            'roles' => Role::orderBy('id')->get(),
             'designations' => \App\Models\Designation::orderBy('name')->get(),
             'geofences' => \App\Models\CompanyGeofence::with('company')->get(),
             'allEmployees' => \App\Models\User::where('status', 'active')->orderBy('first_name')->get(),
@@ -264,15 +266,40 @@ class SettingsController extends Controller
         return back()->with('ok', 'Category deleted.');
     }
 
-    public function storeDesignation(Request $request)
+    public function storeRole(Request $request)
     {
         $data = $request->validate([
-            'name' => 'required|string',
+            'name' => 'required|string|max:100',
+            'description' => 'nullable|string',
             'permissions' => 'nullable|array',
         ]);
-        \App\Models\Designation::create($data);
+        Role::create($data);
 
-        return back()->with('ok', 'Designation created.');
+        return back()->with('ok', 'Role & Permissions created successfully.');
+    }
+
+    public function updateRole(Request $request, Role $role)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:100',
+            'description' => 'nullable|string',
+            'permissions' => 'nullable|array',
+        ]);
+        $role->update($data);
+
+        return back()->with('ok', 'Role & Permissions updated successfully.');
+    }
+
+    public function destroyRole(Role $role)
+    {
+        $role->delete();
+
+        return back()->with('ok', 'Role deleted successfully.');
+    }
+
+    public function storeDesignation(Request $request)
+    {
+        return $this->storeRole($request);
     }
 
     public function updateDesignation(Request $request, \App\Models\Designation $designation)
@@ -284,6 +311,13 @@ class SettingsController extends Controller
         $designation->update($data);
 
         return back()->with('ok', 'Designation permissions updated.');
+    }
+
+    public function destroyDesignation(\App\Models\Designation $designation)
+    {
+        $designation->delete();
+
+        return back()->with('ok', 'Designation deleted.');
     }
 
     public function storeGeofence(Request $request)

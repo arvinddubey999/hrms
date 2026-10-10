@@ -324,6 +324,9 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
                             <div>
                                 <div>{{ $u->displayName() }}</div>
                                 <small class="muted">{{ $u->company->name ?? '' }}</small>
+                                @if($u->role)
+                                    <div><span class="chip" style="font-size:10px;padding:2px 6px;margin-top:2px;display:inline-block;background:#e0f2fe;color:#0369a1;font-weight:600">{{ ucfirst($u->role) }}</span></div>
+                                @endif
                             </div>
                         </a>
                     </td>

@@ -283,33 +283,110 @@
     </div>
 </div>
 
-<!-- 3. DESIGNATIONS & PERMISSIONS (ACCORDION - MATCHING SCREENSHOT 3) -->
-<div class="accordion-item">
+<!-- 3. ROLE & PERMISSION (ACCORDION - MATCHING SCREENSHOT REF) -->
+<div class="accordion-item active">
     <div class="accordion-header" onclick="toggleAccordion(this)">
-        <span><i class="fa-solid fa-user-gear" style="color:var(--accent);margin-right:8px"></i> Designations & Permissions</span>
+        <span><i class="fa-solid fa-user-shield" style="color:var(--accent);margin-right:8px"></i> Role & Permission</span>
         <i class="fa-solid fa-chevron-down chevron"></i>
     </div>
     <div class="accordion-body">
-        <p class="muted">Module-wise Access Control & Designation Rights.</p>
-        <button type="button" class="btn" onclick="openNewDesignationDrawer()" style="margin-bottom:14px">
-            <i class="fa-solid fa-plus"></i> Add New Designation
-        </button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <div>
+                <h4 style="margin:0;font-size:15px;color:#0f172a"><i class="fa-solid fa-users-gear" style="color:var(--accent)"></i> Role Management</h4>
+                <p class="muted" style="margin:2px 0 0 0;font-size:12px">Configure roles (Admin, Manager, HR, Supervisor, Accountant, etc.) and assign default module-wise permissions.</p>
+            </div>
+            <button type="button" class="btn" onclick="openNewRoleDrawer()">
+                <i class="fa-solid fa-plus"></i> Add New Role
+            </button>
+        </div>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:14px">
-            @forelse($designations as $desig)
-                @php $permCount = count($desig->permissions ?? []); @endphp
-                <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center">
-                    <div>
-                        <div style="font-weight:700;font-size:14px;color:#0f172a">{{ $desig->name }}</div>
-                        <div style="font-size:11px;color:#64748b"><i class="fa-solid fa-shield-halved"></i> {{ $permCount }} permissions configured</div>
-                    </div>
-                    <button type="button" class="btn light" style="font-size:12px;padding:4px 8px" onclick="openEditDesignationDrawer({{ json_encode($desig) }})">
-                        <i class="fa-solid fa-pen-to-square"></i> Edit
-                    </button>
-                </div>
-            @empty
-                <div class="muted">No custom designations configured yet. Click button above to create one.</div>
-            @endforelse
+        <div style="overflow-x:auto;margin-bottom:20px">
+            <table class="table" style="font-size:13px">
+                <thead>
+                    <tr style="background:#f8fafc">
+                        <th>ID</th>
+                        <th>Role Name</th>
+                        <th>Description</th>
+                        <th>Permissions Configured</th>
+                        <th style="text-align:right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($roles as $rl)
+                        @php $permCount = is_array($rl->permissions) ? count($rl->permissions) : 0; @endphp
+                        <tr>
+                            <td><b>#{{ $rl->id }}</b></td>
+                            <td>
+                                <span class="chip" style="background:#e0f2fe;color:#0369a1;font-weight:700">{{ $rl->name }}</span>
+                            </td>
+                            <td class="muted">{{ $rl->description ?: 'No description' }}</td>
+                            <td>
+                                <span class="chip" style="background:#dcfce7;color:#166534">
+                                    <i class="fa-solid fa-shield-halved"></i> {{ $permCount }} permissions assigned
+                                </span>
+                            </td>
+                            <td style="text-align:right">
+                                <button type="button" class="btn light" style="font-size:11px;padding:4px 8px;margin-right:4px" onclick="openEditRoleDrawer({{ json_encode($rl) }})">
+                                    <i class="fa-solid fa-pen-to-square"></i> Edit Role & Permissions
+                                </button>
+                                @if(!in_array(strtolower($rl->name), ['admin', 'employee']))
+                                    <form method="post" action="{{ route('settings.roles.destroy', $rl) }}" style="display:inline" onsubmit="return confirm('Delete role {{ $rl->name }}?')">
+                                        @csrf @method('delete')
+                                        <button class="btn light" style="font-size:11px;padding:4px 8px;color:#dc2626"><i class="fa-solid fa-trash"></i> Delete</button>
+                                    </form>
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5" class="muted" style="text-align:center">No system roles created yet.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        <h4 style="margin:20px 0 10px 0;font-size:14px;color:#0f172a"><i class="fa-solid fa-list-check" style="color:var(--accent)"></i> Permission Management & Keys Overview</h4>
+        <div style="overflow-x:auto">
+            <table class="table" style="font-size:12px">
+                <thead>
+                    <tr style="background:#f1f5f9">
+                        <th>Module</th>
+                        <th>Permission Name</th>
+                        <th>Permission Key</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @php
+                        $systemPermList = [
+                            ['module' => 'Dashboard', 'name' => 'View Dashboard', 'key' => 'dashboard.view', 'desc' => 'View main analytics & summary dashboard'],
+                            ['module' => 'Dashboard', 'name' => 'View Reports', 'key' => 'dashboard.reports', 'desc' => 'Generate and view attendance reports'],
+                            ['module' => 'Dashboard', 'name' => 'Download Reports', 'key' => 'dashboard.download', 'desc' => 'Download Excel/PDF attendance reports'],
+                            ['module' => 'Employee', 'name' => 'View Employees', 'key' => 'employee.view', 'desc' => 'Access employee directory & profiles'],
+                            ['module' => 'Employee', 'name' => 'Add Employee', 'key' => 'employee.add', 'desc' => 'Create new employee profiles'],
+                            ['module' => 'Employee', 'name' => 'Edit Employee', 'key' => 'employee.edit', 'desc' => 'Update staff details & assign roles'],
+                            ['module' => 'Employee', 'name' => 'Delete Employee', 'key' => 'employee.delete', 'desc' => 'Archive or delete employee records'],
+                            ['module' => 'Attendance', 'name' => 'View Attendance', 'key' => 'attendance.view', 'desc' => 'View daily attendance logs & punches'],
+                            ['module' => 'Attendance', 'name' => 'Mark Attendance', 'key' => 'attendance.mark', 'desc' => 'Record single employee attendance punch'],
+                            ['module' => 'Attendance', 'name' => 'Bulk Mark Attendance', 'key' => 'attendance.bulk', 'desc' => 'Mark bulk attendance for multiple staff'],
+                            ['module' => 'Leave', 'name' => 'View Leave Requests', 'key' => 'leave.view', 'desc' => 'Access leave application records'],
+                            ['module' => 'Leave', 'name' => 'Apply Leave', 'key' => 'leave.apply', 'desc' => 'Submit leave requests'],
+                            ['module' => 'Leave', 'name' => 'Approve Leave', 'key' => 'leave.approve', 'desc' => 'Approve or reject employee leave requests'],
+                            ['module' => 'Payroll', 'name' => 'View Salary & Payslips', 'key' => 'payroll.view', 'desc' => 'View salary calculations & payslips'],
+                            ['module' => 'Payroll', 'name' => 'Process Payroll', 'key' => 'payroll.process', 'desc' => 'Process monthly salary calculations'],
+                            ['module' => 'Tasks', 'name' => 'Manage Tasks', 'key' => 'tasks.manage', 'desc' => 'Create, assign & manage work tasks'],
+                            ['module' => 'Settings', 'name' => 'Manage Roles & Permissions', 'key' => 'settings.roles', 'desc' => 'Configure roles & permissions in settings'],
+                        ];
+                    @endphp
+                    @foreach($systemPermList as $sp)
+                        <tr>
+                            <td><b>{{ $sp['module'] }}</b></td>
+                            <td>{{ $sp['name'] }}</td>
+                            <td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#0284c7">{{ $sp['key'] }}</code></td>
+                            <td class="muted">{{ $sp['desc'] }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
@@ -336,6 +413,9 @@
                     <tr>
                         <td><b>{{ $cat->name }}</b></td>
                         <td>
+                            <button type="button" class="btn light" style="font-size:11px;padding:4px 8px;margin-right:4px" onclick="openEditCategoryModal({{ json_encode($cat) }})">
+                                <i class="fa-solid fa-pen-to-square"></i> Edit
+                            </button>
                             <form method="post" action="{{ route('settings.categories.destroy', $cat) }}" style="display:inline" onsubmit="return confirm('Delete {{ $cat->name }}?')">
                                 @csrf @method('delete')
                                 <button class="btn light" style="font-size:11px;padding:4px 8px;color:#dc2626"><i class="fa-solid fa-trash"></i> Delete</button>
@@ -658,63 +738,116 @@ function closeGeofenceModal() {
 </script>
 
 
-<!-- SLIDE-OVER DRAWER MODAL FOR EDIT DESIGNATION & MODULE PERMISSIONS (SCREENSHOT 3) -->
-<div id="designationDrawer" class="drawer-overlay">
+<!-- SLIDE-OVER DRAWER MODAL FOR EDIT ROLE & MODULE PERMISSIONS (SCREENSHOT REF) -->
+<div id="roleDrawer" class="drawer-overlay">
     <div class="drawer-content">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid #e2e8f0;padding-bottom:12px">
-            <h3 style="margin:0;font-size:18px;font-weight:700"><i class="fa-solid fa-user-shield" style="color:var(--accent)"></i> <span id="drawerTitle">Edit Designation</span></h3>
-            <button type="button" onclick="closeDesignationDrawer()" style="border:0;background:none;font-size:20px;cursor:pointer">&times;</button>
+            <h3 style="margin:0;font-size:18px;font-weight:700"><i class="fa-solid fa-user-shield" style="color:var(--accent)"></i> <span id="roleDrawerTitle">Edit Role & Permissions</span></h3>
+            <button type="button" onclick="closeRoleDrawer()" style="border:0;background:none;font-size:20px;cursor:pointer">&times;</button>
         </div>
 
-        <form id="designationForm" method="post" style="flex:1;display:flex;flex-direction:column">
+        <form id="roleForm" method="post" style="flex:1;display:flex;flex-direction:column">
             @csrf
-            <input type="hidden" id="designation_method" name="_method" value="post">
+            <input type="hidden" id="role_method" name="_method" value="post">
             
-            <label style="font-weight:600;margin-bottom:6px">Designation Name *</label>
-            <input id="desig_name" name="name" placeholder="e.g. FLOOR INCHARGE, ACCOUNTS HEAD" required style="margin-bottom:16px">
+            <div style="margin-bottom:12px">
+                <label style="font-weight:600;margin-bottom:6px">Role Name *</label>
+                <input id="role_name" name="name" placeholder="e.g. Manager, HR, Accountant, Supervisor" required>
+            </div>
 
-            <label style="font-weight:700;margin-bottom:8px;display:block;color:#1e293b">Update Module-Wise Permissions</label>
-            <p class="muted" style="margin-top:0;font-size:11px">Select specific Add, View, Edit, and Delete rights for each system module.</p>
+            <div style="margin-bottom:16px">
+                <label style="font-weight:600;margin-bottom:6px">Role Description</label>
+                <input id="role_description" name="description" placeholder="Short summary of role responsibilities...">
+            </div>
 
-            <table class="permission-table">
-                <thead>
-                    <tr style="background:#f8fafc">
-                        <th>Module Name</th>
-                        <th><i class="fa-solid fa-plus-circle" style="color:#10b981"></i> Add</th>
-                        <th><i class="fa-solid fa-eye" style="color:#3b82f6"></i> View</th>
-                        <th><i class="fa-solid fa-pen" style="color:#f59e0b"></i> Edit</th>
-                        <th><i class="fa-solid fa-trash" style="color:#ef4444"></i> Delete</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @php
-                        $modules = [
-                            'ATTENDANCE' => 'Attendance & Punches',
-                            'SALARY' => 'Salary & Payslips',
-                            'INCENTIVE' => 'Incentive Management',
-                            'EXPENSE' => 'Expense Claims',
-                            'LOAN' => 'Loan & Salary Advance',
-                            'EMPLOYEE' => 'Employee Profiles',
-                            'SHIFT' => 'Shifts & Timings',
-                            'PAYROLL CONFIG' => 'Payroll & Statutory Config',
-                            'GEOFENCING' => 'Geofencing & Locations',
-                        ];
-                    @endphp
-                    @foreach($modules as $modKey => $modLabel)
-                        <tr>
-                            <td>{{ $modKey }}</td>
-                            <td><input type="checkbox" name="permissions[{{ $modKey }}][add]" value="1" class="perm-chk perm-add-{{ $modKey }}"></td>
-                            <td><input type="checkbox" name="permissions[{{ $modKey }}][view]" value="1" class="perm-chk perm-view-{{ $modKey }}"></td>
-                            <td><input type="checkbox" name="permissions[{{ $modKey }}][edit]" value="1" class="perm-chk perm-edit-{{ $modKey }}"></td>
-                            <td><input type="checkbox" name="permissions[{{ $modKey }}][delete]" value="1" class="perm-chk perm-delete-{{ $modKey }}"></td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
+            <label style="font-weight:700;margin-bottom:8px;display:block;color:#1e293b"><i class="fa-solid fa-shield-halved" style="color:var(--accent)"></i> Select Module-Wise Access Permissions</label>
+            <p class="muted" style="margin-top:0;font-size:11px">Check permissions that users assigned to this role will inherit automatically.</p>
 
-            <div style="margin-top:auto;padding-top:20px;display:flex;justify-content:flex-end;gap:10px">
-                <button type="button" class="btn light" onclick="closeDesignationDrawer()">Cancel</button>
-                <button class="btn"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+            @php
+                $permissionModules = [
+                    'Dashboard' => [
+                        'dashboard.view' => 'View Dashboard',
+                        'dashboard.reports' => 'View Reports',
+                        'dashboard.download' => 'Download Reports',
+                    ],
+                    'Employee Management' => [
+                        'employee.view' => 'View Employees',
+                        'employee.add' => 'Add Employee',
+                        'employee.edit' => 'Edit Employee',
+                        'employee.delete' => 'Delete Employee',
+                    ],
+                    'Attendance & Punches' => [
+                        'attendance.view' => 'View Attendance Log',
+                        'attendance.mark' => 'Mark Single Attendance',
+                        'attendance.bulk' => 'Bulk Mark Attendance',
+                        'attendance.edit' => 'Edit Punches & Shifts',
+                    ],
+                    'Leave Management' => [
+                        'leave.view' => 'View Leave Requests',
+                        'leave.apply' => 'Apply Leave',
+                        'leave.approve' => 'Approve / Reject Leave',
+                    ],
+                    'Payroll & Salary' => [
+                        'payroll.view' => 'View Salary & Payslips',
+                        'payroll.process' => 'Process Payroll',
+                        'payroll.advances' => 'Manage Advances & Loans',
+                        'payroll.expenses' => 'Manage Expense Claims',
+                    ],
+                    'Tasks' => [
+                        'tasks.view' => 'View Tasks',
+                        'tasks.create' => 'Create & Assign Tasks',
+                        'tasks.manage' => 'Manage & Reassign Tasks',
+                    ],
+                    'Geo-fence & Locations' => [
+                        'geofence.view' => 'View Geofences',
+                        'geofence.tracking' => 'Live Location Tracking',
+                    ],
+                    'Settings & System' => [
+                        'settings.view' => 'View Settings',
+                        'settings.roles' => 'Manage Roles & Permissions',
+                        'settings.manage' => 'Manage System Settings',
+                    ],
+                ];
+            @endphp
+
+            <div style="flex:1;overflow-y:auto;padding-right:4px;margin-bottom:16px">
+                @foreach($permissionModules as $modGroup => $permMap)
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:12px">
+                        <strong style="display:block;margin-bottom:8px;color:#1e293b;font-size:13px"><i class="fa-solid fa-folder" style="color:var(--accent)"></i> {{ $modGroup }}</strong>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                            @foreach($permMap as $pkey => $plabel)
+                                <label style="font-size:12px;font-weight:normal;display:flex;align-items:center;gap:6px;cursor:pointer">
+                                    <input type="checkbox" name="permissions[]" value="{{ $pkey }}" class="role-perm-chk perm-key-{{ str_replace('.', '-', $pkey) }}">
+                                    {{ $plabel }}
+                                </label>
+                            @endforeach
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+
+            <div style="margin-top:auto;padding-top:16px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:10px">
+                <button type="button" class="btn light" onclick="closeRoleDrawer()">Cancel</button>
+                <button class="btn"><i class="fa-solid fa-floppy-disk"></i> Save Role & Permissions</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal for Editing Category -->
+<div id="editCategoryModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center">
+    <div style="background:#fff;width:400px;max-width:95%;border-radius:12px;padding:24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <h3 style="margin:0"><i class="fa-solid fa-layer-group"></i> Edit Category Master</h3>
+            <button type="button" onclick="closeEditCategoryModal()" style="border:0;background:none;font-size:18px;cursor:pointer">&times;</button>
+        </div>
+        <form id="editCategoryForm" method="post">
+            @csrf @method('put')
+            <label style="margin-bottom:6px;display:block">Category Name *</label>
+            <input id="edit_cat_name" name="name" required style="margin-bottom:16px">
+            <div style="display:flex;justify-content:flex-end;gap:10px">
+                <button type="button" class="btn light" onclick="closeEditCategoryModal()">Cancel</button>
+                <button class="btn"><i class="fa-solid fa-floppy-disk"></i> Save Category</button>
             </div>
         </form>
     </div>
@@ -815,38 +948,49 @@ function toggleAccordion(header) {
     item.classList.toggle('active');
 }
 
-function openNewDesignationDrawer() {
-    document.getElementById('drawerTitle').innerText = 'Add New Designation';
-    document.getElementById('designationForm').action = "{{ route('settings.designations.store') }}";
-    document.getElementById('designation_method').value = 'post';
-    document.getElementById('desig_name').value = '';
-    document.querySelectorAll('.perm-chk').forEach(c => c.checked = false);
-    document.getElementById('designationDrawer').style.display = 'flex';
+function openNewRoleDrawer() {
+    document.getElementById('roleDrawerTitle').innerText = 'Add New Role & Permissions';
+    document.getElementById('roleForm').action = "{{ route('settings.roles.store') }}";
+    document.getElementById('role_method').value = 'post';
+    document.getElementById('role_name').value = '';
+    document.getElementById('role_description').value = '';
+    document.querySelectorAll('.role-perm-chk').forEach(c => c.checked = false);
+    document.getElementById('roleDrawer').style.display = 'flex';
 }
 
-function openEditDesignationDrawer(desig) {
-    document.getElementById('drawerTitle').innerText = 'Edit Designation: ' + desig.name;
-    document.getElementById('designationForm').action = "/settings/designations/" + desig.id;
-    document.getElementById('designation_method').value = 'put';
-    document.getElementById('desig_name').value = desig.name || '';
+function openEditRoleDrawer(rl) {
+    document.getElementById('roleDrawerTitle').innerText = 'Edit Role & Permissions: ' + rl.name;
+    document.getElementById('roleForm').action = "/settings/roles/" + rl.id;
+    document.getElementById('role_method').value = 'put';
+    document.getElementById('role_name').value = rl.name || '';
+    document.getElementById('role_description').value = rl.description || '';
     
-    document.querySelectorAll('.perm-chk').forEach(c => c.checked = false);
-    if (desig.permissions) {
-        Object.keys(desig.permissions).forEach(mod => {
-            const actions = desig.permissions[mod];
-            if (actions) {
-                Object.keys(actions).forEach(act => {
-                    const el = document.querySelector(`.perm-${act}-${mod}`);
-                    if (el) el.checked = true;
-                });
-            }
+    document.querySelectorAll('.role-perm-chk').forEach(c => c.checked = false);
+    if (rl.permissions && Array.isArray(rl.permissions)) {
+        rl.permissions.forEach(pkey => {
+            const keyClass = 'perm-key-' + pkey.replace(/\./g, '-');
+            const el = document.querySelector('.' + keyClass);
+            if (el) el.checked = true;
         });
     }
-    document.getElementById('designationDrawer').style.display = 'flex';
+    document.getElementById('roleDrawer').style.display = 'flex';
 }
 
-function closeDesignationDrawer() {
-    document.getElementById('designationDrawer').style.display = 'none';
+function closeRoleDrawer() {
+    document.getElementById('roleDrawer').style.display = 'none';
+}
+
+function openNewDesignationDrawer() { openNewRoleDrawer(); }
+function openEditDesignationDrawer(desig) { openEditRoleDrawer(desig); }
+function closeDesignationDrawer() { closeRoleDrawer(); }
+
+function openEditCategoryModal(cat) {
+    document.getElementById('editCategoryForm').action = "/settings/categories/" + cat.id;
+    document.getElementById('edit_cat_name').value = cat.name || '';
+    document.getElementById('editCategoryModal').style.display = 'flex';
+}
+function closeEditCategoryModal() {
+    document.getElementById('editCategoryModal').style.display = 'none';
 }
 
 function openEditCompanyModal(comp) {

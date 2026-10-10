@@ -78,26 +78,83 @@
 
         <div class="grid-2">
             <div><label>Password</label><input type="password" name="password" placeholder="{{ $staff->exists ? 'Leave blank to keep current' : 'Enter password (default 123456)' }}"></div>
-            <div><label>App Role</label>
+            <div>
+                <label>Assign System Role *</label>
                 <select name="role" id="role_select" onchange="toggleManagerPermissions()">
-                    @foreach(['employee'=>'Employee','manager'=>'Manager','admin'=>'Admin'] as $k=>$v)
-                        <option value="{{ $k }}" {{ $staff->role===$k?'selected':'' }}>{{ $v }}</option>
+                    @php
+                        $roleList = isset($roles) && count($roles) > 0 ? $roles->pluck('name')->toArray() : ['Admin', 'Manager', 'HR', 'Accountant', 'Supervisor', 'Developer', 'Employee'];
+                    @endphp
+                    @foreach($roleList as $rName)
+                        <option value="{{ strtolower($rName) }}" {{ strtolower($staff->role ?: 'employee') === strtolower($rName) ? 'selected' : '' }}>{{ $rName }}</option>
                     @endforeach
                 </select>
             </div>
         </div>
 
-        <!-- Manager Rights & Permissions Section -->
-        <div id="manager_permissions_box" style="display:{{ in_array($staff->role, ['manager','admin']) ? 'block' : 'none' }};background:#f8fafc;padding:12px;border-radius:8px;border:1px solid #cbd5e1;margin-bottom:14px">
-            <label style="font-weight:600;margin-bottom:6px;display:block;color:var(--accent)"><i class="fa-solid fa-user-shield"></i> Manager Rights & Access Permissions</label>
-            <div class="grid-3">
-                @php $perms = $staff->permissions ?? ['attendance_view', 'attendance_mark', 'tasks_manage', 'requests_manage']; @endphp
-                <label style="font-weight:normal"><input type="checkbox" name="permissions[]" value="attendance_view" {{ in_array('attendance_view', $perms)?'checked':'' }}> View Staff Attendance</label>
-                <label style="font-weight:normal"><input type="checkbox" name="permissions[]" value="attendance_mark" {{ in_array('attendance_mark', $perms)?'checked':'' }}> Mark Staff Attendance</label>
-                <label style="font-weight:normal"><input type="checkbox" name="permissions[]" value="tasks_manage" {{ in_array('tasks_manage', $perms)?'checked':'' }}> Create & Assign Tasks</label>
-                <label style="font-weight:normal"><input type="checkbox" name="permissions[]" value="requests_manage" {{ in_array('requests_manage', $perms)?'checked':'' }}> Approve Leave Requests</label>
-                <label style="font-weight:normal"><input type="checkbox" name="permissions[]" value="payroll_view" {{ in_array('payroll_view', $perms)?'checked':'' }}> View Payroll Summaries</label>
-                <label style="font-weight:normal"><input type="checkbox" name="permissions[]" value="reports_view" {{ in_array('reports_view', $perms)?'checked':'' }}> Generate Reports</label>
+        <!-- Role & Permissions Section (Matching Screenshot 1) -->
+        <div id="manager_permissions_box" style="background:#f8fafc;padding:16px;border-radius:12px;border:1px solid #cbd5e1;margin-bottom:16px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                <label style="font-weight:700;margin:0;color:var(--accent);font-size:14px">
+                    <i class="fa-solid fa-user-shield"></i> Role & Module-Wise Access Permissions
+                </label>
+                <small class="muted">Check specific rights assigned directly to this employee</small>
+            </div>
+
+            @php
+                $userPerms = is_array($staff->permissions) ? $staff->permissions : ['dashboard.view', 'attendance.view', 'attendance.mark', 'leave.view', 'leave.apply', 'tasks.view'];
+                $formPermGroups = [
+                    'Dashboard' => [
+                        'dashboard.view' => 'View Dashboard',
+                        'dashboard.reports' => 'View Reports',
+                        'dashboard.download' => 'Download Reports',
+                    ],
+                    'Employee Management' => [
+                        'employee.view' => 'View Employees',
+                        'employee.add' => 'Add Employee',
+                        'employee.edit' => 'Edit Employee',
+                        'employee.delete' => 'Delete Employee',
+                    ],
+                    'Attendance & Punches' => [
+                        'attendance.view' => 'View Attendance',
+                        'attendance.mark' => 'Mark Attendance',
+                        'attendance.bulk' => 'Bulk Mark Attendance',
+                        'attendance.edit' => 'Edit Attendance Punches',
+                    ],
+                    'Leave Management' => [
+                        'leave.view' => 'View Leaves',
+                        'leave.apply' => 'Apply Leave',
+                        'leave.approve' => 'Approve / Reject Leave',
+                    ],
+                    'Payroll & Salary' => [
+                        'payroll.view' => 'View Salary & Payslips',
+                        'payroll.process' => 'Process Payroll',
+                        'payroll.advances' => 'Manage Advances',
+                        'payroll.expenses' => 'Manage Expenses',
+                    ],
+                    'Tasks' => [
+                        'tasks.view' => 'View Tasks',
+                        'tasks.create' => 'Create & Assign Tasks',
+                        'tasks.manage' => 'Manage Tasks',
+                    ],
+                    'Settings & System' => [
+                        'settings.view' => 'View Settings',
+                        'settings.roles' => 'Manage Roles & Permissions',
+                    ],
+                ];
+            @endphp
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:12px;margin-top:10px">
+                @foreach($formPermGroups as $gName => $pMap)
+                    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
+                        <strong style="display:block;margin-bottom:6px;font-size:12px;color:#1e293b">{{ $gName }}</strong>
+                        @foreach($pMap as $pK => $pL)
+                            <label style="font-size:11px;font-weight:normal;display:flex;align-items:center;gap:6px;margin-bottom:4px;cursor:pointer">
+                                <input type="checkbox" name="permissions[]" value="{{ $pK }}" {{ in_array($pK, $userPerms) ? 'checked' : '' }}>
+                                {{ $pL }}
+                            </label>
+                        @endforeach
+                    </div>
+                @endforeach
             </div>
         </div>
 

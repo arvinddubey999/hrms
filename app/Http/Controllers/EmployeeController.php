@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Company;
 use App\Models\Department;
 use App\Models\Designation;
+use App\Models\Role;
 use App\Models\LeaveRequest;
 use App\Models\Setting;
 use App\Models\Shift;
@@ -139,6 +140,7 @@ class EmployeeController extends Controller
             'departments' => Department::orderBy('name')->get(),
             'companies' => Company::orderBy('name')->get(),
             'shifts' => Shift::orderBy('name')->get(),
+            'roles' => Role::orderBy('id')->get(),
         ]);
     }
 
@@ -173,6 +175,7 @@ class EmployeeController extends Controller
             'departments' => Department::orderBy('name')->get(),
             'companies' => Company::orderBy('name')->get(),
             'shifts' => Shift::orderBy('name')->get(),
+            'roles' => Role::orderBy('id')->get(),
         ]);
     }
 
@@ -516,7 +519,7 @@ class EmployeeController extends Controller
                 $departmentName        = isset($row[6]) ? $this->cleanUtf8($row[6]) : null;
                 $designation           = isset($row[7]) ? $this->cleanUtf8($row[7]) : null;
                 $categoryName          = isset($row[8]) ? $this->cleanUtf8($row[8]) : null;
-                $role                  = isset($row[9]) && in_array(strtolower($this->cleanUtf8($row[9])), ['admin', 'manager', 'employee']) ? strtolower($this->cleanUtf8($row[9])) : 'employee';
+                $role                  = isset($row[9]) && !empty(trim($row[9])) ? strtolower($this->cleanUtf8($row[9])) : 'employee';
                 $salary                = isset($row[10]) && is_numeric(trim($row[10])) ? (float) trim($row[10]) : 0.00;
                 $status                = isset($row[11]) ? (strtolower($this->cleanUtf8($row[11])) === 'archived' ? 'archived' : 'active') : 'active';
                 $gender                = isset($row[12]) ? $this->cleanUtf8($row[12]) : null;

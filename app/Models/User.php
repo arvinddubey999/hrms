@@ -57,6 +57,39 @@ class User extends Authenticatable
         return $this->belongsTo(Category::class);
     }
 
+    public function roleModel(): BelongsTo
+    {
+        return $this->belongsTo(Role::class, 'role', 'name');
+    }
+
+    public function hasPermission(string $permissionKey): bool
+    {
+        if (in_array(strtolower($this->role ?? ''), ['admin', 'super admin'], true)) {
+            return true;
+        }
+
+        $directPerms = is_array($this->permissions) ? $this->permissions : [];
+        if (in_array($permissionKey, $directPerms, true)) {
+            return true;
+        }
+
+        $roleObj = Role::where('name', $this->role)->first();
+        if ($roleObj && is_array($roleObj->permissions) && in_array($permissionKey, $roleObj->permissions, true)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public function allPermissions(): array
+    {
+        $directPerms = is_array($this->permissions) ? $this->permissions : [];
+        $roleObj = Role::where('name', $this->role)->first();
+        $rolePerms = ($roleObj && is_array($roleObj->permissions)) ? $roleObj->permissions : [];
+
+        return array_values(array_unique(array_merge($rolePerms, $directPerms)));
+    }
+
     public function shift(): BelongsTo
     {
         return $this->belongsTo(Shift::class);

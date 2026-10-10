@@ -182,17 +182,37 @@ class AttendanceController extends Controller
             ];
         }
 
+        $todayObj = now('Asia/Kolkata')->startOfDay();
         $todayBirthdays = User::whereNotNull('birthday')
-            ->whereRaw("DATE_FORMAT(birthday, '%m-%d') = ?", [$todayStr = now('Asia/Kolkata')->format('m-d')])
             ->where('status', 'active')
             ->get()
-            ->map(fn ($b) => [
-                'id' => $b->id,
-                'name' => $b->displayName(),
-                'photo' => $b->profile_photo ? url('storage/'.$b->profile_photo) : null,
-                'age' => \Carbon\Carbon::parse($b->birthday)->age,
-                'department' => $b->department ?: ($b->company?->name ?? 'Staff'),
-            ]);
+            ->filter(function ($b) use ($todayObj) {
+                if (!$b->birthday) return false;
+                $bdayThisYear = \Carbon\Carbon::createFromDate($todayObj->year, $b->birthday->month, $b->birthday->day)->startOfDay();
+                if ($bdayThisYear->lt($todayObj)) {
+                    $bdayThisYear->addYear();
+                }
+                $diffDays = $todayObj->diffInDays($bdayThisYear, false);
+                return $diffDays >= 0 && $diffDays <= 7;
+            })
+            ->map(function ($b) use ($todayObj) {
+                $bdayThisYear = \Carbon\Carbon::createFromDate($todayObj->year, $b->birthday->month, $b->birthday->day)->startOfDay();
+                if ($bdayThisYear->lt($todayObj)) {
+                    $bdayThisYear->addYear();
+                }
+                $diffDays = (int) $todayObj->diffInDays($bdayThisYear, false);
+                return [
+                    'id' => $b->id,
+                    'name' => $b->displayName(),
+                    'photo' => $b->profile_photo ? url('storage/'.$b->profile_photo) : null,
+                    'age' => \Carbon\Carbon::parse($b->birthday)->age,
+                    'department' => $b->department ?: ($b->company?->name ?? 'Staff'),
+                    'days_until' => $diffDays,
+                    'date_formatted' => \Carbon\Carbon::parse($b->birthday)->format('d-m-Y'),
+                    'is_today' => $diffDays === 0,
+                ];
+            })
+            ->values();
 
         $counts = [
             'not_marked' => count($notMarkedUserIds),
@@ -285,6 +305,91 @@ class AttendanceController extends Controller
             'message' => 'FCM Token registered successfully.',
             'fcm_token' => $user?->fcm_token,
         ]);
+    }
+
+    public function manualStore(Request $request)
+    {
+        $data = $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'status' => 'required|string',
+            'shift_id' => 'nullable|exists:shifts,id',
+            'work_date' => 'required|date',
+            'time' => 'nullable',
+            'location_text' => 'nullable|string',
+            'remarks' => 'nullable|string',
+        ]);
+
+        $actor = $request->user();
+        $targetUser = User::findOrFail($data['user_id']);
+
+        if (!$actor->isAdmin() && !$actor->isManager() && $actor->id !== $targetUser->id) {
+            return response()->json(['message' => 'Unauthorized to edit attendance'], 403);
+        }
+
+        $type = strtolower($data['status']);
+        if (in_array($type, ['in', 'out'])) {
+            $timeStr = !empty($data['time']) ? $data['time'] : '09:45:00';
+            $punchedAt = \Carbon\Carbon::parse($data['work_date'] . ' ' . $timeStr);
+
+            $punch = AttendancePunch::create([
+                'user_id' => $targetUser->id,
+                'work_date' => $data['work_date'],
+                'type' => $type,
+                'source' => 'manual',
+                'punched_at' => $punchedAt,
+                'location_text' => $data['location_text'] ?: 'Manual Entry',
+                'remarks' => $data['remarks'] ?? null,
+                'face_detected' => true,
+            ]);
+            return response()->json(['ok' => true, 'message' => 'Attendance punch created successfully.', 'punch' => $this->serialize($punch)]);
+        }
+
+        return response()->json(['ok' => true, 'message' => "Attendance status marked as {$data['status']}."]);
+    }
+
+    public function updatePunch(Request $request, AttendancePunch $punch)
+    {
+        $data = $request->validate([
+            'status' => 'nullable|string',
+            'time' => 'nullable',
+            'location_text' => 'nullable|string',
+            'remarks' => 'nullable|string',
+        ]);
+
+        $actor = $request->user();
+        if (!$actor->isAdmin() && !$actor->isManager() && $actor->id !== $punch->user_id) {
+            return response()->json(['message' => 'Unauthorized to update punch'], 403);
+        }
+
+        $updates = [];
+        if (!empty($data['status'])) {
+            $updates['type'] = strtolower($data['status']);
+        }
+        if (!empty($data['time'])) {
+            $workDate = $punch->work_date->toDateString();
+            $updates['punched_at'] = \Carbon\Carbon::parse($workDate . ' ' . $data['time']);
+        }
+        if (isset($data['location_text'])) {
+            $updates['location_text'] = $data['location_text'];
+        }
+        if (isset($data['remarks'])) {
+            $updates['remarks'] = $data['remarks'];
+        }
+
+        $punch->update($updates);
+
+        return response()->json(['ok' => true, 'message' => 'Attendance punch updated successfully.', 'punch' => $this->serialize($punch)]);
+    }
+
+    public function destroyPunch(Request $request, AttendancePunch $punch)
+    {
+        $actor = $request->user();
+        if (!$actor->isAdmin() && !$actor->isManager() && $actor->id !== $punch->user_id) {
+            return response()->json(['message' => 'Unauthorized to delete punch'], 403);
+        }
+
+        $punch->delete();
+        return response()->json(['ok' => true, 'message' => 'Attendance punch deleted successfully.']);
     }
 
     private function serialize(AttendancePunch $punch): array

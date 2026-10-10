@@ -43,6 +43,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/employees/sample-csv', [EmployeeController::class, 'sampleCsv'])->name('employees.sample-csv');
     Route::post('/employees/import', [EmployeeController::class, 'importExcel'])->name('employees.import');
     Route::post('/departments/quick', [EmployeeController::class, 'quickStoreDepartment'])->name('departments.quick-store');
+    Route::post('/categories/quick', [EmployeeController::class, 'quickStoreCategory'])->name('categories.quick-store');
     Route::get('/employees/{employee}', [EmployeeController::class, 'show'])->name('employees.show');
     Route::get('/employees/{employee}/edit', [EmployeeController::class, 'edit'])->name('employees.edit');
     Route::put('/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
@@ -99,6 +100,13 @@ Route::middleware('auth')->group(function () {
     Route::put('/settings/shifts/{shift}', [SettingsController::class, 'updateShift'])->name('settings.shifts.update');
     Route::delete('/settings/shifts/{shift}', [SettingsController::class, 'destroyShift'])->name('settings.shifts.destroy');
     Route::post('/settings/categories', [SettingsController::class, 'storeCategory'])->name('settings.categories');
+    Route::put('/settings/categories/{category}', [SettingsController::class, 'updateCategory'])->name('settings.categories.update');
+    Route::delete('/settings/categories/{category}', [SettingsController::class, 'destroyCategory'])->name('settings.categories.destroy');
+
+    // Designations & Permissions Master
+    Route::post('/settings/designations', [SettingsController::class, 'storeDesignation'])->name('settings.designations.store');
+    Route::put('/settings/designations/{designation}', [SettingsController::class, 'updateDesignation'])->name('settings.designations.update');
+    Route::delete('/settings/designations/{designation}', [SettingsController::class, 'destroyDesignation'])->name('settings.designations.destroy');
 
     // Company Master
     Route::post('/settings/companies', [SettingsController::class, 'storeCompany'])->name('settings.companies.store');
@@ -114,4 +122,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/settings/holidays', [SettingsController::class, 'storeHoliday'])->name('settings.holidays.store');
     Route::put('/settings/holidays/{holiday}', [SettingsController::class, 'updateHoliday'])->name('settings.holidays.update');
     Route::delete('/settings/holidays/{holiday}', [SettingsController::class, 'destroyHoliday'])->name('settings.holidays.destroy');
+
+    // Geo-Fencing Locations Master
+    Route::post('/settings/geofences', [SettingsController::class, 'storeGeofence'])->name('settings.geofences.store');
+    Route::put('/settings/geofences/{geofence}', [SettingsController::class, 'updateGeofence'])->name('settings.geofences.update');
+    Route::delete('/settings/geofences/{geofence}', [SettingsController::class, 'destroyGeofence'])->name('settings.geofences.destroy');
 });

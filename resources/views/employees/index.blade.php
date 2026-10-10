@@ -17,6 +17,29 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
     </div>
 </div>
 
+@if(session('ok'))
+    <div style="background:#ecfdf5;color:#065f46;padding:12px 16px;border-radius:10px;margin-bottom:14px;border:1px solid #a7f3d0;font-weight:600">
+        <i class="fa-solid fa-circle-check"></i> {{ session('ok') }}
+    </div>
+@endif
+
+@if(session('error'))
+    <div style="background:#fff1f2;color:#9f1239;padding:12px 16px;border-radius:10px;margin-bottom:14px;border:1px solid #fecdd3;font-weight:600">
+        <i class="fa-solid fa-triangle-exclamation"></i> {{ session('error') }}
+    </div>
+@endif
+
+@if($errors->any())
+    <div style="background:#fff1f2;color:#9f1239;padding:12px 16px;border-radius:10px;margin-bottom:14px;border:1px solid #fecdd3">
+        <strong style="display:block;margin-bottom:4px"><i class="fa-solid fa-circle-xmark"></i> Validation Errors:</strong>
+        <ul style="margin:0;padding-left:20px;font-size:13px">
+            @foreach($errors->all() as $err)
+                <li>{{ $err }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
+
 <div class="card hello">
     <div class="row" style="justify-space-between">
         <div>
@@ -62,27 +85,81 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
     </div>
 </div>
 
-<!-- TODAY'S BIRTHDAYS SECTION (Placed directly below Attendance Statistics as per prompt & screenshot) -->
-@php
-    $todayBirthdays = \App\Models\User::whereNotNull('birthday')
-        ->whereRaw("DATE_FORMAT(birthday, '%m-%d') = ?", [now('Asia/Kolkata')->format('m-d')])
-        ->where('status', 'active')
-        ->get();
-@endphp
-<div class="card" style="margin-top:14px;background:linear-gradient(135deg, #ffffff 0%, #fff5f5 100%);border:1px solid #fecdd3">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-        <div style="width:36px;height:36px;background:#ffe4e6;color:#e11d48;border-radius:10px;display:grid;place-items:center;font-size:18px">
-            🎂
+<!-- GRAPHICAL DASHBOARD ANALYTICS -->
+<div class="row" style="margin-top:14px;gap:14px;flex-wrap:wrap">
+    <div class="card" style="flex:1;min-width:260px;padding:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <h3 style="margin:0;font-size:15px;font-weight:700;color:#111827"><i class="fa-solid fa-chart-pie" style="color:#7c3aed;margin-right:6px"></i> Attendance Analytics</h3>
+            <span class="muted" style="font-size:12px">{{ $date->format('d M Y') }}</span>
         </div>
-        <div>
-            <h3 style="margin:0;color:#9f1239">Today's Birthdays</h3>
-            <span class="muted" style="font-size:12px">Celebrations for {{ now('Asia/Kolkata')->format('j F, Y') }}</span>
+        <div style="height:200px;position:relative">
+            <canvas id="attendanceChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="card" style="flex:1;min-width:260px;padding:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <h3 style="margin:0;font-size:15px;font-weight:700;color:#111827"><i class="fa-solid fa-chart-simple" style="color:#2563eb;margin-right:6px"></i> Headcount Breakdown</h3>
+            <span class="muted" style="font-size:12px">Role & Staff Overview</span>
+        </div>
+        <div style="height:200px;position:relative">
+            <canvas id="headcountChart"></canvas>
         </div>
     </div>
 
-    @if($todayBirthdays->count() > 0)
+    <div class="card" style="flex:1;min-width:260px;padding:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <h3 style="margin:0;font-size:15px;font-weight:700;color:#111827"><i class="fa-solid fa-list-check" style="color:#ea580c;margin-right:6px"></i> Task Status Overview</h3>
+            <span class="muted" style="font-size:12px">Live Tasks</span>
+        </div>
+        <div style="height:200px;position:relative">
+            <canvas id="taskChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- UPCOMING BIRTHDAYS SECTION (Next 7 Days) -->
+@php
+    $upcomingBirthdays = \App\Models\User::whereNotNull('birthday')
+        ->where('status', 'active')
+        ->get()
+        ->map(function($u) {
+            try {
+                $b = \Carbon\Carbon::parse($u->birthday);
+                $today = \Carbon\Carbon::today('Asia/Kolkata');
+                $nextBday = \Carbon\Carbon::create($today->year, $b->month, $b->day);
+                if ($nextBday->lt($today)) {
+                    $nextBday->addYear();
+                }
+                $daysLeft = (int) $today->diffInDays($nextBday, false);
+                $u->days_left = $daysLeft;
+                $u->next_bday_formatted = $nextBday->format('d M');
+                $u->turning_age = $b->age + ($daysLeft > 0 ? 1 : 0);
+                return $u;
+            } catch (\Exception $e) {
+                return null;
+            }
+        })
+        ->filter(fn($u) => $u && $u->days_left >= 0 && $u->days_left <= 7)
+        ->sortBy('days_left');
+@endphp
+<div class="card" style="margin-top:14px;background:linear-gradient(135deg, #ffffff 0%, #fff5f5 100%);border:1px solid #fecdd3">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:36px;background:#ffe4e6;color:#e11d48;border-radius:10px;display:grid;place-items:center;font-size:18px">
+                🎂
+            </div>
+            <div>
+                <h3 style="margin:0;color:#9f1239">Today & Upcoming Birthdays</h3>
+                <span class="muted" style="font-size:12px">Celebrations in the next 7 days</span>
+            </div>
+        </div>
+        <span class="badge" style="background:#ffe4e6;color:#e11d48;font-weight:700">{{ $upcomingBirthdays->count() }} Upcoming</span>
+    </div>
+
+    @if($upcomingBirthdays->count() > 0)
         <div class="row" style="gap:16px;flex-wrap:wrap">
-            @foreach($todayBirthdays as $bEmp)
+            @foreach($upcomingBirthdays as $bEmp)
                 <div style="display:flex;align-items:center;gap:12px;background:#fff;padding:10px 16px;border-radius:12px;border:1px solid #ffe4e6;box-shadow:0 2px 4px rgba(225,29,72,0.05)">
                     @if($bEmp->profile_photo)
                         <img src="{{ asset('storage/'.$bEmp->profile_photo) }}" alt="Photo" style="width:46px;height:46px;border-radius:50%;object-fit:cover;border:2px solid #f43f5e">
@@ -94,7 +171,11 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
                     <div>
                         <div style="font-weight:700;color:#111827">{{ $bEmp->displayName() }}</div>
                         <div style="font-size:12px;color:#e11d48;font-weight:600">
-                            🎉 Turns {{ \Carbon\Carbon::parse($bEmp->birthday)->age }} today!
+                            @if($bEmp->days_left === 0)
+                                🎉 Turns {{ $bEmp->turning_age }} today!
+                            @else
+                                🎂 Turns {{ $bEmp->turning_age }} on {{ $bEmp->next_bday_formatted }} (in {{ $bEmp->days_left }} {{ $bEmp->days_left === 1 ? 'day' : 'days' }})
+                            @endif
                         </div>
                         <small class="muted">{{ $bEmp->department ?: ($bEmp->company->name ?? 'Staff') }}</small>
                     </div>
@@ -102,7 +183,7 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
             @endforeach
         </div>
     @else
-        <div class="muted" style="font-size:13px;padding:4px 0"><i class="fa-solid fa-cake-candles" style="color:#fda4af;margin-right:6px"></i> No staff birthdays scheduled for today.</div>
+        <div class="muted" style="font-size:13px;padding:4px 0"><i class="fa-solid fa-cake-candles" style="color:#fda4af;margin-right:6px"></i> No staff birthdays scheduled in the next 7 days.</div>
     @endif
 </div>
 
@@ -181,14 +262,48 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
 <div class="card" style="margin-top:14px">
         <table class="table">
             <thead>
+            @php
+                function sortUrl($col, $currentSort, $currentDir, $date, $q, $cat, $dept, $comp) {
+                    $nextDir = ($currentSort === $col && $currentDir === 'asc') ? 'desc' : 'asc';
+                    return route('attendances.index', array_filter([
+                        'date' => $date->toDateString(),
+                        'sort_by' => $col,
+                        'sort_dir' => $nextDir,
+                        'q' => $q,
+                        'category' => $cat,
+                        'department_id' => $dept,
+                        'company_id' => $comp
+                    ]));
+                }
+            @endphp
             <tr>
                 <th style="width:30px"><input type="checkbox" onchange="toggleSelectAll(this)"></th>
-                <th>Name <i class="fa-solid fa-sort"></i></th>
-                <th>Code</th>
-                <th>Designation</th>
+                <th>
+                    <a href="{{ sortUrl('name', $sortBy, $sortDir, $date, $q, $categoryId, $departmentId, $companyId) }}" style="color:inherit;text-decoration:none">
+                        Name @if($sortBy==='name')<i class="fa-solid fa-sort-{{ $sortDir==='asc'?'up':'down' }}"></i>@else<i class="fa-solid fa-sort" style="opacity:0.4"></i>@endif
+                    </a>
+                </th>
+                <th>
+                    <a href="{{ sortUrl('code', $sortBy, $sortDir, $date, $q, $categoryId, $departmentId, $companyId) }}" style="color:inherit;text-decoration:none">
+                        Code @if($sortBy==='code')<i class="fa-solid fa-sort-{{ $sortDir==='asc'?'up':'down' }}"></i>@else<i class="fa-solid fa-sort" style="opacity:0.4"></i>@endif
+                    </a>
+                </th>
+                <th>
+                    <a href="{{ sortUrl('designation', $sortBy, $sortDir, $date, $q, $categoryId, $departmentId, $companyId) }}" style="color:inherit;text-decoration:none">
+                        Designation @if($sortBy==='designation')<i class="fa-solid fa-sort-{{ $sortDir==='asc'?'up':'down' }}"></i>@else<i class="fa-solid fa-sort" style="opacity:0.4"></i>@endif
+                    </a>
+                </th>
                 <th>Phone</th>
-                <th>Department</th>
-                <th>Category</th>
+                <th>
+                    <a href="{{ sortUrl('department', $sortBy, $sortDir, $date, $q, $categoryId, $departmentId, $companyId) }}" style="color:inherit;text-decoration:none">
+                        Department @if($sortBy==='department')<i class="fa-solid fa-sort-{{ $sortDir==='asc'?'up':'down' }}"></i>@else<i class="fa-solid fa-sort" style="opacity:0.4"></i>@endif
+                    </a>
+                </th>
+                <th>
+                    <a href="{{ sortUrl('category', $sortBy, $sortDir, $date, $q, $categoryId, $departmentId, $companyId) }}" style="color:inherit;text-decoration:none">
+                        Category @if($sortBy==='category')<i class="fa-solid fa-sort-{{ $sortDir==='asc'?'up':'down' }}"></i>@else<i class="fa-solid fa-sort" style="opacity:0.4"></i>@endif
+                    </a>
+                </th>
                 <th>Attendance</th>
                 <th>Total Working Hours</th>
                 <th>Actions</th>
@@ -346,14 +461,14 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
             <a href="{{ route('employees.sample-csv') }}" class="btn light" style="font-size:12px;color:#16a34a;border:1px solid #16a34a"><i class="fa-solid fa-download"></i> Download Sample CSV</a>
         </div>
         <p class="muted">Upload CSV / Excel file with columns: <b>First Name, Last Name, Phone, Email, Employee Code, Designation, Department, Base Salary</b></p>
-        <form method="post" action="{{ route('employees.import') }}" enctype="multipart/form-data">
+        <form method="post" action="{{ route('employees.import') }}" enctype="multipart/form-data" onsubmit="return handleExcelImportSubmit(this)">
             @csrf
             <div style="background:#f8fafc;padding:16px;border-radius:10px;border:1px dashed #cbd5e1;margin-bottom:16px;text-align:center">
                 <input type="file" name="excel_file" accept=".csv,.txt,.xlsx,.xls" required>
             </div>
             <div class="row" style="justify-content:flex-end;gap:10px">
                 <button type="button" class="btn light" onclick="document.getElementById('excelImportModal').classList.remove('open')">Cancel</button>
-                <button class="btn"><i class="fa-solid fa-upload"></i> Upload & Import</button>
+                <button id="excelImportBtn" class="btn"><i class="fa-solid fa-upload"></i> Upload & Import</button>
             </div>
         </form>
     </div>
@@ -363,6 +478,16 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
 
 @section('scripts')
 <script>
+function handleExcelImportSubmit(form) {
+    var btn = document.getElementById('excelImportBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading & Importing...';
+        btn.style.opacity = '0.7';
+        btn.style.cursor = 'not-allowed';
+    }
+    return true;
+}
 function openExcelImportModal() {
     document.getElementById('excelImportModal').classList.add('open');
 }
@@ -487,5 +612,97 @@ function filterStatModal() {
         r.style.display = text.includes(filter) ? '' : 'none';
     });
 }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var ctx1 = document.getElementById('attendanceChart');
+    if (ctx1) {
+        new Chart(ctx1, {
+            type: 'doughnut',
+            data: {
+                labels: ['Present', 'Absent', 'Not Marked', 'Late', 'Leave'],
+                datasets: [{
+                    data: [
+                        {{ $stats['present'] }},
+                        {{ $stats['absent'] }},
+                        {{ $stats['not_marked'] }},
+                        {{ $stats['late'] }},
+                        {{ $stats['leave'] }}
+                    ],
+                    backgroundColor: ['#16a34a', '#ef4444', '#9ca3af', '#eab308', '#f97316'],
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right', labels: { boxWidth: 12, font: { size: 12 } } }
+                }
+            }
+        });
+    }
+
+    var ctx2 = document.getElementById('headcountChart');
+    if (ctx2) {
+        new Chart(ctx2, {
+            type: 'bar',
+            data: {
+                labels: ['Total', 'Admin', 'Manager', 'Employee', 'Archived'],
+                datasets: [{
+                    label: 'Count',
+                    data: [
+                        {{ $stats['total'] }},
+                        {{ $stats['admin'] }},
+                        {{ $stats['manager'] }},
+                        {{ $stats['employee'] }},
+                        {{ $stats['archived'] }}
+                    ],
+                    backgroundColor: ['#4f46e5', '#7c3aed', '#2563eb', '#059669', '#9ca3af'],
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, ticks: { precision: 0 } }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    }
+
+    var ctx3 = document.getElementById('taskChart');
+    if (ctx3) {
+        new Chart(ctx3, {
+            type: 'doughnut',
+            data: {
+                labels: ['Pending', 'In Progress', 'Completed'],
+                datasets: [{
+                    data: [
+                        {{ $stats['pending_tasks'] ?? 0 }},
+                        {{ $stats['in_progress_tasks'] ?? 0 }},
+                        {{ $stats['completed_tasks'] ?? 0 }}
+                    ],
+                    backgroundColor: ['#ea580c', '#0284c7', '#16a34a'],
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right', labels: { boxWidth: 12, font: { size: 12 } } }
+                }
+            }
+        });
+    }
+});
 </script>
 @endsection

@@ -49,10 +49,26 @@
             <div><label>Last Name</label><input name="last_name" value="{{ old('last_name', $staff->last_name) }}"></div>
         </div>
 
-        <label>Employee Status</label>
+        <label>Employee Status & Resignation Details</label>
         <div class="row" style="gap:20px;margin-bottom:12px">
-            <label style="font-weight:normal"><input type="radio" name="status" value="active" {{ $staff->status!=='archived'?'checked':'' }}> Active</label>
-            <label style="font-weight:normal"><input type="radio" name="status" value="archived" {{ $staff->status==='archived'?'checked':'' }}> Archived</label>
+            <label style="font-weight:normal"><input type="radio" name="status" value="active" {{ in_array($staff->status, ['active', null]) ? 'checked' : '' }} onchange="toggleResignationFields()"> Active</label>
+            <label style="font-weight:normal"><input type="radio" name="status" value="resigned" {{ $staff->status==='resigned'?'checked':'' }} onchange="toggleResignationFields()"> Resigned</label>
+            <label style="font-weight:normal"><input type="radio" name="status" value="inactive" {{ $staff->status==='inactive'?'checked':'' }} onchange="toggleResignationFields()"> Left / Inactive</label>
+            <label style="font-weight:normal"><input type="radio" name="status" value="archived" {{ $staff->status==='archived'?'checked':'' }} onchange="toggleResignationFields()"> Archived</label>
+        </div>
+
+        <div id="resignation_box" style="display:{{ in_array($staff->status, ['resigned', 'inactive']) ? 'block' : 'none' }};background:#fff1f2;padding:12px 16px;border-radius:10px;border:1px solid #fecdd3;margin-bottom:14px">
+            <h4 style="margin:0 0 10px 0;color:#9f1239;font-size:14px"><i class="fa-solid fa-user-slash"></i> Resignation / Left Record</h4>
+            <div class="grid-2">
+                <div>
+                    <label style="color:#9f1239">Resignation / Leaving Date</label>
+                    <input type="date" name="resignation_date" value="{{ optional($staff->resignation_date)->toDateString() }}">
+                </div>
+                <div>
+                    <label style="color:#9f1239">Resignation Reason / Remarks</label>
+                    <input name="resignation_remarks" value="{{ $staff->resignation_remarks }}" placeholder="Reason for leaving, notice period details...">
+                </div>
+            </div>
         </div>
 
         <div class="grid-2">
@@ -168,9 +184,15 @@
 
         <div class="grid-2">
             <div><label>Designation Name</label><input name="designation" value="{{ $staff->designation }}" placeholder="e.g. Accounts Head"></div>
-            <div><label>Category</label>
-                <select name="category_id">
-                    <option value="">Select category</option>
+            <div>
+                <div style="display:flex;justify-space-between;align-items:center">
+                    <label style="margin:0">Category</label>
+                    <button type="button" onclick="openAddCatQuickModal()" style="border:0;background:none;color:var(--accent);font-weight:bold;cursor:pointer;font-size:12px;margin-left:auto">
+                        <i class="fa-solid fa-circle-plus"></i> Add Category
+                    </button>
+                </div>
+                <select name="category_id" id="category_select" style="margin-top:4px;width:100%">
+                    <option value="">Select category master</option>
                     @foreach($categories as $c)
                         <option value="{{ $c->id }}" {{ $staff->category_id==$c->id?'selected':'' }}>{{ $c->name }}</option>
                     @endforeach
@@ -218,10 +240,10 @@
             <label><input type="checkbox" name="shiftwise_attendance" value="1" {{ $staff->shiftwise_attendance?'checked':'' }}> Shiftwise Attendance</label>
             <label><input type="checkbox" name="live_tracking" value="1" {{ $staff->live_tracking?'checked':'' }}> Live Tracking</label>
             <div>
-                <label>Punch From</label>
-                <select name="punch_from">
-                    <option value="geofence" {{ $staff->punch_from==='geofence'?'selected':'' }}>Geofence</option>
-                    <option value="anywhere" {{ $staff->punch_from==='anywhere'?'selected':'' }}>Anywhere</option>
+                <label>Punch From Location Mode</label>
+                <select name="punch_from" id="punch_from_select" onchange="toggleAnywhereDates()">
+                    <option value="geofence" {{ $staff->punch_from==='geofence'?'selected':'' }}>Geofence (Company Office)</option>
+                    <option value="anywhere" {{ $staff->punch_from==='anywhere'?'selected':'' }}>Anywhere (Tour / Field Work)</option>
                 </select>
             </div>
             <div>
@@ -232,6 +254,21 @@
                         <option value="{{ $s->id }}" {{ $staff->shift_id==$s->id?'selected':'' }}>{{ $s->name }} ({{ substr($s->start_time,0,5) }} - {{ substr($s->end_time,0,5) }})</option>
                     @endforeach
                 </select>
+            </div>
+        </div>
+
+        <div id="anywhere_date_box" style="display:{{ $staff->punch_from==='anywhere'?'block':'none' }};background:#f0fdf4;padding:12px 16px;border-radius:10px;border:1px solid #bbf7d0;margin-top:12px;margin-bottom:12px">
+            <label style="color:#166534;font-weight:700;display:block;margin-bottom:4px"><i class="fa-solid fa-map-location-dot"></i> Anywhere Location Tour Validity (From Date — To Date)</label>
+            <p class="muted" style="font-size:12px;margin-bottom:8px">When an employee goes on tour/trip, enter valid date range. Attendance can be marked from anywhere during this period. After To Date expires, Geofence auto-enforces again.</p>
+            <div class="grid-2">
+                <div>
+                    <label style="color:#166534">Tour From Date</label>
+                    <input type="date" name="anywhere_from_date" value="{{ optional($staff->anywhere_from_date)->toDateString() }}">
+                </div>
+                <div>
+                    <label style="color:#166534">Tour To Date</label>
+                    <input type="date" name="anywhere_to_date" value="{{ optional($staff->anywhere_to_date)->toDateString() }}">
+                </div>
             </div>
         </div>
         <label><input type="checkbox" name="ai_selfie" value="1" {{ $staff->ai_selfie?'checked':'' }}> AI Selfie Verification</label>
@@ -276,9 +313,20 @@
             <div><label>PF Number</label><input name="pf_number" value="{{ $staff->pf_number }}"></div>
             <div><label>UAN</label><input name="uan" value="{{ $staff->uan }}"></div>
         </div>
-        <label><input type="checkbox" name="esi_applicable" value="1" {{ $staff->esi_applicable?'checked':'' }}> ESI Applicable</label>
-        <label><input type="checkbox" name="overtime_applicable" value="1" {{ $staff->overtime_applicable?'checked':'' }}> Applicable for Overtime</label>
-        <label><input type="checkbox" name="view_self_salary" value="1" {{ $staff->view_self_salary?'checked':'' }}> View Self Salary</label>
+        
+        <div class="grid-2" style="margin-top:10px">
+            <label><input type="checkbox" name="esi_applicable" value="1" {{ $staff->esi_applicable?'checked':'' }}> ESI Applicable</label>
+            <label><input type="checkbox" name="overtime_applicable" value="1" {{ $staff->overtime_applicable?'checked':'' }}> Applicable for Overtime</label>
+            <label><input type="checkbox" name="wop_applicable" value="1" {{ $staff->wop_applicable !== false ? 'checked' : '' }}> WOP — Week Off Present (Extra Day Salary)</label>
+            <label><input type="checkbox" name="hop_applicable" value="1" {{ $staff->hop_applicable !== false ? 'checked' : '' }}> HOP — Holiday Present (Extra Day Salary)</label>
+            <label><input type="checkbox" name="view_self_salary" value="1" {{ $staff->view_self_salary?'checked':'' }}> View Self Salary</label>
+        </div>
+
+        <div style="margin-top:14px">
+            <label>Payroll Notes / Remarks (Description)</label>
+            <textarea name="payroll_remarks" rows="3" placeholder="Enter payroll details, salary calculation rules, or specific employee notes...">{{ old('payroll_remarks', $staff->payroll_remarks) }}</textarea>
+            <small class="muted">You can write special instructions or notes regarding how salary is calculated for this staff member.</small>
+        </div>
     </div>
 </form>
 
@@ -290,6 +338,18 @@
         <div style="display:flex;justify-content:flex-end;gap:8px">
             <button type="button" class="btn light" onclick="closeAddDeptQuickModal()">Cancel</button>
             <button type="button" class="btn" onclick="saveQuickDepartment()">Add & Select</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Quick Adding Category -->
+<div id="quickCatModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center">
+    <div style="background:#fff;width:380px;max-width:95%;border-radius:12px;padding:20px;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1)">
+        <h4 style="margin:0 0 12px 0"><i class="fa-solid fa-plus-circle" style="color:var(--accent)"></i> Add Category Master</h4>
+        <input id="quick_cat_name" placeholder="Category Name (e.g. Staff, Worker, Contractor)" style="width:100%;margin-bottom:14px">
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+            <button type="button" class="btn light" onclick="closeAddCatQuickModal()">Cancel</button>
+            <button type="button" class="btn" onclick="saveQuickCategory()">Add & Select</button>
         </div>
     </div>
 </div>
@@ -308,6 +368,22 @@ function toggleManagerPermissions() {
       box.style.display = 'block';
   } else {
       box.style.display = 'none';
+  }
+}
+
+function toggleResignationFields() {
+  const selectedStatus = document.querySelector('input[name="status"]:checked')?.value;
+  const box = document.getElementById('resignation_box');
+  if (box) {
+      box.style.display = (selectedStatus === 'resigned' || selectedStatus === 'inactive') ? 'block' : 'none';
+  }
+}
+
+function toggleAnywhereDates() {
+  const mode = document.getElementById('punch_from_select')?.value;
+  const box = document.getElementById('anywhere_date_box');
+  if (box) {
+      box.style.display = (mode === 'anywhere') ? 'block' : 'none';
   }
 }
 
@@ -357,6 +433,38 @@ function saveQuickDepartment() {
       }
   })
   .catch(err => alert("Error adding department: " + err));
+}
+
+function openAddCatQuickModal() {
+  document.getElementById('quickCatModal').style.display = 'flex';
+}
+function closeAddCatQuickModal() {
+  document.getElementById('quickCatModal').style.display = 'none';
+}
+
+function saveQuickCategory() {
+  const name = document.getElementById('quick_cat_name').value.trim();
+  if (!name) return alert('Enter category name');
+  
+  fetch("{{ route('categories.quick-store') }}", {
+      method: "POST",
+      headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": "{{ csrf_token() }}"
+      },
+      body: JSON.stringify({ name: name })
+  })
+  .then(res => res.json())
+  .then(data => {
+      if (data.success) {
+          const catSelect = document.getElementById('category_select');
+          const newOpt = new Option(data.category.name, data.category.id, true, true);
+          catSelect.add(newOpt);
+          closeAddCatQuickModal();
+          document.getElementById('quick_cat_name').value = '';
+      }
+  })
+  .catch(err => alert("Error adding category: " + err));
 }
 </script>
 @endsection

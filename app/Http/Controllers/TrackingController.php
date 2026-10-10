@@ -12,10 +12,12 @@ class TrackingController extends Controller
     {
         $date = $request->get('date', now()->toDateString());
         $userId = $request->get('employee');
-        $employees = User::query()->where('status', 'active')->where('live_tracking', true)->orderBy('first_name')->get();
-        if ($employees->isEmpty()) {
-            $employees = User::query()->where('status', 'active')->orderBy('first_name')->get();
+        $authUser = auth()->user();
+        $empQuery = User::query()->where('status', 'active');
+        if ($authUser && $authUser->company_id && !$authUser->isAdmin()) {
+            $empQuery->where('company_id', $authUser->company_id);
         }
+        $employees = $empQuery->orderBy('first_name')->get();
         $employee = $userId ? User::find($userId) : $employees->first();
         $pings = collect();
         if ($employee) {

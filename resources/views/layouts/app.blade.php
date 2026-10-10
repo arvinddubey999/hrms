@@ -64,12 +64,12 @@ $setting = \App\Models\Setting::current();
             <a class="{{ $nav==='requests'?'active':'' }}" href="{{ route('requests.index') }}"><i class="fa-solid fa-envelope-open-text" style="width:18px"></i> Requests</a>
             <a class="{{ $nav==='payroll'?'active':'' }}" href="{{ route('payroll.index') }}"><i class="fa-solid fa-money-bill-wave" style="width:18px"></i> Payroll</a>
             <details {{ $nav==='tracking'?'open':'' }}>
-                <summary><i class="fa-solid fa-location-dot" style="width:18px"></i> Live Tracking <span class="beta">Beta</span></summary>
+                <summary><i class="fa-solid fa-location-dot" style="width:18px"></i> Live Tracking</summary>
                 <a href="{{ route('tracking.realtime') }}">Realtime</a>
                 <a class="{{ $nav==='tracking'?'active':'' }}" href="{{ route('tracking.timeline') }}">Timeline</a>
             </details>
             <details {{ $nav==='tasks'?'open':'' }}>
-                <summary><i class="fa-solid fa-list-check" style="width:18px"></i> Works <span class="beta">Beta</span></summary>
+                <summary><i class="fa-solid fa-list-check" style="width:18px"></i> Works</summary>
                 <a class="{{ $nav==='tasks'?'active':'' }}" href="{{ route('tasks.index') }}">Tasks</a>
             </details>
             <a class="{{ $nav==='reports'?'active':'' }}" href="{{ route('reports.index') }}"><i class="fa-solid fa-chart-pie" style="width:18px"></i> Reports</a>

@@ -36,7 +36,7 @@ class AttendanceService
         $type = strtolower($type) === 'out' ? 'out' : 'in';
 
         if ($user->punch_from === 'geofence' && ! $skipGeofence && $source === 'mobile') {
-            if (! GeoService::insideOffice($lat, $lng, $setting)) {
+            if (! GeoService::insideOffice($lat, $lng, $setting, $user)) {
                 throw ValidationException::withMessages(['lat' => 'You are outside the company location. Attendance can be marked only at office.']);
             }
         }
@@ -158,15 +158,25 @@ class AttendanceService
 
     public function isHolidayQualified(User $user, Carbon $holidayDate): bool
     {
-        // Rule: HOLIDAY UNKO HI MILEGA JO HOLIDAY KE 1ST DAY YA HOLIDAY KE NEXT DAY ME SE KOI BHI EK DIN PRESENT HOGA
+        // Check preceding working day (skipping week-off days)
         $prevDay = $holidayDate->copy()->subDay();
+        while (strcasecmp($user->week_off_day ?: 'Sunday', $prevDay->format('l')) === 0 && $prevDay->gt($holidayDate->copy()->subDays(7))) {
+            $prevDay->subDay();
+        }
+
+        // Check succeeding working day (skipping week-off days)
         $nextDay = $holidayDate->copy()->addDay();
+        while (strcasecmp($user->week_off_day ?: 'Sunday', $nextDay->format('l')) === 0 && $nextDay->lt($holidayDate->copy()->addDays(7))) {
+            $nextDay->addDay();
+        }
 
         return $this->isPresentOnDate($user, $prevDay) || $this->isPresentOnDate($user, $nextDay);
     }
 
     public function dayStatus(User $user, Carbon $date): string
     {
+        $hasIn = $this->isPresentOnDate($user, $date);
+
         // Check Leave
         $leave = LeaveRequest::query()
             ->where('user_id', $user->id)
@@ -185,14 +195,15 @@ class AttendanceService
             ->first(fn($h) => $h->isApplicableToCompany($user->company_id));
 
         if ($holiday) {
+            if ($hasIn) {
+                return 'hop'; // Holiday Present (HOP)
+            }
             if ($this->isHolidayQualified($user, $date)) {
                 return 'holiday';
             } else {
                 return 'absent'; // Not qualified for holiday credit
             }
         }
-
-        $hasIn = $this->isPresentOnDate($user, $date);
 
         // Check Week Off
         $isWeekOffDay = strcasecmp($user->week_off_day ?: 'Sunday', $date->format('l')) === 0;
@@ -235,12 +246,17 @@ class AttendanceService
     {
         $start = Carbon::create($year, $month, 1);
         $days = $start->daysInMonth;
-        $present = $absent = $leave = $weekOff = $late = $holiday = $half = $wop = 0;
+        $present = $absent = $leave = $weekOff = $late = $holiday = $half = $wop = $hop = 0;
         $rows = [];
 
         for ($d = 1; $d <= $days; $d++) {
             $date = Carbon::create($year, $month, $d);
             $status = $this->dayStatus($user, $date);
+
+            $holidayObj = Holiday::query()
+                ->whereDate('date', $date->toDateString())
+                ->get()
+                ->first(fn($h) => $h->isApplicableToCompany($user->company_id));
 
             $ins = AttendancePunch::query()
                 ->where('user_id', $user->id)
@@ -269,6 +285,9 @@ class AttendanceService
             } elseif ($status === 'wop') {
                 $wop++;
                 $present++;
+            } elseif ($status === 'hop') {
+                $hop++;
+                $present++;
             } elseif ($status === 'absent') {
                 $absent++;
             } elseif ($status === 'leave') {
@@ -289,6 +308,7 @@ class AttendanceService
             $rows[] = [
                 'date' => $date->toDateString(),
                 'status' => $status,
+                'holiday_title' => $holidayObj ? ($holidayObj->title ?? $holidayObj->name) : null,
                 'has_in_no_out' => $hasInNoOut,
                 'ins' => $ins,
                 'outs' => $outs,
@@ -298,7 +318,7 @@ class AttendanceService
 
         $payable = $present + $weekOff + $leave + $holiday;
 
-        return compact('present', 'absent', 'leave', 'weekOff', 'late', 'holiday', 'half', 'wop', 'days', 'rows', 'payable');
+        return compact('present', 'absent', 'leave', 'weekOff', 'late', 'holiday', 'half', 'wop', 'hop', 'days', 'rows', 'payable');
     }
 
     private function fallbackLocation(?float $lat, ?float $lng, Setting $setting): string

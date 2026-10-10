@@ -22,6 +22,9 @@ class SettingsController extends Controller
             'companies' => Company::orderBy('name')->get(),
             'departments' => Department::orderBy('name')->get(),
             'holidays' => Holiday::orderByDesc('date')->get(),
+            'designations' => \App\Models\Designation::orderBy('name')->get(),
+            'geofences' => \App\Models\CompanyGeofence::with('company')->get(),
+            'allEmployees' => \App\Models\User::where('status', 'active')->orderBy('first_name')->get(),
         ]);
     }
 
@@ -33,9 +36,9 @@ class SettingsController extends Controller
             'office_lat' => 'required|numeric',
             'office_lng' => 'required|numeric',
             'geofence_radius_m' => 'required|integer|min:20',
-            'first_name' => 'required|string',
+            'first_name' => 'nullable|string',
             'last_name' => 'nullable|string',
-            'phone' => 'required|string',
+            'phone' => 'nullable|string',
             'pay_type' => 'nullable|string',
             'salary' => 'nullable|numeric',
             'date_of_joining' => 'nullable|date',
@@ -60,18 +63,29 @@ class SettingsController extends Controller
         $setting->update($settingData);
 
         $admin = $request->user();
-        $admin->update([
-            'first_name' => $data['first_name'],
-            'last_name' => $data['last_name'] ?? '',
-            'name' => trim($data['first_name'].' '.($data['last_name'] ?? '')),
-            'phone' => $data['phone'],
-            'pay_type' => $data['pay_type'] ?? $admin->pay_type,
-            'salary' => $data['salary'] ?? $admin->salary,
-            'date_of_joining' => $data['date_of_joining'] ?? $admin->date_of_joining,
-            'mobile_attendance' => $request->boolean('mobile_attendance'),
-            'multiple_attendance' => $request->boolean('multiple_attendance'),
-            'live_tracking' => $request->boolean('live_tracking'),
-        ]);
+        if ($admin) {
+            $adminUpdate = [];
+            if (!empty($data['first_name'])) {
+                $adminUpdate['first_name'] = $data['first_name'];
+                $adminUpdate['last_name'] = $data['last_name'] ?? '';
+                $adminUpdate['name'] = trim($data['first_name'].' '.($data['last_name'] ?? ''));
+            }
+            if (!empty($data['phone'])) {
+                $adminUpdate['phone'] = $data['phone'];
+            }
+            if ($request->has('mobile_attendance')) {
+                $adminUpdate['mobile_attendance'] = $request->boolean('mobile_attendance');
+            }
+            if ($request->has('multiple_attendance')) {
+                $adminUpdate['multiple_attendance'] = $request->boolean('multiple_attendance');
+            }
+            if ($request->has('live_tracking')) {
+                $adminUpdate['live_tracking'] = $request->boolean('live_tracking');
+            }
+            if (!empty($adminUpdate)) {
+                $admin->update($adminUpdate);
+            }
+        }
 
         if ($request->hasFile('profile_photo')) {
             $admin->update(['profile_photo' => $request->file('profile_photo')->store('profiles', 'public')]);
@@ -234,5 +248,90 @@ class SettingsController extends Controller
         Category::create($data);
 
         return back()->with('ok', 'Category added.');
+    }
+
+    public function updateCategory(Request $request, Category $category)
+    {
+        $data = $request->validate(['name' => 'required|string']);
+        $category->update($data);
+
+        return back()->with('ok', 'Category updated.');
+    }
+
+    public function destroyCategory(Category $category)
+    {
+        $category->delete();
+        return back()->with('ok', 'Category deleted.');
+    }
+
+    public function storeDesignation(Request $request)
+    {
+        $data = $request->validate([
+            'name' => 'required|string',
+            'permissions' => 'nullable|array',
+        ]);
+        \App\Models\Designation::create($data);
+
+        return back()->with('ok', 'Designation created.');
+    }
+
+    public function updateDesignation(Request $request, \App\Models\Designation $designation)
+    {
+        $data = $request->validate([
+            'name' => 'required|string',
+            'permissions' => 'nullable|array',
+        ]);
+        $designation->update($data);
+
+        return back()->with('ok', 'Designation permissions updated.');
+    }
+
+    public function storeGeofence(Request $request)
+    {
+        $data = $request->validate([
+            'company_id' => 'required|exists:companies,id',
+            'name' => 'required|string',
+            'address' => 'nullable|string',
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
+            'radius' => 'required|integer|min:10',
+            'category' => 'nullable|string',
+            'assigned_categories' => 'nullable|array',
+            'assigned_employees' => 'nullable|array',
+            'status' => 'nullable|string',
+        ]);
+
+        $data['status'] = $data['status'] ?? 'active';
+
+        \App\Models\CompanyGeofence::create($data);
+
+        return back()->with('ok', 'Geo-fence location added successfully.');
+    }
+
+    public function updateGeofence(Request $request, \App\Models\CompanyGeofence $geofence)
+    {
+        $data = $request->validate([
+            'company_id' => 'required|exists:companies,id',
+            'name' => 'required|string',
+            'address' => 'nullable|string',
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
+            'radius' => 'required|integer|min:10',
+            'category' => 'nullable|string',
+            'assigned_categories' => 'nullable|array',
+            'assigned_employees' => 'nullable|array',
+            'status' => 'nullable|string',
+        ]);
+
+        $geofence->update($data);
+
+        return back()->with('ok', 'Geo-fence location updated.');
+    }
+
+    public function destroyGeofence(\App\Models\CompanyGeofence $geofence)
+    {
+        $geofence->delete();
+
+        return back()->with('ok', 'Geo-fence location deleted.');
     }
 }

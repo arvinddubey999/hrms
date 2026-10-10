@@ -39,7 +39,10 @@ class EmployeeController extends Controller
         if ($departmentId) {
             $query->where('department_id', $departmentId);
         }
-        if ($companyId) {
+        $authUser = auth()->user();
+        if ($authUser && $authUser->company_id && !$authUser->isAdmin()) {
+            $query->where('company_id', $authUser->company_id);
+        } elseif ($companyId) {
             $query->where('company_id', $companyId);
         }
 
@@ -56,7 +59,9 @@ class EmployeeController extends Controller
         }
 
         // Sorting
-        if ($sortBy === 'designation') {
+        if ($sortBy === 'code') {
+            $query->orderBy('employee_code', $sortDir);
+        } elseif ($sortBy === 'designation') {
             $query->orderBy('designation', $sortDir);
         } elseif ($sortBy === 'department') {
             $query->orderBy('department', $sortDir);
@@ -76,6 +81,8 @@ class EmployeeController extends Controller
             'employee' => $employees->where('role', 'employee')->count(),
             'archived' => User::query()->where('status', 'archived')->count(),
             'pending_tasks' => \App\Models\Task::query()->where('status', 'pending')->count(),
+            'in_progress_tasks' => \App\Models\Task::query()->where('status', 'in_progress')->count(),
+            'completed_tasks' => \App\Models\Task::query()->where('status', 'completed')->count(),
         ];
 
         $rows = $employees->map(function (User $user) use ($attendance, $date, &$stats) {
@@ -388,31 +395,31 @@ class EmployeeController extends Controller
                 'Week Off Day', 'PF Number', 'UAN', 'ESI Applicable',
                 'Overtime Applicable', 'View Self Salary', 'Mobile Attendance',
                 'Multiple Attendance', 'Shiftwise Attendance', 'Live Tracking',
-                'AI Selfie', 'Punch From'
+                'AI Selfie', 'Punch From', 'WOP Applicable', 'HOP Applicable', 'Payroll Remarks'
             ]);
             fputcsv($file, [
                 'Rajiv', 'Rakhecha', '9825100001', 'rajiv@rakhecha.com', '',
                 'Tulsi Fabrics', 'Management', 'Managing Director', 'Management', 'employee',
-                '50000.00', 'active', 'Male', '2025-01-01', '1990-05-15',
+                '50000.00', 'active', 'Male', '01/01/2025', '15/05/1990',
                 'O+', 'Surat, Gujarat', 'Emergency Contact', '9825199999',
                 'ABCDE1234F', '123456789012', '918010001234', 'HDFC0001234',
                 'HDFC Bank', 'Main Branch', 'Rajiv Rakhecha', 'monthly',
                 'Sunday', 'PF123456', 'UAN123456', '1',
                 '1', '1', '1',
                 '0', '0', '0',
-                '1', 'geofence'
+                '1', 'geofence', '1', '1', 'Monthly salary calculation notes'
             ]);
             fputcsv($file, [
-                'Aarav', 'Sharma', '9825100002', 'aarav@tulsi.com', '',
+                'Aarav', 'Sharma', '9825100002', '', '',
                 'Tulsi Fabrics', 'Accounts', 'Senior Accountant', 'Staff', 'employee',
-                '35000.00', 'active', 'Male', '2025-02-01', '1995-08-20',
+                '35000.00', 'active', 'Male', '01/02/2025', '20/08/1995',
                 'B+', 'Ahmedabad, Gujarat', 'Sunita Sharma', '9825188888',
                 'XYZPQ5678K', '987654321098', '918010005678', 'SBIN0005678',
                 'SBI', 'CG Road Branch', 'Aarav Sharma', 'monthly',
                 'Sunday', '', '', '0',
                 '1', '1', '1',
                 '0', '0', '0',
-                '1', 'geofence'
+                '1', 'geofence', '1', '1', ''
             ]);
             fclose($file);
         };
@@ -420,144 +427,221 @@ class EmployeeController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
+    private function cleanUtf8(?string $str): string
+    {
+        if ($str === null) return '';
+        $converted = @mb_convert_encoding($str, 'UTF-8', 'UTF-8, Windows-1252, ISO-8859-1');
+        return trim(preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $converted));
+    }
+
+    private function parseFlexibleDate(?string $val): ?string
+    {
+        $val = $this->cleanUtf8($val);
+        if (empty($val)) return null;
+        $val = str_replace('.', '/', $val);
+        foreach (['d/m/Y', 'd-m-Y', 'd/m/y', 'd-m-y', 'Y-m-d', 'Y/m/d'] as $fmt) {
+            try {
+                $d = Carbon::createFromFormat($fmt, $val);
+                if ($d && $d->format($fmt) === $val) {
+                    return $d->format('Y-m-d');
+                }
+            } catch (\Throwable $e) {}
+        }
+        try {
+            return Carbon::parse($val)->format('Y-m-d');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     public function importExcel(Request $request)
     {
         $request->validate([
-            'excel_file' => 'required|file|mimes:csv,txt,xlsx,xls',
+            'excel_file' => 'required|file',
+        ], [
+            'excel_file.required' => 'Please select a CSV file to upload.',
+            'excel_file.file' => 'Uploaded file is invalid.',
         ]);
 
         $file = $request->file('excel_file');
-        $handle = fopen($file->getRealPath(), 'r');
+        $extension = strtolower($file->getClientOriginalExtension());
+        if (!in_array($extension, ['csv', 'txt', 'xlsx', 'xls'])) {
+            return back()->with('error', 'Invalid file format. Please upload a .csv or .txt file.');
+        }
+
+        $filePath = $file->getRealPath();
+        $handle = fopen($filePath, 'r');
         if (!$handle) {
-            return back()->with('error', 'Unable to open file.');
+            return back()->with('error', 'Unable to open uploaded file.');
         }
 
-        $header = fgetcsv($handle);
+        $firstLine = fgets($handle);
+        if ($firstLine === false) {
+            fclose($handle);
+            return back()->with('error', 'The uploaded file is empty.');
+        }
+
+        $bom = pack('H*', 'EFBBBF');
+        $firstLine = preg_replace("/^$bom/", '', $firstLine);
+
+        $delimiter = (substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
+        $header = str_getcsv($firstLine, $delimiter);
+
         $importedCount = 0;
+        $lineNum = 1;
+        $errorsList = [];
 
-        while (($row = fgetcsv($handle)) !== false) {
-            if (empty($row[0])) continue;
+        \DB::beginTransaction();
+        try {
+            while (($rawLine = fgets($handle)) !== false) {
+                $lineNum++;
+                if (trim($rawLine) === '') continue;
 
-            $firstName             = trim($row[0]);
-            $lastName              = isset($row[1]) ? trim($row[1]) : '';
-            $phone                 = isset($row[2]) ? trim($row[2]) : '';
-            $email                 = isset($row[3]) ? trim($row[3]) : null;
-            $empCodeInput          = isset($row[4]) ? trim($row[4]) : null;
-            $companyName           = isset($row[5]) ? trim($row[5]) : null;
-            $departmentName        = isset($row[6]) ? trim($row[6]) : null;
-            $designation           = isset($row[7]) ? trim($row[7]) : null;
-            $categoryName          = isset($row[8]) ? trim($row[8]) : null;
-            $role                  = isset($row[9]) && in_array(strtolower(trim($row[9])), ['admin', 'manager', 'employee']) ? strtolower(trim($row[9])) : 'employee';
-            $salary                = isset($row[10]) ? (float) $row[10] : 0.00;
-            $status                = isset($row[11]) ? (strtolower(trim($row[11])) === 'archived' ? 'archived' : 'active') : 'active';
-            $gender                = isset($row[12]) ? trim($row[12]) : null;
-            $dateOfJoining         = isset($row[13]) && !empty(trim($row[13])) ? trim($row[13]) : null;
-            $birthday              = isset($row[14]) && !empty(trim($row[14])) ? trim($row[14]) : null;
-            $bloodGroup            = isset($row[15]) ? trim($row[15]) : null;
-            $address               = isset($row[16]) ? trim($row[16]) : null;
-            $emergencyContactName  = isset($row[17]) ? trim($row[17]) : null;
-            $emergencyContactPhone = isset($row[18]) ? trim($row[18]) : null;
-            $pan                   = isset($row[19]) ? trim($row[19]) : null;
-            $aadhaar               = isset($row[20]) ? trim($row[20]) : null;
-            $bankAccount           = isset($row[21]) ? trim($row[21]) : null;
-            $ifsc                  = isset($row[22]) ? trim($row[22]) : null;
-            $bankName              = isset($row[23]) ? trim($row[23]) : null;
-            $branchName            = isset($row[24]) ? trim($row[24]) : null;
-            $bankHolder            = isset($row[25]) ? trim($row[25]) : null;
-            $payType               = isset($row[26]) ? trim($row[26]) : 'monthly';
-            $weekOffDay            = isset($row[27]) ? trim($row[27]) : 'Sunday';
-            $pfNumber              = isset($row[28]) ? trim($row[28]) : null;
-            $uan                   = isset($row[29]) ? trim($row[29]) : null;
-            $esiApplicable         = isset($row[30]) ? in_array(strtolower(trim($row[30])), ['1', 'true', 'yes']) : false;
-            $overtimeApplicable    = isset($row[31]) ? in_array(strtolower(trim($row[31])), ['1', 'true', 'yes']) : false;
-            $viewSelfSalary        = isset($row[32]) ? in_array(strtolower(trim($row[32])), ['1', 'true', 'yes']) : false;
-            $mobileAttendance      = isset($row[33]) ? in_array(strtolower(trim($row[33])), ['1', 'true', 'yes']) : true;
-            $multipleAttendance    = isset($row[34]) ? in_array(strtolower(trim($row[34])), ['1', 'true', 'yes']) : false;
-            $shiftwiseAttendance   = isset($row[35]) ? in_array(strtolower(trim($row[35])), ['1', 'true', 'yes']) : false;
-            $liveTracking          = isset($row[36]) ? in_array(strtolower(trim($row[36])), ['1', 'true', 'yes']) : false;
-            $aiSelfie              = isset($row[37]) ? in_array(strtolower(trim($row[37])), ['1', 'true', 'yes']) : true;
-            $punchFrom             = isset($row[38]) ? trim($row[38]) : 'geofence';
+                $row = str_getcsv($rawLine, $delimiter);
+                if (empty($row) || (count($row) == 1 && empty(trim($row[0])))) continue;
 
-            if (empty($phone)) {
-                $phone = '98000' . rand(10000, 99999);
+                $firstName = $this->cleanUtf8($row[0] ?? '');
+                if (empty($firstName)) {
+                    $errorsList[] = "Row {$lineNum}: First Name is required.";
+                    continue;
+                }
+
+                $lastName              = isset($row[1]) ? $this->cleanUtf8($row[1]) : '';
+                $phone                 = isset($row[2]) ? $this->cleanUtf8($row[2]) : '';
+                $rawEmail              = isset($row[3]) ? $this->cleanUtf8($row[3]) : '';
+                $email                 = !empty($rawEmail) && filter_var($rawEmail, FILTER_VALIDATE_EMAIL) ? $rawEmail : null;
+                $empCodeInput          = isset($row[4]) ? $this->cleanUtf8($row[4]) : null;
+                $companyName           = isset($row[5]) ? $this->cleanUtf8($row[5]) : null;
+                $departmentName        = isset($row[6]) ? $this->cleanUtf8($row[6]) : null;
+                $designation           = isset($row[7]) ? $this->cleanUtf8($row[7]) : null;
+                $categoryName          = isset($row[8]) ? $this->cleanUtf8($row[8]) : null;
+                $role                  = isset($row[9]) && in_array(strtolower($this->cleanUtf8($row[9])), ['admin', 'manager', 'employee']) ? strtolower($this->cleanUtf8($row[9])) : 'employee';
+                $salary                = isset($row[10]) && is_numeric(trim($row[10])) ? (float) trim($row[10]) : 0.00;
+                $status                = isset($row[11]) ? (strtolower($this->cleanUtf8($row[11])) === 'archived' ? 'archived' : 'active') : 'active';
+                $gender                = isset($row[12]) ? $this->cleanUtf8($row[12]) : null;
+                $dateOfJoining         = isset($row[13]) ? $this->parseFlexibleDate($row[13]) : null;
+                $birthday              = isset($row[14]) ? $this->parseFlexibleDate($row[14]) : null;
+                $bloodGroup            = isset($row[15]) ? $this->cleanUtf8($row[15]) : null;
+                $address               = isset($row[16]) ? $this->cleanUtf8($row[16]) : null;
+                $emergencyContactName  = isset($row[17]) ? $this->cleanUtf8($row[17]) : null;
+                $emergencyContactPhone = isset($row[18]) ? $this->cleanUtf8($row[18]) : null;
+                $pan                   = isset($row[19]) ? $this->cleanUtf8($row[19]) : null;
+                $aadhaar               = isset($row[20]) ? $this->cleanUtf8($row[20]) : null;
+                $bankAccount           = isset($row[21]) ? $this->cleanUtf8($row[21]) : null;
+                $ifsc                  = isset($row[22]) ? $this->cleanUtf8($row[22]) : null;
+                $bankName              = isset($row[23]) ? $this->cleanUtf8($row[23]) : null;
+                $branchName            = isset($row[24]) ? $this->cleanUtf8($row[24]) : null;
+                $bankHolder            = isset($row[25]) ? $this->cleanUtf8($row[25]) : null;
+                $payType               = isset($row[26]) && !empty(trim($row[26])) ? strtolower($this->cleanUtf8($row[26])) : 'monthly';
+                $weekOffDay            = isset($row[27]) && !empty(trim($row[27])) ? $this->cleanUtf8($row[27]) : 'Sunday';
+                $pfNumber              = isset($row[28]) ? $this->cleanUtf8($row[28]) : null;
+                $uan                   = isset($row[29]) ? $this->cleanUtf8($row[29]) : null;
+                $esiApplicable         = isset($row[30]) && !empty(trim($row[30])) ? in_array(strtolower($this->cleanUtf8($row[30])), ['1', 'true', 'yes']) : false;
+                $overtimeApplicable    = isset($row[31]) && !empty(trim($row[31])) ? in_array(strtolower($this->cleanUtf8($row[31])), ['1', 'true', 'yes']) : false;
+                $viewSelfSalary        = isset($row[32]) && !empty(trim($row[32])) ? in_array(strtolower($this->cleanUtf8($row[32])), ['1', 'true', 'yes']) : false;
+                $mobileAttendance      = isset($row[33]) && !empty(trim($row[33])) ? in_array(strtolower($this->cleanUtf8($row[33])), ['1', 'true', 'yes']) : true;
+                $multipleAttendance    = isset($row[34]) && !empty(trim($row[34])) ? in_array(strtolower($this->cleanUtf8($row[34])), ['1', 'true', 'yes']) : false;
+                $shiftwiseAttendance   = isset($row[35]) && !empty(trim($row[35])) ? in_array(strtolower($this->cleanUtf8($row[35])), ['1', 'true', 'yes']) : false;
+                $liveTracking          = isset($row[36]) && !empty(trim($row[36])) ? in_array(strtolower($this->cleanUtf8($row[36])), ['1', 'true', 'yes']) : false;
+                $aiSelfie              = isset($row[37]) && !empty(trim($row[37])) ? in_array(strtolower($this->cleanUtf8($row[37])), ['1', 'true', 'yes']) : true;
+                $punchFrom             = isset($row[38]) && !empty(trim($row[38])) ? strtolower($this->cleanUtf8($row[38])) : 'geofence';
+                $wopApplicable         = isset($row[39]) && !empty(trim($row[39])) ? in_array(strtolower($this->cleanUtf8($row[39])), ['1', 'true', 'yes']) : true;
+                $hopApplicable         = isset($row[40]) && !empty(trim($row[40])) ? in_array(strtolower($this->cleanUtf8($row[40])), ['1', 'true', 'yes']) : true;
+                $payrollRemarks        = isset($row[41]) ? $this->cleanUtf8($row[41]) : null;
+
+                if (empty($phone)) {
+                    $phone = '98' . sprintf('%08d', rand(10000000, 99999999));
+                }
+
+                $companyId = null;
+                $companyObj = null;
+                if (!empty($companyName)) {
+                    $companyObj = Company::firstOrCreate(['name' => $companyName]);
+                    $companyId = $companyObj->id;
+                }
+
+                $deptId = null;
+                if (!empty($departmentName)) {
+                    $dept = Department::firstOrCreate(['name' => $departmentName]);
+                    $deptId = $dept->id;
+                }
+
+                $categoryId = null;
+                if (!empty($categoryName)) {
+                    $cat = Category::firstOrCreate(['name' => $categoryName]);
+                    $categoryId = $cat->id;
+                }
+
+                if (empty($empCodeInput) || User::where('employee_code', $empCodeInput)->exists()) {
+                    $empCode = User::generateNextEmployeeCode($companyObj ?: $companyId);
+                } else {
+                    $empCode = $empCodeInput;
+                }
+
+                User::create([
+                    'first_name'             => $firstName,
+                    'last_name'              => $lastName,
+                    'name'                   => trim($firstName . ' ' . $lastName),
+                    'phone'                  => $phone,
+                    'email'                  => $email,
+                    'password'               => \Illuminate\Support\Facades\Hash::make('password'),
+                    'employee_code'          => $empCode,
+                    'designation'            => $designation,
+                    'company_id'             => $companyId,
+                    'department_id'          => $deptId,
+                    'department'             => $departmentName,
+                    'category_id'            => $categoryId,
+                    'salary'                 => $salary,
+                    'status'                 => $status,
+                    'role'                   => $role,
+                    'gender'                 => $gender,
+                    'date_of_joining'        => $dateOfJoining,
+                    'birthday'               => $birthday,
+                    'blood_group'            => $bloodGroup,
+                    'address'                => $address,
+                    'emergency_contact_name' => $emergencyContactName,
+                    'emergency_contact_phone'=> $emergencyContactPhone,
+                    'pan'                    => $pan,
+                    'aadhaar'                => $aadhaar,
+                    'bank_account'           => $bankAccount,
+                    'ifsc'                   => $ifsc,
+                    'bank_name'              => $bankName,
+                    'branch_name'            => $branchName,
+                    'bank_holder'            => $bankHolder,
+                    'pay_type'               => $payType,
+                    'week_off_day'           => $weekOffDay,
+                    'pf_number'              => $pfNumber,
+                    'uan'                    => $uan,
+                    'esi_applicable'         => $esiApplicable,
+                    'overtime_applicable'    => $overtimeApplicable,
+                    'view_self_salary'       => $viewSelfSalary,
+                    'mobile_attendance'      => $mobileAttendance,
+                    'multiple_attendance'    => $multipleAttendance,
+                    'shiftwise_attendance'   => $shiftwiseAttendance,
+                    'live_tracking'          => $liveTracking,
+                    'ai_selfie'              => $aiSelfie,
+                    'punch_from'             => $punchFrom,
+                    'wop_applicable'         => $wopApplicable,
+                    'hop_applicable'         => $hopApplicable,
+                    'payroll_remarks'        => $payrollRemarks,
+                ]);
+
+                $importedCount++;
+            }
+            \DB::commit();
+            fclose($handle);
+
+            $msg = "Successfully imported {$importedCount} employees sequentially with valid employee codes.";
+            if (!empty($errorsList)) {
+                $msg .= " Skipped rows: " . implode(', ', array_slice($errorsList, 0, 5));
             }
 
-            $companyId = null;
-            $companyObj = null;
-            if ($companyName) {
-                $companyObj = Company::firstOrCreate(['name' => $companyName]);
-                $companyId = $companyObj->id;
-            }
-
-            $deptId = null;
-            if ($departmentName) {
-                $dept = Department::firstOrCreate(['name' => $departmentName]);
-                $deptId = $dept->id;
-            }
-
-            $categoryId = null;
-            if ($categoryName) {
-                $cat = Category::firstOrCreate(['name' => $categoryName]);
-                $categoryId = $cat->id;
-            }
-
-            if (empty($empCodeInput) || User::where('employee_code', $empCodeInput)->exists()) {
-                $empCode = User::generateNextEmployeeCode($companyObj ?: $companyId);
-            } else {
-                $empCode = $empCodeInput;
-            }
-
-            User::create([
-                'first_name'             => $firstName,
-                'last_name'              => $lastName,
-                'name'                   => trim($firstName . ' ' . $lastName),
-                'phone'                  => $phone,
-                'email'                  => $email,
-                'employee_code'          => $empCode,
-                'designation'            => $designation,
-                'company_id'             => $companyId,
-                'department_id'          => $deptId,
-                'department'             => $departmentName,
-                'category_id'            => $categoryId,
-                'salary'                 => $salary,
-                'status'                 => $status,
-                'role'                   => $role,
-                'gender'                 => $gender,
-                'date_of_joining'        => $dateOfJoining,
-                'birthday'               => $birthday,
-                'blood_group'            => $bloodGroup,
-                'address'                => $address,
-                'emergency_contact_name' => $emergencyContactName,
-                'emergency_contact_phone'=> $emergencyContactPhone,
-                'pan'                    => $pan,
-                'aadhaar'                => $aadhaar,
-                'bank_account'           => $bankAccount,
-                'ifsc'                   => $ifsc,
-                'bank_name'              => $bankName,
-                'branch_name'            => $branchName,
-                'bank_holder'            => $bankHolder,
-                'pay_type'               => $payType,
-                'week_off_day'           => $weekOffDay,
-                'pf_number'              => $pfNumber,
-                'uan'                    => $uan,
-                'esi_applicable'         => $esiApplicable,
-                'overtime_applicable'    => $overtimeApplicable,
-                'view_self_salary'       => $viewSelfSalary,
-                'mobile_attendance'      => $mobileAttendance,
-                'multiple_attendance'    => $multipleAttendance,
-                'shiftwise_attendance'   => $shiftwiseAttendance,
-                'live_tracking'          => $liveTracking,
-                'ai_selfie'              => $aiSelfie,
-                'punch_from'             => $punchFrom,
-                'password'               => \Illuminate\Support\Facades\Hash::make('123456'),
-            ]);
-
-            $importedCount++;
+            return back()->with('ok', $msg);
+        } catch (\Throwable $e) {
+            \DB::rollBack();
+            fclose($handle);
+            return back()->with('error', "Import Failed at Row {$lineNum}: " . $e->getMessage());
         }
-
-        fclose($handle);
-
-        return back()->with('ok', "Successfully imported {$importedCount} employees.");
     }
 
     public function quickStoreDepartment(Request $request)
@@ -572,6 +656,14 @@ class EmployeeController extends Controller
         return response()->json(['success' => true, 'department' => $dept]);
     }
 
+    public function quickStoreCategory(Request $request)
+    {
+        $data = $request->validate(['name' => 'required|string']);
+        $cat = Category::firstOrCreate(['name' => $data['name']]);
+
+        return response()->json(['success' => true, 'category' => $cat]);
+    }
+
     private function persist(Request $request, User $staff): void
     {
         $data = $request->validate([
@@ -580,7 +672,12 @@ class EmployeeController extends Controller
             'phone' => 'required|string|max:20',
             'email' => 'nullable|email',
             'password' => $staff->exists ? 'nullable|string|min:6' : 'required|string|min:6',
-            'status' => 'required|in:active,archived',
+            'status' => 'required|in:active,archived,resigned,inactive',
+            'resignation_date' => 'nullable|date',
+            'resignation_remarks' => 'nullable|string',
+            'anywhere_from_date' => 'nullable|date',
+            'anywhere_to_date' => 'nullable|date',
+            'can_manage_tasks' => 'nullable|boolean',
             'role' => 'nullable|in:admin,manager,employee',
             'permissions' => 'nullable|array',
             'country' => 'nullable|string',
@@ -595,6 +692,9 @@ class EmployeeController extends Controller
             'pf_number' => 'nullable|string',
             'uan' => 'nullable|string',
             'esi_applicable' => 'nullable|boolean',
+            'wop_applicable' => 'nullable|boolean',
+            'hop_applicable' => 'nullable|boolean',
+            'payroll_remarks' => 'nullable|string',
             'employee_type' => 'nullable|string',
             'category_id' => 'nullable|exists:categories,id',
             'company_id' => 'nullable|exists:companies,id',
@@ -642,7 +742,7 @@ class EmployeeController extends Controller
             }
         }
 
-        foreach (['esi_applicable', 'mobile_attendance', 'multiple_attendance', 'shiftwise_attendance', 'self_odometer', 'live_tracking', 'ai_selfie', 'overtime_applicable', 'view_self_salary'] as $flag) {
+        foreach (['esi_applicable', 'wop_applicable', 'hop_applicable', 'mobile_attendance', 'multiple_attendance', 'shiftwise_attendance', 'self_odometer', 'live_tracking', 'ai_selfie', 'overtime_applicable', 'view_self_salary', 'can_manage_tasks'] as $flag) {
             $data[$flag] = $request->boolean($flag);
         }
 

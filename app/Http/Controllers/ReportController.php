@@ -154,6 +154,16 @@ class ReportController extends Controller
             ]);
         }
 
+        if ($type === 'detailed') {
+            return view('reports.detailed_attendance_report', [
+                'companyName' => $companyName,
+                'from' => $from,
+                'to' => $to,
+                'employees' => $employees,
+                'attendance' => $attendance,
+            ]);
+        }
+
         // 5. Default Attendance & Hours Excel Generation
         $filename = "{$companyName}_{$type}_Report_" . $from->format('Y-m') . ".xls";
 

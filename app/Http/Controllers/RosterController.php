@@ -13,11 +13,21 @@ class RosterController extends Controller
     {
         $month = (int) $request->get('m', now()->month);
         $year = (int) $request->get('y', now()->year);
+        $fromDate = $request->get('from_date');
+        $toDate = $request->get('to_date');
         $employeeId = $request->get('employee_id');
         $departmentId = $request->get('department_id');
         $companyId = $request->get('company_id');
 
+        $user = auth()->user();
+
         $query = User::query()->where('status', 'active');
+
+        if ($user && $user->company_id && !$user->isAdmin()) {
+            $query->where('company_id', $user->company_id);
+        } elseif ($companyId) {
+            $query->where('company_id', $companyId);
+        }
 
         if ($employeeId) {
             $query->where('id', $employeeId);
@@ -25,18 +35,38 @@ class RosterController extends Controller
         if ($departmentId) {
             $query->where('department_id', $departmentId);
         }
-        if ($companyId) {
-            $query->where('company_id', $companyId);
-        }
 
         $employees = $query->orderBy('first_name')->get();
-        $days = Carbon::create($year, $month, 1)->daysInMonth;
+
+        if ($fromDate && $toDate) {
+            $startDate = Carbon::parse($fromDate);
+            $endDate = Carbon::parse($toDate);
+            $dateRange = [];
+            $curr = $startDate->copy();
+            while ($curr->lte($endDate)) {
+                $dateRange[] = $curr->copy();
+                $curr->addDay();
+            }
+            $days = count($dateRange);
+        } else {
+            $startDate = Carbon::create($year, $month, 1);
+            $days = $startDate->daysInMonth;
+            $dateRange = [];
+            for ($d = 1; $d <= $days; $d++) {
+                $dateRange[] = Carbon::create($year, $month, $d);
+            }
+            $fromDate = $startDate->toDateString();
+            $toDate = Carbon::create($year, $month, $days)->toDateString();
+        }
 
         return view('roster.index', [
             'employees' => $employees,
             'month' => $month,
             'year' => $year,
             'days' => $days,
+            'dateRange' => $dateRange,
+            'fromDate' => $fromDate,
+            'toDate' => $toDate,
             'attendance' => $attendance,
             'employeeId' => $employeeId,
             'departmentId' => $departmentId,
@@ -51,8 +81,33 @@ class RosterController extends Controller
     {
         $month = (int) $request->get('m', now()->month);
         $year = (int) $request->get('y', now()->year);
-        $employees = User::query()->where('status', 'active')->orderBy('first_name')->get();
-        $days = Carbon::create($year, $month, 1)->daysInMonth;
+        $fromDate = $request->get('from_date');
+        $toDate = $request->get('to_date');
+
+        $user = auth()->user();
+        $query = User::query()->where('status', 'active');
+        if ($user && $user->company_id && !$user->isAdmin()) {
+            $query->where('company_id', $user->company_id);
+        }
+        $employees = $query->orderBy('first_name')->get();
+
+        if ($fromDate && $toDate) {
+            $startDate = Carbon::parse($fromDate);
+            $endDate = Carbon::parse($toDate);
+            $dateRange = [];
+            $curr = $startDate->copy();
+            while ($curr->lte($endDate)) {
+                $dateRange[] = $curr->copy();
+                $curr->addDay();
+            }
+        } else {
+            $startDate = Carbon::create($year, $month, 1);
+            $days = $startDate->daysInMonth;
+            $dateRange = [];
+            for ($d = 1; $d <= $days; $d++) {
+                $dateRange[] = Carbon::create($year, $month, $d);
+            }
+        }
 
         $filename = "monthly-roster-{$year}-{$month}.csv";
         $headers = [
@@ -60,18 +115,17 @@ class RosterController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $callback = function () use ($employees, $year, $month, $days, $attendance) {
+        $callback = function () use ($employees, $dateRange, $attendance) {
             $out = fopen('php://output', 'w');
             $headerRow = ['Employee Code', 'Employee Name', 'Department'];
-            for ($d = 1; $d <= $days; $d++) {
-                $headerRow[] = sprintf('%02d', $d);
+            foreach ($dateRange as $dt) {
+                $headerRow[] = $dt->format('d/m (D)');
             }
             fputcsv($out, $headerRow);
 
             foreach ($employees as $emp) {
                 $row = [$emp->employee_code, $emp->displayName(), $emp->department ?: '-'];
-                for ($d = 1; $d <= $days; $d++) {
-                    $date = Carbon::create($year, $month, $d);
+                foreach ($dateRange as $date) {
                     $st = $attendance->dayStatus($emp, $date);
                     $ins = \App\Models\AttendancePunch::where('user_id', $emp->id)->whereDate('work_date', $date)->where('type', 'in')->orderBy('punched_at')->first();
                     $outs = \App\Models\AttendancePunch::where('user_id', $emp->id)->whereDate('work_date', $date)->where('type', 'out')->orderByDesc('punched_at')->first();
@@ -80,6 +134,7 @@ class RosterController extends Controller
                         'present' => 'P',
                         'late' => 'P(L)',
                         'wop' => 'WOP',
+                        'hop' => 'HOP',
                         'absent' => 'A',
                         'leave' => 'L',
                         'week_off' => 'WO',

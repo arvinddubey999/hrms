@@ -153,26 +153,28 @@
                     </div>
                 </div>
 
-                <!-- Grid Calendar View matching Screenshot 2 & Screenshot 1 -->
-                <div style="display:grid;grid-template-columns:repeat(7, 1fr);gap:8px;margin-bottom:16px">
-                    @foreach(['SUN','MON','TUE','WED','THU','FRI','SAT'] as $d)
-                        <div style="text-align:center;font-size:11px;font-weight:700;color:#4b5563;padding-bottom:4px">{{ $d }}</div>
-                    @endforeach
+                <!-- Grid Calendar View matching Screenshot 2 & Screenshot 1 (Max width & compact height for ultra-wide screen responsiveness) -->
+                <div style="max-width: 650px; margin: 0 auto 16px auto;">
+                    <div style="display:grid;grid-template-columns:repeat(7, 1fr);gap:6px;margin-bottom:6px">
+                        @foreach(['SUN','MON','TUE','WED','THU','FRI','SAT'] as $d)
+                            <div style="text-align:center;font-size:11px;font-weight:700;color:#4b5563;padding-bottom:2px">{{ $d }}</div>
+                        @endforeach
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(7, 1fr);gap:6px">
+                        @php
+                            $firstDayOfMonth = \Carbon\Carbon::create($year,$month,1);
+                            $daysInMonth = $firstDayOfMonth->daysInMonth;
+                            $startDayOfWeek = $firstDayOfMonth->dayOfWeek; // 0 for Sun, 6 for Sat
+                            $prevMonthDays = \Carbon\Carbon::create($year,$month,1)->subMonth()->daysInMonth;
+                        @endphp
 
-                    @php
-                        $firstDayOfMonth = \Carbon\Carbon::create($year,$month,1);
-                        $daysInMonth = $firstDayOfMonth->daysInMonth;
-                        $startDayOfWeek = $firstDayOfMonth->dayOfWeek; // 0 for Sun, 6 for Sat
-                        $prevMonthDays = \Carbon\Carbon::create($year,$month,1)->subMonth()->daysInMonth;
-                    @endphp
-
-                    <!-- Previous Month Leading Days (in light gray) -->
-                    @for($i = $startDayOfWeek - 1; $i >= 0; $i--)
-                        @php $pNum = $prevMonthDays - $i; @endphp
-                        <div style="border:1px solid #f3f4f6;border-radius:12px;height:62px;display:flex;align-items:center;justify-content:center;color:#d1d5db;font-size:14px;background:#fafafa">
-                            {{ $pNum }}
-                        </div>
-                    @endfor
+                        <!-- Previous Month Leading Days (in light gray) -->
+                        @for($i = $startDayOfWeek - 1; $i >= 0; $i--)
+                            @php $pNum = $prevMonthDays - $i; @endphp
+                            <div style="border:1px solid #f3f4f6;border-radius:10px;height:48px;display:flex;align-items:center;justify-content:center;color:#d1d5db;font-size:12px;background:#fafafa">
+                                {{ $pNum }}
+                            </div>
+                        @endfor
 
                     <!-- Current Month Days -->
                     @foreach($summary['rows'] as $row)
@@ -232,6 +234,7 @@
                         </div>
                     @endfor
                 </div>
+            </div>
 
                 <!-- Action Bar at Bottom of Calendar matching SS 1 & SS 2 -->
                 <div style="display:flex;gap:10px;margin-top:16px">
@@ -269,6 +272,13 @@
                         <div>Daily Rate: <b>₹{{ number_format($pay['daily'], 3) }}</b></div>
                     </div>
                 </div>
+
+                @if($staff->payroll_remarks)
+                    <div class="card" style="margin-top:12px;border:1px dashed #60a5fa;background:#eff6ff;padding:12px 16px">
+                        <h4 style="margin:0 0 6px 0;color:#1d4ed8;font-size:13px;text-transform:uppercase"><i class="fa-solid fa-note-sticky"></i> Payroll Remarks & Calculation Notes</h4>
+                        <p style="margin:0;font-size:13px;color:#1e3a8a;white-space:pre-wrap">{{ $staff->payroll_remarks }}</p>
+                    </div>
+                @endif
 
                 <div class="card" style="margin-top:12px;border:1px dashed #d1d5db">
                     <h4 style="margin:0 0 8px 0;color:#6b7280;font-size:13px;text-transform:uppercase">Attendance Summary</h4>

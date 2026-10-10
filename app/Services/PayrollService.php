@@ -14,10 +14,23 @@ class PayrollService
         $daily = $user->dailyRate($daysInMonth);
         
         // Payable Days = Present + Week Off + Holiday + Leave
-        $payableDays = max(0, ($summary['present'] ?? 0) + ($summary['weekOff'] ?? 0) + ($summary['holiday'] ?? 0) + ($summary['leave'] ?? 0));
+        $presentDays = $summary['present'] ?? 0;
+        $weekOffDays = $summary['weekOff'] ?? 0;
+        $holidayDays = $summary['holiday'] ?? 0;
+        $leaveDays   = $summary['leave'] ?? 0;
+        $wopCount    = $summary['wop'] ?? 0;
+
+        $payableDays = max(0, $presentDays + $weekOffDays + $holidayDays + $leaveDays + $wopCount);
         
-        // Basic Salary for Month
-        $basic = round($daily * $payableDays, 2);
+        // HOP (Holiday Present) bonus day calculation
+        $hopCount = 0;
+        if ($user->hop_applicable !== false) {
+            $hopCount = $summary['holidayPresent'] ?? 0;
+        }
+        $hopBonus = round($daily * $hopCount, 2);
+
+        // Basic Salary for Month + HOP Extra Day Pay
+        $basic = round(($daily * $payableDays) + $hopBonus, 2);
         
         $advances = $user->advances()
             ->whereYear('paid_on', $year)

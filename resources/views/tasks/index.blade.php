@@ -256,6 +256,18 @@
                     </select>
                 </div>
                 <div>
+                    <label>Assigned To Primary Employee *</label>
+                    <select name="assigned_to" id="newTaskPrimaryEmpSelect" required>
+                        <option value="">Select Employee</option>
+                        @foreach($employees as $e)
+                            <option value="{{ $e->id }}" data-dept="{{ $e->department_id }}">{{ $e->displayName() }} ({{ $e->department ?: 'N/A' }})</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid-2" style="margin-bottom:12px">
+                <div>
                     <label>Task Status *</label>
                     <select name="status">
                         <option value="pending" selected>Pending</option>
@@ -263,9 +275,6 @@
                         <option value="completed">Completed</option>
                     </select>
                 </div>
-            </div>
-
-            <div class="grid-2" style="margin-bottom:12px">
                 <div>
                     <label>Priority Level *</label>
                     <select name="priority">
@@ -274,18 +283,19 @@
                         <option value="high">High Priority</option>
                     </select>
                 </div>
-                <div>
-                    <label>Repeat Task Option</label>
-                    <select name="repeat_type">
-                        <option value="none">No Repeat (One-time)</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                        <option value="quarterly">Quarterly</option>
-                        <option value="half_yearly">Half-Yearly (Semi-Annually)</option>
-                        <option value="yearly">Yearly (Annually)</option>
-                    </select>
-                </div>
+            </div>
+
+            <div style="margin-bottom:12px">
+                <label>Repeat Task Option</label>
+                <select name="repeat_type">
+                    <option value="none">No Repeat (One-time)</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="half_yearly">Half-Yearly (Semi-Annually)</option>
+                    <option value="yearly">Yearly (Annually)</option>
+                </select>
             </div>
 
             <label>Task Title *</label>
@@ -308,17 +318,6 @@
             <div style="margin-bottom:12px">
                 <label>Attach File / Document</label>
                 <input type="file" name="attachment_file">
-            </div>
-
-            <!-- DEPARTMENT-FILTERED EMPLOYEE SELECTION -->
-            <div style="margin-bottom:12px">
-                <label>Assigned To Primary Employee *</label>
-                <select name="assigned_to" id="newTaskPrimaryEmpSelect" required>
-                    <option value="">Select Employee</option>
-                    @foreach($employees as $e)
-                        <option value="{{ $e->id }}" data-dept="{{ $e->department_id }}">{{ $e->displayName() }} ({{ $e->department ?: 'N/A' }})</option>
-                    @endforeach
-                </select>
             </div>
 
             <div style="margin-bottom:16px">

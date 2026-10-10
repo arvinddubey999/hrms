@@ -31,7 +31,13 @@ class User extends Authenticatable
             'password' => 'hashed',
             'birthday' => 'date',
             'date_of_joining' => 'date',
+            'resignation_date' => 'date',
+            'anywhere_from_date' => 'date',
+            'anywhere_to_date' => 'date',
+            'can_manage_tasks' => 'boolean',
             'esi_applicable' => 'boolean',
+            'wop_applicable' => 'boolean',
+            'hop_applicable' => 'boolean',
             'mobile_attendance' => 'boolean',
             'multiple_attendance' => 'boolean',
             'shiftwise_attendance' => 'boolean',
@@ -96,6 +102,25 @@ class User extends Authenticatable
         return $this->belongsToMany(Task::class);
     }
 
+    public function isAnywherePunchValid(?Carbon $date = null): bool
+    {
+        if ($this->punch_from !== 'anywhere') {
+            return false;
+        }
+
+        if ($this->anywhere_from_date || $this->anywhere_to_date) {
+            $target = $date ? $date->format('Y-m-d') : now('Asia/Kolkata')->format('Y-m-d');
+            if ($this->anywhere_from_date && $target < $this->anywhere_from_date->format('Y-m-d')) {
+                return false;
+            }
+            if ($this->anywhere_to_date && $target > $this->anywhere_to_date->format('Y-m-d')) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
@@ -150,7 +175,7 @@ class User extends Authenticatable
 
     public static function generateNextEmployeeCode($companyOrPrefix = null): string
     {
-        $prefix = 'EMP';
+        $prefix = 'RI';
         if ($companyOrPrefix instanceof Company) {
             $prefix = $companyOrPrefix->code_prefix ?: strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $companyOrPrefix->name ?? ''), 0, 3));
         } elseif (is_numeric($companyOrPrefix)) {
@@ -163,14 +188,14 @@ class User extends Authenticatable
         }
 
         if (empty($prefix)) {
-            $prefix = 'EMP';
+            $prefix = 'RI';
         }
 
-        $nextId = (static::max('id') ?? 0) + 1;
-        $code = sprintf('%s-%05d', strtoupper($prefix), $nextId);
+        $nextNum = (static::count() ?? 0) + 1;
+        $code = sprintf('%s%04d', strtoupper($prefix), $nextNum);
         while (static::where('employee_code', $code)->exists()) {
-            $nextId++;
-            $code = sprintf('%s-%05d', strtoupper($prefix), $nextId);
+            $nextNum++;
+            $code = sprintf('%s%04d', strtoupper($prefix), $nextNum);
         }
         return $code;
     }

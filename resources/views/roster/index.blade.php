@@ -3,19 +3,21 @@
 <div class="page-head">
     <h1>Monthly Roster Report</h1>
     <div class="row">
-        <a class="btn light" href="{{ route('roster.export.excel', ['m'=>$month,'y'=>$year, 'employee_id'=>$employeeId, 'department_id'=>$departmentId, 'company_id'=>$companyId]) }}"><i class="fa-solid fa-file-excel" style="color:#16a34a"></i> Excel</a>
+        <a class="btn light" href="{{ route('roster.export.excel', ['m'=>$month,'y'=>$year, 'from_date'=>$fromDate, 'to_date'=>$toDate, 'employee_id'=>$employeeId, 'department_id'=>$departmentId, 'company_id'=>$companyId]) }}"><i class="fa-solid fa-file-excel" style="color:#16a34a"></i> Excel</a>
         <a class="btn light" href="{{ route('roster.export.pdf', ['m'=>$month,'y'=>$year, 'employee_id'=>$employeeId, 'department_id'=>$departmentId, 'company_id'=>$companyId]) }}" target="_blank"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> PDF</a>
     </div>
 </div>
 
 <div class="card" style="margin-bottom:14px;padding:12px 18px">
-    <form method="get" class="row" style="gap:10px;flex-wrap:wrap">
+    <form method="get" class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
+        @if($companies->count() > 0)
         <select name="company_id" onchange="this.form.submit()" style="width:160px">
             <option value="">All Companies</option>
             @foreach($companies as $comp)
                 <option value="{{ $comp->id }}" {{ $companyId==$comp->id?'selected':'' }}>{{ $comp->name }}</option>
             @endforeach
         </select>
+        @endif
 
         <select name="department_id" onchange="this.form.submit()" style="width:160px">
             <option value="">All Departments</option>
@@ -38,6 +40,14 @@
         </select>
 
         <input type="number" name="y" value="{{ $year }}" style="width:90px" onchange="this.form.submit()">
+
+        <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:12px;color:#6b7280">From:</span>
+            <input type="date" name="from_date" value="{{ $fromDate }}" style="width:135px" onchange="this.form.submit()">
+            <span style="font-size:12px;color:#6b7280">To:</span>
+            <input type="date" name="to_date" value="{{ $toDate }}" style="width:135px" onchange="this.form.submit()">
+        </div>
+
         <a class="btn light" href="{{ route('roster.index') }}">Reset Filters</a>
     </form>
 </div>
@@ -46,40 +56,42 @@
 <div class="card" style="margin-bottom:14px;padding:12px 18px">
     <strong style="display:block;margin-bottom:8px;font-size:12px;color:#6b7280;text-transform:uppercase">Color Code Legend:</strong>
     <div class="row" style="gap:14px;flex-wrap:wrap">
-        <span class="badge ok" style="background:#dcfce7;color:#166534"><i class="fa-solid fa-circle" style="color:#16a34a"></i> P (Present) - Green</span>
-        <span class="badge no" style="background:#fee2e2;color:#991b1b"><i class="fa-solid fa-circle" style="color:#dc2626"></i> A (Absent) - Red</span>
-        <span class="badge warn" style="background:#fef3c7;color:#92400e"><i class="fa-solid fa-circle" style="color:#d97706"></i> L (Late / Leave) - Yellow</span>
-        <span class="badge" style="background:#dbeafe;color:#1e40af"><i class="fa-solid fa-circle" style="color:#2563eb"></i> WOP (Week Off Present) - Blue</span>
-        <span class="badge" style="background:#f3f4f6;color:#4b5563"><i class="fa-solid fa-circle" style="color:#9ca3af"></i> WO (Week Off) - Gray</span>
-        <span class="badge" style="background:#fef08a;color:#854d0e"><i class="fa-solid fa-circle" style="color:#eab308"></i> H (Holiday) - Gold</span>
+        <span class="badge ok" style="background:#dcfce7;color:#166534"><i class="fa-solid fa-circle" style="color:#16a34a"></i> P (Present)</span>
+        <span class="badge no" style="background:#fee2e2;color:#991b1b"><i class="fa-solid fa-circle" style="color:#dc2626"></i> A (Absent)</span>
+        <span class="badge warn" style="background:#fef3c7;color:#92400e"><i class="fa-solid fa-circle" style="color:#d97706"></i> L (Late / Leave)</span>
+        <span class="badge" style="background:#dbeafe;color:#1e40af"><i class="fa-solid fa-circle" style="color:#2563eb"></i> WOP (Week Off Present)</span>
+        <span class="badge" style="background:#f3f4f6;color:#4b5563"><i class="fa-solid fa-circle" style="color:#9ca3af"></i> WO (Week Off)</span>
+        <span class="badge" style="background:#fef08a;color:#854d0e"><i class="fa-solid fa-circle" style="color:#eab308"></i> H (Holiday)</span>
+        <span class="badge" style="background:#f472b6;color:#831843"><i class="fa-solid fa-circle" style="color:#db2777"></i> HOP (Holiday Present)</span>
     </div>
 </div>
 
-<div class="card" style="max-height: calc(100vh - 220px); overflow: auto; padding: 0; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+<!-- INDEPENDENT SCROLLING TABLE CONTAINER -->
+<div class="card" style="max-height: calc(100vh - 280px); overflow-x: auto; overflow-y: auto; padding: 0; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
     <table class="table" style="font-size:12px;white-space:nowrap;margin:0;border-collapse:separate;border-spacing:0">
         <thead style="position:sticky;top:0;z-index:20;background:#f8fafc">
         <tr>
             <th style="position:sticky;left:0;top:0;background:#f8fafc;z-index:30;min-width:170px;box-shadow:2px 0 5px rgba(0,0,0,0.05);border-bottom:1px solid #cbd5e1">Employee</th>
-            @for($d=1;$d<=$days;$d++)
-                @php $date = \Carbon\Carbon::create($year,$month,$d); @endphp
+            @foreach($dateRange as $dt)
                 <th style="text-align:center;min-width:70px">
-                    <div>{{ $d }}</div>
-                    <small style="font-weight:normal;color:#6b7280">{{ strtoupper($date->format('D')) }}</small>
+                    <div>{{ $dt->format('d') }}</div>
+                    <small style="font-weight:normal;color:#6b7280">{{ strtoupper($dt->format('D')) }}</small>
                 </th>
-            @endfor
+            @endforeach
             <th style="text-align:center;background:#e0f2fe;color:#0369a1;min-width:50px">P</th>
             <th style="text-align:center;background:#fee2e2;color:#991b1b;min-width:50px">A</th>
             <th style="text-align:center;background:#fef08a;color:#854d0e;min-width:50px">H</th>
             <th style="text-align:center;background:#f3f4f6;color:#4b5563;min-width:50px">WO</th>
             <th style="text-align:center;background:#dbeafe;color:#1e40af;min-width:50px">WOP</th>
+            <th style="text-align:center;background:#fbcfe8;color:#9d174d;min-width:50px">HOP</th>
             <th style="text-align:center;background:#dcfce7;color:#166534;font-weight:bold;min-width:90px">TOTAL PAYABLE</th>
         </tr>
         </thead>
         <tbody>
         @foreach($employees as $user)
-            @php $sum = $attendance->monthSummary($user,$year,$month); @endphp
+            @php $sum = $attendance->monthSummary($user, $year, $month); @endphp
             <tr>
-                <td style="position:sticky;left:0;background:#fff;z-index:10">
+                <td style="position:sticky;left:0;background:#fff;z-index:10;border-right:1px solid #cbd5e1">
                     <b>{{ $user->displayName() }}</b>
                     <div style="font-size:10px;color:#6b7280">{{ $user->employee_code }} | {{ $user->department ?: '-' }}</div>
                 </td>
@@ -90,6 +102,7 @@
                         $outPunch = $row['outs']->last();
                         $inTime = $inPunch ? $inPunch->punched_at->format('g:i A') : null;
                         $outTime = $outPunch ? $outPunch->punched_at->format('g:i A') : null;
+                        $hTitle = $row['holiday_title'] ?? null;
 
                         if ($st === 'present') {
                             $code = 'P'; $bg = '#dcfce7'; $fg = '#166534';
@@ -97,6 +110,8 @@
                             $code = 'P(L)'; $bg = '#fef3c7'; $fg = '#92400e';
                         } elseif ($st === 'wop') {
                             $code = 'WOP'; $bg = '#dbeafe'; $fg = '#1e40af';
+                        } elseif ($st === 'hop') {
+                            $code = 'HOP'; $bg = '#fbcfe8'; $fg = '#9d174d';
                         } elseif ($st === 'absent') {
                             $code = 'A'; $bg = '#fee2e2'; $fg = '#991b1b';
                         } elseif ($st === 'leave') {
@@ -109,11 +124,11 @@
                             $code = '-'; $bg = '#fff'; $fg = '#6b7280';
                         }
                     @endphp
-                    <td style="text-align:center;background:{{ $bg }};border-right:1px solid #eee;padding:4px">
-                        <!-- P / A CODE DISPLAY -->
+                    <td style="text-align:center;background:{{ $bg }};border-right:1px solid #eee;padding:4px" title="{{ $hTitle ?: ($code==='H'?'Holiday':($code==='HOP'?'Holiday Present':'')) }}">
+                        <!-- CODE DISPLAY -->
                         <div style="font-weight:800;color:{{ $fg }};font-size:13px">{{ $code }}</div>
                         
-                        <!-- IN TIME AND OUT TIME DISPLAY RIGHT UNDERNEATH -->
+                        <!-- IN TIME AND OUT TIME DISPLAY -->
                         @if($inTime || $outTime)
                             <div style="font-size:9px;color:#374151;margin-top:2px;line-height:1.1">
                                 @if($inTime)<div style="color:#166534">IN: {{ $inTime }}</div>@endif
@@ -128,13 +143,15 @@
                     $cntH = $sum['holiday'] ?? 0;
                     $cntWO = $sum['weekOff'] ?? 0;
                     $cntWOP = $sum['wop'] ?? 0;
-                    $totPayable = $cntP + $cntH + $cntWO + $cntWOP;
+                    $cntHOP = $sum['hop'] ?? 0;
+                    $totPayable = $cntP + $cntH + $cntWO + $cntWOP + $cntHOP;
                 @endphp
                 <td style="text-align:center;background:#e0f2fe;font-weight:bold">{{ $cntP }}</td>
                 <td style="text-align:center;background:#fee2e2;font-weight:bold;color:#dc2626">{{ $cntA }}</td>
                 <td style="text-align:center;background:#fef08a;font-weight:bold">{{ $cntH }}</td>
                 <td style="text-align:center;background:#f3f4f6;font-weight:bold">{{ $cntWO }}</td>
                 <td style="text-align:center;background:#dbeafe;font-weight:bold">{{ $cntWOP }}</td>
+                <td style="text-align:center;background:#fbcfe8;font-weight:bold;color:#9d174d">{{ $cntHOP }}</td>
                 <td style="text-align:center;background:#dcfce7;font-weight:bold;color:#166534;font-size:14px">{{ $totPayable }}</td>
             </tr>
         @endforeach

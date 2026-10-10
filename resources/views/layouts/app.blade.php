@@ -31,17 +31,19 @@ $setting = \App\Models\Setting::current();
     </div>
     <input class="search" placeholder="Search employees by name, serial no, phone, dept..." onkeydown="if(event.key==='Enter'){ location.href='{{ route('attendances.index') }}?q='+this.value }">
     <div class="who">
-        <div style="text-align:right">
-            <div>{{ auth()->user()->displayName() }}</div>
-            <div class="muted" style="color:#bbb;font-size:11px">{{ auth()->user()->phone }} ({{ strtoupper(auth()->user()->role) }})</div>
-        </div>
-        <div class="avatar">
-            @if(auth()->user()->profile_photo)
-                <img src="{{ asset('storage/'.auth()->user()->profile_photo) }}" alt="Profile Photo" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
-            @else
-                {{ auth()->user()->initials() }}
-            @endif
-        </div>
+        @if(auth()->check() && auth()->user())
+            <div style="text-align:right">
+                <div>{{ auth()->user()->displayName() }}</div>
+                <div class="muted" style="color:#bbb;font-size:11px">{{ auth()->user()->phone }} ({{ strtoupper(auth()->user()->role ?? 'EMPLOYEE') }})</div>
+            </div>
+            <div class="avatar">
+                @if(auth()->user()->profile_photo)
+                    <img src="{{ asset('storage/'.auth()->user()->profile_photo) }}" alt="Profile Photo" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+                @else
+                    {{ auth()->user()->initials() }}
+                @endif
+            </div>
+        @endif
     </div>
 </div>
 <div class="shell">
@@ -80,7 +82,7 @@ $setting = \App\Models\Setting::current();
     </aside>
     <main class="main">
         @if(session('ok'))<div class="flash"><i class="fa-solid fa-circle-check"></i> {{ session('ok') }}</div>@endif
-        @if($errors->any())<div class="flash" style="background:#fee2e2;color:#991b1b"><i class="fa-solid fa-triangle-exclamation"></i> {{ $errors->first() }}</div>@endif
+        @if(isset($errors) && $errors->any())<div class="flash" style="background:#fee2e2;color:#991b1b"><i class="fa-solid fa-triangle-exclamation"></i> {{ $errors->first() }}</div>@endif
         @yield('content')
     </main>
 </div>

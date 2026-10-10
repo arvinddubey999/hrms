@@ -693,7 +693,7 @@ class EmployeeController extends Controller
             'anywhere_from_date' => 'nullable|date',
             'anywhere_to_date' => 'nullable|date',
             'can_manage_tasks' => 'nullable|boolean',
-            'role' => 'nullable|in:admin,manager,employee',
+            'role' => 'nullable|string|max:100',
             'permissions' => 'nullable|array',
             'country' => 'nullable|string',
             'address' => 'nullable|string',

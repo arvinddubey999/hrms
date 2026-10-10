@@ -34,7 +34,7 @@ $setting = \App\Models\Setting::current();
         @if(auth()->check() && auth()->user())
             <div style="text-align:right">
                 <div>{{ auth()->user()->displayName() }}</div>
-                <div class="muted" style="color:#bbb;font-size:11px">{{ auth()->user()->phone }} ({{ strtoupper(auth()->user()->role ?? 'EMPLOYEE') }})</div>
+                <div class="muted" style="color:#bbb;font-size:11px">Code: {{ auth()->user()->employee_code ?: 'N/A' }} | {{ auth()->user()->phone ?: 'No Phone' }} ({{ strtoupper(auth()->user()->role ?? 'EMPLOYEE') }})</div>
             </div>
             <div class="avatar">
                 @if(auth()->user()->profile_photo)
@@ -57,27 +57,55 @@ $setting = \App\Models\Setting::current();
             <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ $setting->company_name }}</div>
         </div>
         <nav class="nav">
-            <a class="{{ $nav==='employees'?'active':'' }}" href="{{ route('attendances.index') }}"><i class="fa-solid fa-users" style="width:18px"></i> Employees</a>
-            <details {{ $nav==='attendances'?'open':'' }}>
-                <summary class="{{ $nav==='attendances'?'active':'' }}"><i class="fa-solid fa-calendar-check" style="width:18px"></i> Attendances</summary>
-                <a href="{{ route('attendances.index') }}">Live board</a>
-                <a href="{{ route('settings.index') }}">Category & Masters</a>
-            </details>
-            <a class="{{ $nav==='requests'?'active':'' }}" href="{{ route('requests.index') }}"><i class="fa-solid fa-envelope-open-text" style="width:18px"></i> Requests</a>
-            <a class="{{ $nav==='payroll'?'active':'' }}" href="{{ route('payroll.index') }}"><i class="fa-solid fa-money-bill-wave" style="width:18px"></i> Payroll</a>
-            <details {{ $nav==='tracking'?'open':'' }}>
-                <summary><i class="fa-solid fa-location-dot" style="width:18px"></i> Live Tracking</summary>
-                <a href="{{ route('tracking.realtime') }}">Realtime</a>
-                <a class="{{ $nav==='tracking'?'active':'' }}" href="{{ route('tracking.timeline') }}">Timeline</a>
-            </details>
-            <details {{ $nav==='tasks'?'open':'' }}>
-                <summary><i class="fa-solid fa-list-check" style="width:18px"></i> Works</summary>
-                <a class="{{ $nav==='tasks'?'active':'' }}" href="{{ route('tasks.index') }}">Tasks</a>
-            </details>
-            <a class="{{ $nav==='reports'?'active':'' }}" href="{{ route('reports.index') }}"><i class="fa-solid fa-chart-pie" style="width:18px"></i> Reports</a>
-            <a class="{{ $nav==='roster'?'active':'' }}" href="{{ route('roster.index') }}"><i class="fa-solid fa-calendar-days" style="width:18px"></i> Monthly Roster</a>
+            @php $u = auth()->user(); @endphp
+            @if(!$u || $u->hasPermission('employee.view') || $u->hasPermission('attendance.view'))
+                <a class="{{ $nav==='employees'?'active':'' }}" href="{{ route('attendances.index') }}"><i class="fa-solid fa-users" style="width:18px"></i> Employees</a>
+            @endif
+
+            @if(!$u || $u->hasPermission('attendance.view') || $u->hasPermission('attendance.mark'))
+                <details {{ $nav==='attendances'?'open':'' }}>
+                    <summary class="{{ $nav==='attendances'?'active':'' }}"><i class="fa-solid fa-calendar-check" style="width:18px"></i> Attendances</summary>
+                    <a href="{{ route('attendances.index') }}">Live board</a>
+                    @if(!$u || $u->hasPermission('settings.view') || $u->hasPermission('settings.roles'))
+                        <a href="{{ route('settings.index') }}">Category & Masters</a>
+                    @endif
+                </details>
+            @endif
+
+            @if(!$u || $u->hasPermission('leave.view') || $u->hasPermission('leave.apply') || $u->hasPermission('leave.approve'))
+                <a class="{{ $nav==='requests'?'active':'' }}" href="{{ route('requests.index') }}"><i class="fa-solid fa-envelope-open-text" style="width:18px"></i> Requests</a>
+            @endif
+
+            @if(!$u || $u->hasPermission('payroll.view') || $u->hasPermission('payroll.process'))
+                <a class="{{ $nav==='payroll'?'active':'' }}" href="{{ route('payroll.index') }}"><i class="fa-solid fa-money-bill-wave" style="width:18px"></i> Payroll</a>
+            @endif
+
+            @if(!$u || $u->hasPermission('tracking.view') || $u->hasPermission('geofence.tracking'))
+                <details {{ $nav==='tracking'?'open':'' }}>
+                    <summary><i class="fa-solid fa-location-dot" style="width:18px"></i> Live Tracking</summary>
+                    <a href="{{ route('tracking.realtime') }}">Realtime</a>
+                    <a class="{{ $nav==='tracking'?'active':'' }}" href="{{ route('tracking.timeline') }}">Timeline</a>
+                </details>
+            @endif
+
+            @if(!$u || $u->hasPermission('tasks.view') || $u->hasPermission('tasks.create') || $u->hasPermission('tasks.manage'))
+                <details {{ $nav==='tasks'?'open':'' }}>
+                    <summary><i class="fa-solid fa-list-check" style="width:18px"></i> Works</summary>
+                    <a class="{{ $nav==='tasks'?'active':'' }}" href="{{ route('tasks.index') }}">Tasks</a>
+                </details>
+            @endif
+
+            @if(!$u || $u->hasPermission('dashboard.reports'))
+                <a class="{{ $nav==='reports'?'active':'' }}" href="{{ route('reports.index') }}"><i class="fa-solid fa-chart-pie" style="width:18px"></i> Reports</a>
+            @endif
+
+            @if(!$u || $u->hasPermission('roster.view'))
+                <a class="{{ $nav==='roster'?'active':'' }}" href="{{ route('roster.index') }}"><i class="fa-solid fa-calendar-days" style="width:18px"></i> Monthly Roster</a>
+            @endif
         </nav>
-        <a class="settings-link {{ $nav==='settings'?'active':'' }}" href="{{ route('settings.index') }}" style="color:#bbb;padding:10px 12px"><i class="fa-solid fa-gear"></i> Settings & Masters</a>
+        @if(!$u || $u->hasPermission('settings.view') || $u->hasPermission('settings.roles'))
+            <a class="settings-link {{ $nav==='settings'?'active':'' }}" href="{{ route('settings.index') }}" style="color:#bbb;padding:10px 12px"><i class="fa-solid fa-gear"></i> Settings & Masters</a>
+        @endif
         <form method="post" action="{{ route('logout') }}">@csrf<button class="btn light" style="width:100%;margin-top:8px"><i class="fa-solid fa-sign-out-alt"></i> Logout</button></form>
     </aside>
     <main class="main">

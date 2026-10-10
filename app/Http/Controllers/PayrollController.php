@@ -13,6 +13,11 @@ class PayrollController extends Controller
 {
     public function index(Request $request, PayrollService $payroll)
     {
+        $u = $request->user();
+        if (!$u || (!$u->hasPermission('payroll.view') && !$u->hasPermission('payroll.process'))) {
+            return back()->with('error', 'You do not have permission to view payroll.');
+        }
+
         $month = (int) $request->get('m', now()->month);
         $year = (int) $request->get('y', now()->year);
         $categoryId = $request->get('category');
@@ -38,6 +43,10 @@ class PayrollController extends Controller
 
     public function payslip(User $employee, Request $request, PayrollService $payroll)
     {
+        $u = $request->user();
+        if (!$u || !$u->hasPermission('payroll.view')) {
+            return back()->with('error', 'You do not have permission to view payslips.');
+        }
         $month = (int) $request->get('m', now()->month);
         $year = (int) $request->get('y', now()->year);
         $pay = $payroll->compute($employee, $year, $month);

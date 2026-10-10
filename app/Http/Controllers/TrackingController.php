@@ -10,6 +10,11 @@ class TrackingController extends Controller
 {
     public function timeline(Request $request)
     {
+        $authUser = auth()->user();
+        if ($authUser && !$authUser->hasPermission('tracking.view') && !$authUser->hasPermission('geofence.tracking')) {
+            return back()->with('error', 'You do not have permission to access Live Tracking.');
+        }
+
         $date = $request->get('date', now()->toDateString());
         $userId = $request->get('employee');
         $authUser = auth()->user();
@@ -33,6 +38,11 @@ class TrackingController extends Controller
 
     public function realtime()
     {
+        $authUser = auth()->user();
+        if ($authUser && !$authUser->hasPermission('tracking.view') && !$authUser->hasPermission('geofence.tracking')) {
+            return back()->with('error', 'You do not have permission to access Live Tracking.');
+        }
+
         $staff = User::query()
             ->where('status', 'active')
             ->whereNotNull('last_lat')

@@ -6,15 +6,19 @@
         <a href="{{ route('attendances.index') }}" style="color:#111;text-decoration:none">←</a> Staff Profile
     </h1>
     <div class="row" style="gap:10px">
-        <form method="post" action="{{ route('employees.destroy', $staff) }}" onsubmit="return confirm('Archive this employee?')">
-            @csrf @method('delete')
-            <button class="btn light" style="background:#f3f4f6;color:#374151;border:1px solid #e5e7eb;font-weight:600;padding:8px 14px;border-radius:8px">
-                <i class="fa-regular fa-trash-can"></i> Delete Employee
-            </button>
-        </form>
-        <a class="btn" href="{{ route('employees.edit', $staff) }}" style="background:#1f2937;color:#fff;font-weight:600;padding:8px 16px;border-radius:8px">
-            <i class="fa-regular fa-pen-to-square"></i> Edit Profile
-        </a>
+        @if(auth()->user()->hasPermission('employee.delete'))
+            <form method="post" action="{{ route('employees.destroy', $staff) }}" onsubmit="return confirm('Archive this employee?')">
+                @csrf @method('delete')
+                <button class="btn light" style="background:#f3f4f6;color:#374151;border:1px solid #e5e7eb;font-weight:600;padding:8px 14px;border-radius:8px">
+                    <i class="fa-regular fa-trash-can"></i> Delete Employee
+                </button>
+            </form>
+        @endif
+        @if(auth()->user()->hasPermission('employee.edit'))
+            <a class="btn" href="{{ route('employees.edit', $staff) }}" style="background:#1f2937;color:#fff;font-weight:600;padding:8px 16px;border-radius:8px">
+                <i class="fa-regular fa-pen-to-square"></i> Edit Profile
+            </a>
+        @endif
     </div>
 </div>
 

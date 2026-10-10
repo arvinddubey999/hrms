@@ -2,7 +2,9 @@
 @section('content')
 <div class="page-head">
     <h1>Leave Requests Management</h1>
-    <button class="btn" onclick="document.getElementById('newLeaveModal').classList.add('open')">+ Create Leave Request (Admin)</button>
+    @if(auth()->user()->hasPermission('leave.apply') || auth()->user()->hasPermission('leave.approve'))
+        <button class="btn" onclick="document.getElementById('newLeaveModal').classList.add('open')">+ Create Leave Request (Admin)</button>
+    @endif
 </div>
 
 <div class="card">
@@ -56,15 +58,19 @@
                     </a>
                 </td>
                 <td>
-                    <form method="post" action="{{ route('requests.status', $item) }}" class="row" style="gap:4px">
-                        @csrf
-                        <select name="status" style="width:110px;padding:4px">
-                            @foreach(['pending','approved','rejected','unapproved'] as $s)
-                                <option value="{{ $s }}" {{ $item->status===$s?'selected':'' }}>{{ ucfirst($s) }}</option>
-                            @endforeach
-                        </select>
-                        <button class="btn light" style="font-size:11px;padding:4px 8px">Update</button>
-                    </form>
+                    @if(auth()->user()->hasPermission('leave.approve'))
+                        <form method="post" action="{{ route('requests.status', $item) }}" class="row" style="gap:4px">
+                            @csrf
+                            <select name="status" style="width:110px;padding:4px">
+                                @foreach(['pending','approved','rejected','unapproved'] as $s)
+                                    <option value="{{ $s }}" {{ $item->status===$s?'selected':'' }}>{{ ucfirst($s) }}</option>
+                                @endforeach
+                            </select>
+                            <button class="btn light" style="font-size:11px;padding:4px 8px">Update</button>
+                        </form>
+                    @else
+                        <span class="muted" style="font-size:12px">View Only</span>
+                    @endif
                 </td>
             </tr>
         @empty

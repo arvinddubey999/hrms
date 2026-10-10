@@ -15,6 +15,11 @@ class TaskController extends Controller
 {
     public function index(Request $request)
     {
+        $u = $request->user();
+        if (!$u || (!$u->hasPermission('tasks.view') && !$u->hasPermission('tasks.create') && !$u->hasPermission('tasks.manage'))) {
+            return back()->with('error', 'You do not have permission to view tasks.');
+        }
+
         $status = $request->get('status');
         $priority = $request->get('priority');
         $q = $request->get('q');
@@ -70,6 +75,10 @@ class TaskController extends Controller
 
     public function store(Request $request)
     {
+        $u = $request->user();
+        if (!$u || (!$u->hasPermission('tasks.create') && !$u->hasPermission('tasks.manage'))) {
+            return back()->with('error', 'You do not have permission to create & assign tasks.');
+        }
         $data = $request->validate([
             'title' => 'required|string',
             'description' => 'nullable|string',

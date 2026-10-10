@@ -781,6 +781,7 @@ function closeGeofenceModal() {
                         'attendance.mark' => 'Mark Single Attendance',
                         'attendance.bulk' => 'Bulk Mark Attendance',
                         'attendance.edit' => 'Edit Punches & Shifts',
+                        'roster.view' => 'Monthly Roster',
                     ],
                     'Leave Management' => [
                         'leave.view' => 'View Leave Requests',
@@ -798,9 +799,9 @@ function closeGeofenceModal() {
                         'tasks.create' => 'Create & Assign Tasks',
                         'tasks.manage' => 'Manage & Reassign Tasks',
                     ],
-                    'Geo-fence & Locations' => [
+                    'Live Tracking & Geo' => [
+                        'tracking.view' => 'Live Location Tracking',
                         'geofence.view' => 'View Geofences',
-                        'geofence.tracking' => 'Live Location Tracking',
                     ],
                     'Settings & System' => [
                         'settings.view' => 'View Settings',

@@ -10,6 +10,11 @@ class RequestController extends Controller
 {
     public function index(Request $request)
     {
+        $u = $request->user();
+        if (!$u || (!$u->hasPermission('leave.view') && !$u->hasPermission('leave.apply') && !$u->hasPermission('leave.approve'))) {
+            return back()->with('error', 'You do not have permission to view leave requests.');
+        }
+
         $status = $request->get('status');
         $q = $request->get('q');
         $month = $request->get('month', now()->format('Y-m'));
@@ -48,6 +53,11 @@ class RequestController extends Controller
 
     public function store(Request $request)
     {
+        $u = $request->user();
+        if (!$u || (!$u->hasPermission('leave.apply') && !$u->hasPermission('leave.approve'))) {
+            return back()->with('error', 'You do not have permission to apply for leave requests.');
+        }
+
         $data = $request->validate([
             'user_id' => 'required|exists:users,id',
             'leave_type' => 'required|string',
@@ -65,6 +75,11 @@ class RequestController extends Controller
 
     public function updateStatus(Request $request, LeaveRequest $leaveRequest)
     {
+        $u = $request->user();
+        if (!$u || !$u->hasPermission('leave.approve')) {
+            return back()->with('error', 'You do not have permission to approve or reject leave requests.');
+        }
+
         $data = $request->validate([
             'status' => 'required|in:pending,approved,rejected,unapproved',
         ]);

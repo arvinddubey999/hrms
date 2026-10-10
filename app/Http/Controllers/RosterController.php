@@ -20,6 +20,9 @@ class RosterController extends Controller
         $companyId = $request->get('company_id');
 
         $user = auth()->user();
+        if ($user && !$user->hasPermission('roster.view') && !$user->hasPermission('attendance.view')) {
+            return back()->with('error', 'You do not have permission to view Monthly Roster.');
+        }
 
         $query = User::query()->where('status', 'active');
 

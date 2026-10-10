@@ -9,11 +9,19 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
 <div class="page-head">
     <h1>Employees</h1>
     <div class="row">
-        <a class="btn light" href="{{ route('tracking.realtime') }}"><i class="fa-solid fa-location-dot"></i> Live View</a>
-        <button class="btn light" onclick="openExcelImportModal()"><i class="fa-solid fa-file-excel" style="color:#16a34a"></i> Excel Import</button>
-        <button class="btn light" onclick="openBulkShiftModal()"><i class="fa-solid fa-clock"></i> Bulk Shift</button>
-        <button class="btn light" onclick="openBulkMarkModal()"><i class="fa-solid fa-check-double"></i> Bulk Attendance</button>
-        <a class="btn" href="{{ route('employees.create') }}">+ Add employee</a>
+        @if(auth()->user()->hasPermission('tracking.view'))
+            <a class="btn light" href="{{ route('tracking.realtime') }}"><i class="fa-solid fa-location-dot"></i> Live View</a>
+        @endif
+        @if(auth()->user()->hasPermission('employee.add'))
+            <button class="btn light" onclick="openExcelImportModal()"><i class="fa-solid fa-file-excel" style="color:#16a34a"></i> Excel Import</button>
+        @endif
+        @if(auth()->user()->hasPermission('attendance.bulk'))
+            <button class="btn light" onclick="openBulkShiftModal()"><i class="fa-solid fa-clock"></i> Bulk Shift</button>
+            <button class="btn light" onclick="openBulkMarkModal()"><i class="fa-solid fa-check-double"></i> Bulk Attendance</button>
+        @endif
+        @if(auth()->user()->hasPermission('employee.add'))
+            <a class="btn" href="{{ route('employees.create') }}">+ Add employee</a>
+        @endif
     </div>
 </div>
 
@@ -40,152 +48,154 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
     </div>
 @endif
 
-<div class="card hello">
-    <div class="row" style="justify-space-between">
-        <div>
-            <h2>{{ $greet }}</h2>
-            <p>Here's the attendance status of employees at</p>
-            <div class="co">{{ $setting->company_name }}</div>
-        </div>
-        <div class="row">
-            <span class="badge ok"><i class="fa-solid fa-circle" style="font-size:8px"></i> Live</span>
-            <form method="get" id="dateForm">
-                <input type="date" name="date" value="{{ $date->toDateString() }}" onchange="document.getElementById('dateForm').submit()">
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Attendance Statistics Card -->
-<div class="card" style="margin-top:14px">
-    <div class="stats">
-        <div>
-            <strong>Attendance<br>Statistics</strong>
-            <div class="muted" style="margin-top:8px">{{ $date->isToday() ? 'Today' : $date->format('d M Y') }}</div>
-        </div>
-        <div>
-            <div class="kpi">
-                <div style="cursor:pointer" onclick="openStatModal('present')"><span class="bar" style="background:#16a34a"></span><small>PRESENT</small><b>{{ $stats['present'] }}</b></div>
-                <div style="cursor:pointer" onclick="openStatModal('absent')"><span class="bar" style="background:#ef4444"></span><small>ABSENT</small><b>{{ $stats['absent'] }}</b></div>
-                <div style="cursor:pointer" onclick="openStatModal('not_marked')"><span class="bar" style="background:#9ca3af"></span><small>NOT MARKED</small><b>{{ $stats['not_marked'] }}</b></div>
-                <div style="cursor:pointer" onclick="openStatModal('late')"><span class="bar" style="background:#eab308"></span><small>LATE</small><b>{{ $stats['late'] }}</b></div>
-                <div style="cursor:pointer" onclick="openStatModal('leave')"><span class="bar" style="background:#f97316"></span><small>LEAVE</small><b>{{ $stats['leave'] }}</b></div>
-                <div style="cursor:pointer" onclick="openStatModal('early')"><span class="bar" style="background:#fb923c"></span><small>EARLY</small><b>{{ $stats['early'] }}</b></div>
-                <div style="cursor:pointer" onclick="openStatModal('late')"><span class="bar" style="background:#dc2626"></span><small style="color:#991b1b;font-weight:700">LATE ALERTS</small><b style="color:#dc2626">{{ $stats['late'] }}</b></div>
-                <div style="cursor:pointer" onclick="location.href='{{ route('tasks.index', ['status'=>'pending']) }}'"><span class="bar" style="background:#ea580c"></span><small style="color:#ea580c;font-weight:700">PENDING TASK</small><b style="color:#ea580c">{{ $stats['pending_tasks'] ?? 0 }}</b></div>
+@if(auth()->user()->hasPermission('dashboard.view'))
+    <div class="card hello">
+        <div class="row" style="justify-space-between">
+            <div>
+                <h2>{{ $greet }}</h2>
+                <p>Here's the attendance status of employees at</p>
+                <div class="co">{{ $setting->company_name }}</div>
             </div>
-            <div class="kpi" style="margin-top:14px;padding-top:12px;border-top:1px dashed #e5e7eb">
-                <div style="cursor:pointer" onclick="openStatModal('total')"><span class="bar" style="background:#9ca3af"></span><small>TOTAL HEADS</small><b>{{ $stats['total'] }}</b></div>
-                <div style="cursor:pointer" onclick="openStatModal('admin')"><span class="bar" style="background:#9ca3af"></span><small>ADMIN</small><b>{{ $stats['admin'] }}</b></div>
-                <div style="cursor:pointer" onclick="openStatModal('manager')"><span class="bar" style="background:#9ca3af"></span><small>MANAGER</small><b>{{ $stats['manager'] }}</b></div>
-                <div style="cursor:pointer" onclick="openStatModal('employee')"><span class="bar" style="background:#9ca3af"></span><small>EMPLOYEE</small><b>{{ $stats['employee'] }}</b></div>
-                <div style="cursor:pointer" onclick="openStatModal('archived')"><span class="bar" style="background:#9ca3af"></span><small>ARCHIVED</small><b>{{ $stats['archived'] }}</b></div>
+            <div class="row">
+                <span class="badge ok"><i class="fa-solid fa-circle" style="font-size:8px"></i> Live</span>
+                <form method="get" id="dateForm">
+                    <input type="date" name="date" value="{{ $date->toDateString() }}" onchange="document.getElementById('dateForm').submit()">
+                </form>
             </div>
         </div>
     </div>
-</div>
 
-<!-- GRAPHICAL DASHBOARD ANALYTICS -->
-<div class="row" style="margin-top:14px;gap:14px;flex-wrap:wrap">
-    <div class="card" style="flex:1;min-width:260px;padding:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-            <h3 style="margin:0;font-size:15px;font-weight:700;color:#111827"><i class="fa-solid fa-chart-pie" style="color:#7c3aed;margin-right:6px"></i> Attendance Analytics</h3>
-            <span class="muted" style="font-size:12px">{{ $date->format('d M Y') }}</span>
-        </div>
-        <div style="height:200px;position:relative">
-            <canvas id="attendanceChart"></canvas>
-        </div>
-    </div>
-    
-    <div class="card" style="flex:1;min-width:260px;padding:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-            <h3 style="margin:0;font-size:15px;font-weight:700;color:#111827"><i class="fa-solid fa-chart-simple" style="color:#2563eb;margin-right:6px"></i> Headcount Breakdown</h3>
-            <span class="muted" style="font-size:12px">Role & Staff Overview</span>
-        </div>
-        <div style="height:200px;position:relative">
-            <canvas id="headcountChart"></canvas>
-        </div>
-    </div>
-
-    <div class="card" style="flex:1;min-width:260px;padding:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-            <h3 style="margin:0;font-size:15px;font-weight:700;color:#111827"><i class="fa-solid fa-list-check" style="color:#ea580c;margin-right:6px"></i> Task Status Overview</h3>
-            <span class="muted" style="font-size:12px">Live Tasks</span>
-        </div>
-        <div style="height:200px;position:relative">
-            <canvas id="taskChart"></canvas>
-        </div>
-    </div>
-</div>
-
-<!-- UPCOMING BIRTHDAYS SECTION (Next 7 Days) -->
-@php
-    $upcomingBirthdays = \App\Models\User::whereNotNull('birthday')
-        ->where('status', 'active')
-        ->get()
-        ->map(function($u) {
-            try {
-                $b = \Carbon\Carbon::parse($u->birthday);
-                $today = \Carbon\Carbon::today('Asia/Kolkata');
-                $nextBday = \Carbon\Carbon::create($today->year, $b->month, $b->day);
-                if ($nextBday->lt($today)) {
-                    $nextBday->addYear();
-                }
-                $daysLeft = (int) $today->diffInDays($nextBday, false);
-                $u->days_left = $daysLeft;
-                $u->next_bday_formatted = $nextBday->format('d M');
-                $u->turning_age = $b->age + ($daysLeft > 0 ? 1 : 0);
-                return $u;
-            } catch (\Exception $e) {
-                return null;
-            }
-        })
-        ->filter(fn($u) => $u && $u->days_left >= 0 && $u->days_left <= 7)
-        ->sortBy('days_left');
-@endphp
-<div class="card" style="margin-top:14px;background:linear-gradient(135deg, #ffffff 0%, #fff5f5 100%);border:1px solid #fecdd3">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <div style="display:flex;align-items:center;gap:10px">
-            <div style="width:36px;height:36px;background:#ffe4e6;color:#e11d48;border-radius:10px;display:grid;place-items:center;font-size:18px">
-                🎂
+    <!-- Attendance Statistics Card -->
+    <div class="card" style="margin-top:14px">
+        <div class="stats">
+            <div>
+                <strong>Attendance<br>Statistics</strong>
+                <div class="muted" style="margin-top:8px">{{ $date->isToday() ? 'Today' : $date->format('d M Y') }}</div>
             </div>
             <div>
-                <h3 style="margin:0;color:#9f1239">Today & Upcoming Birthdays</h3>
-                <span class="muted" style="font-size:12px">Celebrations in the next 7 days</span>
+                <div class="kpi">
+                    <div style="cursor:pointer" onclick="openStatModal('present')"><span class="bar" style="background:#16a34a"></span><small>PRESENT</small><b>{{ $stats['present'] }}</b></div>
+                    <div style="cursor:pointer" onclick="openStatModal('absent')"><span class="bar" style="background:#ef4444"></span><small>ABSENT</small><b>{{ $stats['absent'] }}</b></div>
+                    <div style="cursor:pointer" onclick="openStatModal('not_marked')"><span class="bar" style="background:#9ca3af"></span><small>NOT MARKED</small><b>{{ $stats['not_marked'] }}</b></div>
+                    <div style="cursor:pointer" onclick="openStatModal('late')"><span class="bar" style="background:#eab308"></span><small>LATE</small><b>{{ $stats['late'] }}</b></div>
+                    <div style="cursor:pointer" onclick="openStatModal('leave')"><span class="bar" style="background:#f97316"></span><small>LEAVE</small><b>{{ $stats['leave'] }}</b></div>
+                    <div style="cursor:pointer" onclick="openStatModal('early')"><span class="bar" style="background:#fb923c"></span><small>EARLY</small><b>{{ $stats['early'] }}</b></div>
+                    <div style="cursor:pointer" onclick="openStatModal('late')"><span class="bar" style="background:#dc2626"></span><small style="color:#991b1b;font-weight:700">LATE ALERTS</small><b style="color:#dc2626">{{ $stats['late'] }}</b></div>
+                    <div style="cursor:pointer" onclick="location.href='{{ route('tasks.index', ['status'=>'pending']) }}'"><span class="bar" style="background:#ea580c"></span><small style="color:#ea580c;font-weight:700">PENDING TASK</small><b style="color:#ea580c">{{ $stats['pending_tasks'] ?? 0 }}</b></div>
+                </div>
+                <div class="kpi" style="margin-top:14px;padding-top:12px;border-top:1px dashed #e5e7eb">
+                    <div style="cursor:pointer" onclick="openStatModal('total')"><span class="bar" style="background:#9ca3af"></span><small>TOTAL HEADS</small><b>{{ $stats['total'] }}</b></div>
+                    <div style="cursor:pointer" onclick="openStatModal('admin')"><span class="bar" style="background:#9ca3af"></span><small>ADMIN</small><b>{{ $stats['admin'] }}</b></div>
+                    <div style="cursor:pointer" onclick="openStatModal('manager')"><span class="bar" style="background:#9ca3af"></span><small>MANAGER</small><b>{{ $stats['manager'] }}</b></div>
+                    <div style="cursor:pointer" onclick="openStatModal('employee')"><span class="bar" style="background:#9ca3af"></span><small>EMPLOYEE</small><b>{{ $stats['employee'] }}</b></div>
+                    <div style="cursor:pointer" onclick="openStatModal('archived')"><span class="bar" style="background:#9ca3af"></span><small>ARCHIVED</small><b>{{ $stats['archived'] }}</b></div>
+                </div>
             </div>
         </div>
-        <span class="badge" style="background:#ffe4e6;color:#e11d48;font-weight:700">{{ $upcomingBirthdays->count() }} Upcoming</span>
     </div>
 
-    @if($upcomingBirthdays->count() > 0)
-        <div class="row" style="gap:16px;flex-wrap:wrap">
-            @foreach($upcomingBirthdays as $bEmp)
-                <div style="display:flex;align-items:center;gap:12px;background:#fff;padding:10px 16px;border-radius:12px;border:1px solid #ffe4e6;box-shadow:0 2px 4px rgba(225,29,72,0.05)">
-                    @if($bEmp->profile_photo)
-                        <img src="{{ asset('storage/'.$bEmp->profile_photo) }}" alt="Photo" style="width:46px;height:46px;border-radius:50%;object-fit:cover;border:2px solid #f43f5e">
-                    @else
-                        <div style="width:46px;height:46px;background:#ffe4e6;color:#e11d48;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:16px;border:2px solid #f43f5e">
-                            {{ $bEmp->initials() }}
-                        </div>
-                    @endif
-                    <div>
-                        <div style="font-weight:700;color:#111827">{{ $bEmp->displayName() }}</div>
-                        <div style="font-size:12px;color:#e11d48;font-weight:600">
-                            @if($bEmp->days_left === 0)
-                                🎉 Turns {{ $bEmp->turning_age }} today!
-                            @else
-                                🎂 Turns {{ $bEmp->turning_age }} on {{ $bEmp->next_bday_formatted }} (in {{ $bEmp->days_left }} {{ $bEmp->days_left === 1 ? 'day' : 'days' }})
-                            @endif
-                        </div>
-                        <small class="muted">{{ $bEmp->department ?: ($bEmp->company->name ?? 'Staff') }}</small>
-                    </div>
-                </div>
-            @endforeach
+    <!-- GRAPHICAL DASHBOARD ANALYTICS -->
+    <div class="row" style="margin-top:14px;gap:14px;flex-wrap:wrap">
+        <div class="card" style="flex:1;min-width:260px;padding:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <h3 style="margin:0;font-size:15px;font-weight:700;color:#111827"><i class="fa-solid fa-chart-pie" style="color:#7c3aed;margin-right:6px"></i> Attendance Analytics</h3>
+                <span class="muted" style="font-size:12px">{{ $date->format('d M Y') }}</span>
+            </div>
+            <div style="height:200px;position:relative">
+                <canvas id="attendanceChart"></canvas>
+            </div>
         </div>
-    @else
-        <div class="muted" style="font-size:13px;padding:4px 0"><i class="fa-solid fa-cake-candles" style="color:#fda4af;margin-right:6px"></i> No staff birthdays scheduled in the next 7 days.</div>
-    @endif
-</div>
+        
+        <div class="card" style="flex:1;min-width:260px;padding:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <h3 style="margin:0;font-size:15px;font-weight:700;color:#111827"><i class="fa-solid fa-chart-simple" style="color:#2563eb;margin-right:6px"></i> Headcount Breakdown</h3>
+                <span class="muted" style="font-size:12px">Role & Staff Overview</span>
+            </div>
+            <div style="height:200px;position:relative">
+                <canvas id="headcountChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card" style="flex:1;min-width:260px;padding:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <h3 style="margin:0;font-size:15px;font-weight:700;color:#111827"><i class="fa-solid fa-list-check" style="color:#ea580c;margin-right:6px"></i> Task Status Overview</h3>
+                <span class="muted" style="font-size:12px">Live Tasks</span>
+            </div>
+            <div style="height:200px;position:relative">
+                <canvas id="taskChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- UPCOMING BIRTHDAYS SECTION (Next 7 Days) -->
+    @php
+        $upcomingBirthdays = \App\Models\User::whereNotNull('birthday')
+            ->where('status', 'active')
+            ->get()
+            ->map(function($u) {
+                try {
+                    $b = \Carbon\Carbon::parse($u->birthday);
+                    $today = \Carbon\Carbon::today('Asia/Kolkata');
+                    $nextBday = \Carbon\Carbon::create($today->year, $b->month, $b->day);
+                    if ($nextBday->lt($today)) {
+                        $nextBday->addYear();
+                    }
+                    $daysLeft = (int) $today->diffInDays($nextBday, false);
+                    $u->days_left = $daysLeft;
+                    $u->next_bday_formatted = $nextBday->format('d M');
+                    $u->turning_age = $b->age + ($daysLeft > 0 ? 1 : 0);
+                    return $u;
+                } catch (\Exception $e) {
+                    return null;
+                }
+            })
+            ->filter(fn($u) => $u && $u->days_left >= 0 && $u->days_left <= 7)
+            ->sortBy('days_left');
+    @endphp
+    <div class="card" style="margin-top:14px;background:linear-gradient(135deg, #ffffff 0%, #fff5f5 100%);border:1px solid #fecdd3">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:10px">
+                <div style="width:36px;height:36px;background:#ffe4e6;color:#e11d48;border-radius:10px;display:grid;place-items:center;font-size:18px">
+                    🎂
+                </div>
+                <div>
+                    <h3 style="margin:0;color:#9f1239">Today & Upcoming Birthdays</h3>
+                    <span class="muted" style="font-size:12px">Celebrations in the next 7 days</span>
+                </div>
+            </div>
+            <span class="badge" style="background:#ffe4e6;color:#e11d48;font-weight:700">{{ $upcomingBirthdays->count() }} Upcoming</span>
+        </div>
+
+        @if($upcomingBirthdays->count() > 0)
+            <div class="row" style="gap:16px;flex-wrap:wrap">
+                @foreach($upcomingBirthdays as $bEmp)
+                    <div style="display:flex;align-items:center;gap:12px;background:#fff;padding:10px 16px;border-radius:12px;border:1px solid #ffe4e6;box-shadow:0 2px 4px rgba(225,29,72,0.05)">
+                        @if($bEmp->profile_photo)
+                            <img src="{{ asset('storage/'.$bEmp->profile_photo) }}" alt="Photo" style="width:46px;height:46px;border-radius:50%;object-fit:cover;border:2px solid #f43f5e">
+                        @else
+                            <div style="width:46px;height:46px;background:#ffe4e6;color:#e11d48;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:16px;border:2px solid #f43f5e">
+                                {{ $bEmp->initials() }}
+                            </div>
+                        @endif
+                        <div>
+                            <div style="font-weight:700;color:#111827">{{ $bEmp->displayName() }}</div>
+                            <div style="font-size:12px;color:#e11d48;font-weight:600">
+                                @if($bEmp->days_left === 0)
+                                    🎉 Turns {{ $bEmp->turning_age }} today!
+                                @else
+                                    🎂 Turns {{ $bEmp->turning_age }} on {{ $bEmp->next_bday_formatted }} (in {{ $bEmp->days_left }} {{ $bEmp->days_left === 1 ? 'day' : 'days' }})
+                                @endif
+                            </div>
+                            <small class="muted">{{ $bEmp->department ?: ($bEmp->company->name ?? 'Staff') }}</small>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @else
+            <div class="muted" style="font-size:13px;padding:4px 0"><i class="fa-solid fa-cake-candles" style="color:#fda4af;margin-right:6px"></i> No staff birthdays scheduled in the next 7 days.</div>
+        @endif
+    </div>
+@endif
 
 <!-- Filter Bar & Search/Sort controls -->
 <div class="card" style="margin-top:14px;padding:12px 18px">

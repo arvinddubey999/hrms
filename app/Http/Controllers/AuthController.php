@@ -21,21 +21,27 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        $field = filter_var($data['login'], FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
-        $user = User::query()->where($field, $data['login'])->first();
+        $loginInput = trim($data['login']);
+        $user = User::query()
+            ->where(function ($q) use ($loginInput) {
+                $q->where('email', $loginInput)
+                  ->orWhere('phone', $loginInput)
+                  ->orWhere('employee_code', $loginInput);
+            })
+            ->first();
 
         if (! $user || ! Hash::check($data['password'], $user->password)) {
-            return back()->withErrors(['login' => 'Invalid credentials'])->withInput();
+            return back()->withErrors(['login' => 'Invalid credentials (Employee Code / Phone / Email or Password)'])->withInput();
         }
 
-        if (! $user->isManager()) {
-            return back()->withErrors(['login' => 'Admin / manager login only. Staff should use the mobile app.']);
+        if ($user->status === 'archived') {
+            return back()->withErrors(['login' => 'Your account is archived. Please contact system admin.'])->withInput();
         }
 
         Auth::login($user, $request->boolean('remember'));
         $request->session()->regenerate();
 
-        return redirect()->route('attendances.index');
+        return redirect()->route($user->defaultLandingRoute());
     }
 
     public function logout(Request $request)

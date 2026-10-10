@@ -68,14 +68,19 @@ class User extends Authenticatable
             return true;
         }
 
-        $directPerms = is_array($this->permissions) ? $this->permissions : [];
-        if (in_array($permissionKey, $directPerms, true)) {
-            return true;
+        // 1. If employee has explicit custom permissions set on their profile, it is the STRICT authority!
+        if (is_array($this->permissions)) {
+            return in_array($permissionKey, $this->permissions, true);
         }
 
-        $roleObj = Role::where('name', $this->role)->first();
-        if ($roleObj && is_array($roleObj->permissions) && in_array($permissionKey, $roleObj->permissions, true)) {
-            return true;
+        // 2. Fallback to Role's default permissions if employee has no custom permissions array set
+        if (!empty($this->role)) {
+            $roleObj = Role::where('name', $this->role)
+                ->orWhereRaw('LOWER(name) = ?', [strtolower($this->role)])
+                ->first();
+            if ($roleObj && is_array($roleObj->permissions)) {
+                return in_array($permissionKey, $roleObj->permissions, true);
+            }
         }
 
         return false;
@@ -83,11 +88,48 @@ class User extends Authenticatable
 
     public function allPermissions(): array
     {
-        $directPerms = is_array($this->permissions) ? $this->permissions : [];
-        $roleObj = Role::where('name', $this->role)->first();
-        $rolePerms = ($roleObj && is_array($roleObj->permissions)) ? $roleObj->permissions : [];
+        if (in_array(strtolower($this->role ?? ''), ['admin', 'super admin'], true)) {
+            return [
+                'dashboard.view', 'dashboard.reports', 'dashboard.download',
+                'employee.view', 'employee.add', 'employee.edit', 'employee.delete',
+                'attendance.view', 'attendance.mark', 'attendance.bulk', 'attendance.edit',
+                'leave.view', 'leave.apply', 'leave.approve',
+                'payroll.view', 'payroll.process', 'payroll.advances', 'payroll.expenses',
+                'tasks.view', 'tasks.create', 'tasks.manage',
+                'settings.view', 'settings.roles'
+            ];
+        }
 
-        return array_values(array_unique(array_merge($rolePerms, $directPerms)));
+        if (is_array($this->permissions)) {
+            return array_values(array_unique($this->permissions));
+        }
+
+        $roleObj = !empty($this->role) ? Role::where('name', $this->role)->orWhereRaw('LOWER(name) = ?', [strtolower($this->role)])->first() : null;
+        return ($roleObj && is_array($roleObj->permissions)) ? array_values(array_unique($roleObj->permissions)) : [];
+    }
+
+    public function defaultLandingRoute(): string
+    {
+        if ($this->hasPermission('attendance.view') || $this->hasPermission('employee.view')) {
+            return 'attendances.index';
+        }
+        if ($this->hasPermission('leave.view') || $this->hasPermission('leave.apply') || $this->hasPermission('leave.approve')) {
+            return 'requests.index';
+        }
+        if ($this->hasPermission('payroll.view') || $this->hasPermission('payroll.process')) {
+            return 'payroll.index';
+        }
+        if ($this->hasPermission('tasks.view') || $this->hasPermission('tasks.create')) {
+            return 'tasks.index';
+        }
+        if ($this->hasPermission('dashboard.reports') || $this->hasPermission('dashboard.view')) {
+            return 'reports.index';
+        }
+        if ($this->hasPermission('settings.view') || $this->hasPermission('settings.roles')) {
+            return 'settings.index';
+        }
+
+        return 'attendances.index';
     }
 
     public function shift(): BelongsTo

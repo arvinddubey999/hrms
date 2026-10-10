@@ -125,8 +125,13 @@ class EmployeeController extends Controller
         ]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
+        $u = $request->user();
+        if (!$u || !$u->hasPermission('employee.add')) {
+            return back()->with('error', 'You do not have permission to add new employees.');
+        }
+
         return view('employees.form', [
             'staff' => new User([
                 'status' => 'active',
@@ -147,6 +152,11 @@ class EmployeeController extends Controller
 
     public function store(Request $request)
     {
+        $u = $request->user();
+        if (!$u || !$u->hasPermission('employee.add')) {
+            return back()->with('error', 'You do not have permission to add new employees.');
+        }
+
         $staff = new User;
         $this->persist($request, $staff);
         return redirect()->route('employees.show', $staff)->with('ok', 'Staff member created successfully.');
@@ -168,8 +178,13 @@ class EmployeeController extends Controller
         ]);
     }
 
-    public function edit(User $employee)
+    public function edit(User $employee, Request $request)
     {
+        $u = $request->user();
+        if (!$u || !$u->hasPermission('employee.edit')) {
+            return back()->with('error', 'You do not have permission to edit employee details.');
+        }
+
         return view('employees.form', [
             'staff' => $employee,
             'categories' => Category::orderBy('name')->get(),
@@ -182,12 +197,22 @@ class EmployeeController extends Controller
 
     public function update(Request $request, User $employee)
     {
+        $u = $request->user();
+        if (!$u || !$u->hasPermission('employee.edit')) {
+            return back()->with('error', 'You do not have permission to edit employee details.');
+        }
+
         $this->persist($request, $employee);
         return redirect()->route('employees.show', $employee)->with('ok', 'Profile updated successfully.');
     }
 
-    public function destroy(User $employee)
+    public function destroy(User $employee, Request $request)
     {
+        $u = $request->user();
+        if (!$u || !$u->hasPermission('employee.delete')) {
+            return back()->with('error', 'You do not have permission to delete/archive employees.');
+        }
+
         $employee->update(['status' => 'archived']);
         return redirect()->route('attendances.index')->with('ok', 'Employee archived successfully.');
     }
@@ -200,6 +225,11 @@ class EmployeeController extends Controller
 
     public function mark(Request $request, User $employee, AttendanceService $attendance)
     {
+        $authUser = $request->user();
+        if ($authUser && !$authUser->hasPermission('attendance.mark') && !$authUser->hasPermission('attendance.edit')) {
+            return back()->with('error', 'You do not have permission to mark attendance.');
+        }
+
         $data = $request->validate([
             'type' => 'required|in:in,out',
             'date' => 'nullable|date',
@@ -233,6 +263,11 @@ class EmployeeController extends Controller
 
     public function bulkMark(Request $request, AttendanceService $attendance)
     {
+        $authUser = $request->user();
+        if ($authUser && !$authUser->hasPermission('attendance.bulk') && !$authUser->hasPermission('attendance.mark')) {
+            return back()->with('error', 'You do not have permission to bulk mark attendance.');
+        }
+
         $data = $request->validate([
             'employee_ids' => 'required|array',
             'employee_ids.*' => 'exists:users,id',
@@ -271,6 +306,11 @@ class EmployeeController extends Controller
 
     public function bulkShift(Request $request)
     {
+        $authUser = $request->user();
+        if ($authUser && !$authUser->hasPermission('attendance.edit') && !$authUser->hasPermission('attendance.bulk')) {
+            return back()->with('error', 'You do not have permission to change employee shifts.');
+        }
+
         $data = $request->validate([
             'employee_ids' => 'required|array',
             'employee_ids.*' => 'exists:users,id',
@@ -783,6 +823,7 @@ class EmployeeController extends Controller
 
         $data['name'] = trim($data['first_name'].' '.($data['last_name'] ?? ''));
         $data['role'] = $data['role'] ?? 'employee';
+        $data['permissions'] = $request->input('permissions', []);
 
         if (empty($data['password']) || $data['password'] === '********' || trim($data['password']) === '') {
             unset($data['password']);

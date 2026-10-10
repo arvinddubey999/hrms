@@ -19,8 +19,13 @@ use Illuminate\Http\Request;
 
 class ReportController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $u = $request->user();
+        if (!$u || (!$u->hasPermission('dashboard.reports') && !$u->hasPermission('dashboard.view'))) {
+            return back()->with('error', 'You do not have permission to view reports.');
+        }
+
         return view('reports.index', [
             'companies' => Company::orderBy('name')->get(),
             'departments' => Department::orderBy('name')->get(),
@@ -32,6 +37,10 @@ class ReportController extends Controller
 
     public function generate(Request $request, AttendanceService $attendance)
     {
+        $u = $request->user();
+        if (!$u || (!$u->hasPermission('dashboard.reports') && !$u->hasPermission('dashboard.download'))) {
+            return back()->with('error', 'You do not have permission to generate or download reports.');
+        }
         $type = $request->get('type', 'daywise');
         $rangeType = $request->get('range_type', 'month');
         $format = $request->get('format', 'excel');

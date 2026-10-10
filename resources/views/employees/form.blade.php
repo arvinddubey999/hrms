@@ -101,7 +101,7 @@
             </div>
             <div>
                 <label>Assign System Role *</label>
-                <select name="role" id="role_select" onchange="toggleManagerPermissions()">
+                <select name="role" id="role_select">
                     @php
                         $roleList = isset($roles) && count($roles) > 0 ? $roles->pluck('name')->toArray() : ['Admin', 'Manager', 'HR', 'Accountant', 'Supervisor', 'Developer', 'Employee'];
                     @endphp
@@ -112,7 +112,7 @@
             </div>
         </div>
 
-        <!-- Role & Permissions Section (Matching Screenshot 1) -->
+        <!-- Role & Permissions Section -->
         <div id="manager_permissions_box" style="background:#f8fafc;padding:16px;border-radius:12px;border:1px solid #cbd5e1;margin-bottom:16px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
                 <label style="font-weight:700;margin:0;color:var(--accent);font-size:14px">
@@ -122,7 +122,10 @@
             </div>
 
             @php
-                $userPerms = is_array($staff->permissions) ? $staff->permissions : ['dashboard.view', 'attendance.view', 'attendance.mark', 'leave.view', 'leave.apply', 'tasks.view'];
+                $userPerms = is_array($staff->permissions) ? $staff->permissions : $staff->allPermissions();
+                if (empty($userPerms) && !$staff->exists) {
+                    $userPerms = ['dashboard.view', 'attendance.view', 'attendance.mark', 'leave.view', 'leave.apply', 'tasks.view'];
+                }
                 $formPermGroups = [
                     'Dashboard' => [
                         'dashboard.view' => 'View Dashboard',
@@ -136,30 +139,36 @@
                         'employee.delete' => 'Delete Employee',
                     ],
                     'Attendance & Punches' => [
-                        'attendance.view' => 'View Attendance',
-                        'attendance.mark' => 'Mark Attendance',
+                        'attendance.view' => 'View Attendance Log',
+                        'attendance.mark' => 'Mark Single Attendance',
                         'attendance.bulk' => 'Bulk Mark Attendance',
-                        'attendance.edit' => 'Edit Attendance Punches',
+                        'attendance.edit' => 'Edit Punches & Shifts',
+                        'roster.view' => 'Monthly Roster',
                     ],
                     'Leave Management' => [
-                        'leave.view' => 'View Leaves',
+                        'leave.view' => 'View Leave Requests',
                         'leave.apply' => 'Apply Leave',
                         'leave.approve' => 'Approve / Reject Leave',
                     ],
                     'Payroll & Salary' => [
                         'payroll.view' => 'View Salary & Payslips',
                         'payroll.process' => 'Process Payroll',
-                        'payroll.advances' => 'Manage Advances',
-                        'payroll.expenses' => 'Manage Expenses',
+                        'payroll.advances' => 'Manage Advances & Loans',
+                        'payroll.expenses' => 'Manage Expense Claims',
                     ],
                     'Tasks' => [
                         'tasks.view' => 'View Tasks',
                         'tasks.create' => 'Create & Assign Tasks',
-                        'tasks.manage' => 'Manage Tasks',
+                        'tasks.manage' => 'Manage & Reassign Tasks',
+                    ],
+                    'Live Tracking & Geo' => [
+                        'tracking.view' => 'Live Location Tracking',
+                        'geofence.view' => 'View Geofences',
                     ],
                     'Settings & System' => [
                         'settings.view' => 'View Settings',
                         'settings.roles' => 'Manage Roles & Permissions',
+                        'settings.manage' => 'Manage System Settings',
                     ],
                 ];
             @endphp

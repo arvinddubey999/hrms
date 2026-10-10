@@ -14,8 +14,13 @@ use Illuminate\Support\Facades\Storage;
 
 class SettingsController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $u = $request->user();
+        if (!$u || (!$u->hasPermission('settings.view') && !$u->hasPermission('settings.roles'))) {
+            return back()->with('error', 'You do not have permission to access Settings & Masters.');
+        }
+
         return view('settings.index', [
             'setting' => Setting::current(),
             'shifts' => Shift::orderBy('name')->get(),

@@ -11,7 +11,7 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TrackingController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', fn () => redirect()->route('attendances.index'));
+Route::get('/', fn () => redirect()->route(auth()->user()?->defaultLandingRoute() ?? 'attendances.index'));
 
 // Helper route to run migrations & clear cache on live cPanel/hosting server
 Route::get('/run-live-setup', function () {

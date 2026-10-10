@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Company extends Model
 {
@@ -26,6 +27,11 @@ class Company extends Model
         'pt_threshold' => 'float',
         'pt_amount' => 'float',
     ];
+
+    public function setNameAttribute($value): void
+    {
+        $this->attributes['name'] = !empty($value) ? Str::title(mb_strtolower(trim($value))) : $value;
+    }
 
     public function employees()
     {

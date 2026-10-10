@@ -6,6 +6,7 @@ use App\Models\AttendancePunch;
 use App\Models\Category;
 use App\Models\Company;
 use App\Models\Department;
+use App\Models\Designation;
 use App\Models\LeaveRequest;
 use App\Models\Setting;
 use App\Models\Shift;
@@ -556,20 +557,31 @@ class EmployeeController extends Controller
                 $companyId = null;
                 $companyObj = null;
                 if (!empty($companyName)) {
-                    $companyObj = Company::firstOrCreate(['name' => $companyName]);
+                    $formattedCompany = Str::title(mb_strtolower(trim($companyName)));
+                    $companyObj = Company::firstOrCreate(['name' => $formattedCompany]);
                     $companyId = $companyObj->id;
+                    $companyName = $companyObj->name;
                 }
 
                 $deptId = null;
                 if (!empty($departmentName)) {
-                    $dept = Department::firstOrCreate(['name' => $departmentName]);
+                    $formattedDept = Str::title(mb_strtolower(trim($departmentName)));
+                    $dept = Department::firstOrCreate(['name' => $formattedDept]);
                     $deptId = $dept->id;
+                    $departmentName = $dept->name;
                 }
 
                 $categoryId = null;
                 if (!empty($categoryName)) {
-                    $cat = Category::firstOrCreate(['name' => $categoryName]);
+                    $formattedCat = Str::title(mb_strtolower(trim($categoryName)));
+                    $cat = Category::firstOrCreate(['name' => $formattedCat]);
                     $categoryId = $cat->id;
+                }
+
+                if (!empty($designation)) {
+                    $formattedDesig = Str::title(mb_strtolower(trim($designation)));
+                    $desigObj = Designation::firstOrCreate(['name' => $formattedDesig]);
+                    $designation = $desigObj->name;
                 }
 
                 if (empty($empCodeInput) || User::where('employee_code', $empCodeInput)->exists()) {
@@ -734,12 +746,23 @@ class EmployeeController extends Controller
             $data['employee_code'] = User::generateNextEmployeeCode();
         }
 
-        // If department_id selected, set department text name
+        // If department_id selected, set department text name; else create department in master
         if (!empty($data['department_id'])) {
             $deptObj = Department::find($data['department_id']);
             if ($deptObj) {
                 $data['department'] = $deptObj->name;
             }
+        } elseif (!empty($data['department'])) {
+            $formattedDept = Str::title(mb_strtolower(trim($data['department'])));
+            $deptObj = Department::firstOrCreate(['name' => $formattedDept]);
+            $data['department_id'] = $deptObj->id;
+            $data['department'] = $deptObj->name;
+        }
+
+        if (!empty($data['designation'])) {
+            $formattedDesig = Str::title(mb_strtolower(trim($data['designation'])));
+            $desigObj = Designation::firstOrCreate(['name' => $formattedDesig]);
+            $data['designation'] = $desigObj->name;
         }
 
         foreach (['esi_applicable', 'wop_applicable', 'hop_applicable', 'mobile_attendance', 'multiple_attendance', 'shiftwise_attendance', 'self_odometer', 'live_tracking', 'ai_selfie', 'overtime_applicable', 'view_self_salary', 'can_manage_tasks'] as $flag) {

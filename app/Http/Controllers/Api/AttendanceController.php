@@ -223,9 +223,9 @@ class AttendanceController extends Controller
             'early' => count($earlyUserIds),
             'heads' => $activeUsers->count(),
             'archived' => $archivedUsers->count(),
-            'admin' => $activeUsers->where('role', 'admin')->count(),
-            'manager' => $activeUsers->where('role', 'manager')->count(),
-            'employee' => $activeUsers->where('role', 'employee')->count(),
+            'admin' => $activeUsers->filter(fn($u) => in_array(strtolower(trim($u->role ?? '')), ['admin', 'super admin', 'superadmin'], true))->count(),
+            'manager' => $activeUsers->filter(fn($u) => strtolower(trim($u->role ?? '')) === 'manager')->count(),
+            'employee' => $activeUsers->filter(fn($u) => !in_array(strtolower(trim($u->role ?? '')), ['admin', 'super admin', 'superadmin', 'manager'], true))->count(),
         ];
 
         return response()->json([
@@ -349,22 +349,37 @@ class AttendanceController extends Controller
 
     public function updatePunch(Request $request, AttendancePunch $punch)
     {
+        $actor = $request->user();
+        $canEdit = $actor->isAdmin() || $actor->isManager() || $actor->hasPermission('attendance.edit');
+        if (!$canEdit) {
+            return response()->json(['message' => 'Unauthorized to update punch'], 403);
+        }
+
         $data = $request->validate([
             'status' => 'nullable|string',
             'time' => 'nullable',
             'location_text' => 'nullable|string',
             'remarks' => 'nullable|string',
+            'shift_id' => 'nullable|exists:shifts,id',
         ]);
 
-        $actor = $request->user();
-        if (!$actor->isAdmin() && !$actor->isManager() && $actor->id !== $punch->user_id) {
-            return response()->json(['message' => 'Unauthorized to update punch'], 403);
+        $status = strtolower($data['status'] ?? $punch->type);
+        if (in_array($status, ['absent', 'week_off', 'holiday', 'leave'])) {
+            $punch->delete();
+            return response()->json(['ok' => true, 'message' => 'Punch removed and status recorded as ' . strtoupper($status)]);
         }
 
         $updates = [];
         if (!empty($data['status'])) {
-            $updates['type'] = strtolower($data['status']);
+            $updates['type'] = in_array($status, ['wop', 'hop']) ? 'in' : $status;
         }
+        if (in_array($status, ['wop', 'hop'])) {
+            $existingRemarks = $data['remarks'] ?? $punch->remarks ?? '';
+            $updates['remarks'] = trim(($existingRemarks ? $existingRemarks . ' | ' : '') . strtoupper($status));
+        } elseif (isset($data['remarks'])) {
+            $updates['remarks'] = $data['remarks'];
+        }
+
         if (!empty($data['time'])) {
             $workDate = $punch->work_date->toDateString();
             $updates['punched_at'] = \Carbon\Carbon::parse($workDate . ' ' . $data['time']);
@@ -372,11 +387,12 @@ class AttendanceController extends Controller
         if (isset($data['location_text'])) {
             $updates['location_text'] = $data['location_text'];
         }
-        if (isset($data['remarks'])) {
-            $updates['remarks'] = $data['remarks'];
-        }
 
         $punch->update($updates);
+
+        if (!empty($data['shift_id'])) {
+            $punch->user?->update(['shift_id' => $data['shift_id']]);
+        }
 
         return response()->json(['ok' => true, 'message' => 'Attendance punch updated successfully.', 'punch' => $this->serialize($punch)]);
     }
@@ -384,7 +400,8 @@ class AttendanceController extends Controller
     public function destroyPunch(Request $request, AttendancePunch $punch)
     {
         $actor = $request->user();
-        if (!$actor->isAdmin() && !$actor->isManager() && $actor->id !== $punch->user_id) {
+        $canDelete = $actor->isAdmin() || $actor->isManager() || $actor->hasPermission('attendance.delete') || $actor->hasPermission('attendance.edit');
+        if (!$canDelete) {
             return response()->json(['message' => 'Unauthorized to delete punch'], 403);
         }
 

@@ -52,4 +52,28 @@ class AuthController extends Controller
 
         return redirect()->route('login');
     }
+
+    public function changePassword(Request $request)
+    {
+        $user = $request->user();
+        if (!$user) {
+            return redirect()->route('login');
+        }
+
+        $rules = [
+            'new_password' => 'required|string|min:6|confirmed',
+        ];
+
+        if (!$user->isAdmin() && $user->password) {
+            $rules['current_password'] = 'required|current_password';
+        }
+
+        $request->validate($rules);
+
+        $user->update([
+            'password' => Hash::make($request->input('new_password')),
+        ]);
+
+        return back()->with('ok', 'Password changed successfully!');
+    }
 }

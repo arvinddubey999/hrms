@@ -32,6 +32,10 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 Route::middleware('auth')->group(function () {
+    Route::post('/change-password', [AuthController::class, 'changePassword'])->name('change-password');
+    Route::put('/punches/{punch}', [EmployeeController::class, 'updatePunch'])->name('punches.update');
+    Route::delete('/punches/{punch}', [EmployeeController::class, 'destroyPunch'])->name('punches.destroy');
+
     // Attendance & Employees
     Route::match(['get', 'post'], '/attendances', [EmployeeController::class, 'index'])->name('attendances.index');
     Route::get('/attendances/stat-modal', [EmployeeController::class, 'statModal'])->name('attendances.stat-modal');

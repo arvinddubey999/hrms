@@ -122,3 +122,19 @@ label { font-size: 13px; font-weight: 600; display: block; margin: 10px 0 6px; }
   .sidebar { display: none; }
   .grid-2, .grid-3, .report-grid, .stats { grid-template-columns: 1fr; }
 }
+
+/* Pagination Styling */
+.custom-pagination {
+  box-sizing: border-box;
+}
+.custom-pagination a, .custom-pagination span {
+  box-sizing: border-box;
+}
+nav[role="navigation"] svg {
+  width: 14px !important;
+  height: 14px !important;
+  max-width: 14px !important;
+  max-height: 14px !important;
+  display: inline-block !important;
+}
+

@@ -26,11 +26,22 @@ class ReportController extends Controller
             return back()->with('error', 'You do not have permission to view reports.');
         }
 
+        $companiesQuery = Company::orderBy('name');
+        $employeesQuery = User::where('status', 'active')->orderBy('first_name');
+
+        if ($u && !$u->isAdmin()) {
+            $compIds = $u->accessibleCompanyIds();
+            if (!empty($compIds)) {
+                $companiesQuery->whereIn('id', $compIds);
+                $employeesQuery->whereIn('company_id', $compIds);
+            }
+        }
+
         return view('reports.index', [
-            'companies' => Company::orderBy('name')->get(),
+            'companies' => $companiesQuery->get(),
             'departments' => Department::orderBy('name')->get(),
             'categories' => Category::orderBy('name')->get(),
-            'employees' => User::where('status', 'active')->orderBy('first_name')->get(),
+            'employees' => $employeesQuery->get(),
             'setting' => Setting::current(),
         ]);
     }
@@ -63,6 +74,13 @@ class ReportController extends Controller
 
         // Employee & Category Filtering
         $query = User::query()->where('status', 'active')->with(['company', 'category', 'shift']);
+
+        if ($u && !$u->isAdmin()) {
+            $compIds = $u->accessibleCompanyIds();
+            if (!empty($compIds)) {
+                $query->whereIn('company_id', $compIds);
+            }
+        }
         
         $catIds = $request->get('category_ids');
         if (!empty($catIds) && !in_array('all', (array)$catIds)) {

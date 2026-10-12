@@ -49,6 +49,7 @@ class User extends Authenticatable
             'salary' => 'decimal:2',
             'last_location_at' => 'datetime',
             'permissions' => 'array',
+            'accessible_company_ids' => 'array',
         ];
     }
 
@@ -206,22 +207,63 @@ class User extends Authenticatable
         return in_array($this->role, ['admin', 'manager'], true);
     }
 
+    public function accessibleCompanyIds(): array
+    {
+        if (!empty($this->accessible_company_ids) && is_array($this->accessible_company_ids)) {
+            $ids = array_map('intval', $this->accessible_company_ids);
+            if ($this->company_id && !in_array((int)$this->company_id, $ids, true)) {
+                $ids[] = (int)$this->company_id;
+            }
+            return array_values(array_filter($ids));
+        }
+
+        return $this->company_id ? [(int)$this->company_id] : [];
+    }
+
     public function scopedEmployeesQuery()
     {
         $query = static::query()->where('status', 'active');
         if ($this->isAdmin()) {
             return $query;
         }
-        if ($this->role === 'manager') {
-            return $query->where(function ($q) {
-                if ($this->department_id) {
-                    $q->orWhere('department_id', $this->department_id);
-                }
-                if ($this->company_id) {
-                    $q->orWhere('company_id', $this->company_id);
-                }
-            });
+
+        $compIds = $this->accessibleCompanyIds();
+
+        // 1. If "View Employees" (employee.view) is granted to this role or staff member:
+        // They can see all employees of their assigned company / companies
+        if ($this->hasPermission('employee.view')) {
+            if (!empty($compIds)) {
+                $query->whereIn('company_id', $compIds);
+            }
+            return $query;
         }
+
+        // 2. Manager, Supervisor, HR without global employee.view: scoped to their assigned department and company
+        if ($this->isManager() || in_array(strtolower($this->role ?? ''), ['manager', 'supervisor', 'hr'], true)) {
+            if ($this->department_id) {
+                $query->where('department_id', $this->department_id);
+            }
+            if (!empty($compIds)) {
+                $query->whereIn('company_id', $compIds);
+            }
+            return $query;
+        }
+
+        // 3. Staff granted permission to take attendance for their team/department:
+        if ($this->hasPermission('attendance.bulk') || $this->hasPermission('attendance.mark')) {
+            if ($this->department_id) {
+                if (!empty($compIds)) {
+                    $query->whereIn('company_id', $compIds);
+                }
+                return $query->where('department_id', $this->department_id);
+            }
+            if (!empty($compIds)) {
+                $query->whereIn('company_id', $compIds);
+                return $query;
+            }
+        }
+
+        // 4. Standard employee (View Employees unchecked): strictly their own self!
         return $query->where('id', $this->id);
     }
 
@@ -303,8 +345,8 @@ class User extends Authenticatable
             return (float) $this->salary * 8;
         }
 
-        $setting = Setting::current();
-        $basis = $setting->salary_day_basis ?? 'month_days'; // 30, 31, 26, or month_days
+        // Rule priority: Company Master salary_calculation_days -> Setting salary_day_basis -> default 30
+        $basis = $this->company?->salary_calculation_days ?? Setting::current()->salary_day_basis ?? '30';
 
         $divider = 30;
         if ($basis === '26') {
@@ -313,6 +355,8 @@ class User extends Authenticatable
             $divider = 31;
         } elseif ($basis === '30') {
             $divider = 30;
+        } elseif ($basis === 'actual') {
+            $divider = $daysInMonth ?: now('Asia/Kolkata')->daysInMonth;
         } else {
             $divider = $daysInMonth ?: now('Asia/Kolkata')->daysInMonth;
         }

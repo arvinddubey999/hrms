@@ -26,8 +26,11 @@ class RosterController extends Controller
 
         $query = User::query()->where('status', 'active');
 
-        if ($user && $user->company_id && !$user->isAdmin()) {
-            $query->where('company_id', $user->company_id);
+        if ($user && !$user->isAdmin()) {
+            $accessible = $user->accessibleCompanyIds();
+            if (!empty($accessible)) {
+                $query->whereIn('company_id', $accessible);
+            }
         } elseif ($companyId) {
             $query->where('company_id', $companyId);
         }

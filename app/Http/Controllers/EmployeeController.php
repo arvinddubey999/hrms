@@ -33,23 +33,10 @@ class EmployeeController extends Controller
         $sortDir = strtolower($request->get('sort_dir', 'asc')) === 'desc' ? 'desc' : 'asc';
 
         $query = User::query()
-            ->with(['category', 'shift', 'company', 'department'])
-            ->where('status', $status);
+            ->with(['category', 'shift', 'company', 'department']);
 
-        if ($categoryId) {
-            $query->where('category_id', $categoryId);
-        }
-        if ($departmentId) {
-            $query->where('department_id', $departmentId);
-        }
-        $authUser = auth()->user();
-        if ($authUser && $authUser->company_id && !$authUser->isAdmin()) {
-            $query->where('company_id', $authUser->company_id);
-        } elseif ($companyId) {
-            $query->where('company_id', $companyId);
-        }
-
-        if ($q) {
+        // When searching, search across the ENTIRE database (both active and archived users)
+        if (!empty($q)) {
             $query->where(function ($inner) use ($q) {
                 $inner->where('name', 'like', "%{$q}%")
                     ->orWhere('first_name', 'like', "%{$q}%")
@@ -59,6 +46,22 @@ class EmployeeController extends Controller
                     ->orWhere('designation', 'like', "%{$q}%")
                     ->orWhere('department', 'like', "%{$q}%");
             });
+        } else {
+            $query->where('status', $status);
+        }
+
+        if ($categoryId) {
+            $query->where('category_id', $categoryId);
+        }
+        if ($departmentId) {
+            $query->where('department_id', $departmentId);
+        }
+        $authUser = auth()->user();
+        if ($authUser && !$authUser->isAdmin()) {
+            $scopedUserIds = $authUser->scopedEmployeesQuery()->pluck('id');
+            $query->whereIn('id', $scopedUserIds);
+        } elseif ($companyId) {
+            $query->where('company_id', $companyId);
         }
 
         // Sorting
@@ -74,25 +77,60 @@ class EmployeeController extends Controller
             $query->orderBy('first_name', $sortDir)->orderBy('last_name', $sortDir);
         }
 
-        $employees = $query->get();
+        // Paginate 15 per page with query string preserved
+        $employees = $query->paginate(15)->withQueryString();
+
+        // Calculate scoped stats for active employees
+        if ($authUser && !$authUser->isAdmin()) {
+            $scopedActiveQuery = $authUser->scopedEmployeesQuery();
+            if ($companyId) {
+                $scopedActiveQuery->where('company_id', $companyId);
+            }
+            $activeEmployees = $scopedActiveQuery->get();
+            $scopedIds = $activeEmployees->pluck('id');
+            $archivedCount = User::query()->where('status', 'archived')->whereIn('id', $scopedIds)->count();
+        } else {
+            $statsQuery = User::query()->where('status', 'active');
+            if ($companyId) {
+                $statsQuery->where('company_id', $companyId);
+            }
+            $activeEmployees = $statsQuery->get();
+            $archivedCount = User::query()->where('status', 'archived')
+                ->when($companyId, fn($q) => $q->where('company_id', $companyId))
+                ->count();
+        }
+
+        $adminCount = $activeEmployees->filter(fn($u) => in_array(strtolower(trim($u->role ?? '')), ['admin', 'super admin', 'superadmin'], true))->count();
+        $managerCount = $activeEmployees->filter(fn($u) => strtolower(trim($u->role ?? '')) === 'manager')->count();
+        $employeeCount = $activeEmployees->filter(fn($u) => !in_array(strtolower(trim($u->role ?? '')), ['admin', 'super admin', 'superadmin', 'manager'], true))->count();
 
         $stats = [
             'present' => 0, 'absent' => 0, 'not_marked' => 0, 'late' => 0, 'leave' => 0, 'early' => 0,
-            'total' => $employees->count(),
-            'admin' => $employees->where('role', 'admin')->count(),
-            'manager' => $employees->where('role', 'manager')->count(),
-            'employee' => $employees->where('role', 'employee')->count(),
-            'archived' => User::query()->where('status', 'archived')->count(),
-            'pending_tasks' => \App\Models\Task::query()->where('status', 'pending')->count(),
-            'in_progress_tasks' => \App\Models\Task::query()->where('status', 'in_progress')->count(),
-            'completed_tasks' => \App\Models\Task::query()->where('status', 'completed')->count(),
+            'total' => $activeEmployees->count(),
+            'admin' => $adminCount,
+            'manager' => $managerCount,
+            'employee' => $employeeCount,
+            'archived' => $archivedCount,
+            'pending_tasks' => \App\Models\Task::query()->where('status', 'pending')
+                ->when($authUser && !$authUser->isAdmin(), fn($tq) => $tq->whereIn('assigned_to', $activeEmployees->pluck('id')))
+                ->count(),
+            'in_progress_tasks' => \App\Models\Task::query()->where('status', 'in_progress')
+                ->when($authUser && !$authUser->isAdmin(), fn($tq) => $tq->whereIn('assigned_to', $activeEmployees->pluck('id')))
+                ->count(),
+            'completed_tasks' => \App\Models\Task::query()->where('status', 'completed')
+                ->when($authUser && !$authUser->isAdmin(), fn($tq) => $tq->whereIn('assigned_to', $activeEmployees->pluck('id')))
+                ->count(),
         ];
 
-        $rows = $employees->map(function (User $user) use ($attendance, $date, &$stats) {
-            $dayStatus = $attendance->dayStatus($user, $date);
+        foreach ($activeEmployees as $actEmp) {
+            $dayStatus = $attendance->dayStatus($actEmp, $date);
             if (isset($stats[$dayStatus])) {
                 $stats[$dayStatus]++;
             }
+        }
+
+        $rows = $employees->through(function (User $user) use ($attendance, $date) {
+            $dayStatus = $attendance->dayStatus($user, $date);
             $punches = AttendancePunch::query()
                 ->where('user_id', $user->id)
                 ->whereDate('work_date', $date->toDateString())
@@ -109,10 +147,13 @@ class EmployeeController extends Controller
         return view('employees.index', [
             'rows' => $rows,
             'stats' => $stats,
+            'activeEmployees' => $activeEmployees,
             'date' => $date,
             'categories' => Category::orderBy('name')->get(),
             'departments' => Department::orderBy('name')->get(),
-            'companies' => Company::orderBy('name')->get(),
+            'companies' => ($authUser && !$authUser->isAdmin() && !empty($authUser->accessibleCompanyIds()))
+                ? Company::whereIn('id', $authUser->accessibleCompanyIds())->orderBy('name')->get()
+                : Company::orderBy('name')->get(),
             'shifts' => Shift::orderBy('name')->get(),
             'setting' => Setting::current(),
             'q' => $q,
@@ -232,10 +273,12 @@ class EmployeeController extends Controller
 
         $data = $request->validate([
             'type' => 'required|in:in,out',
-            'date' => 'nullable|date',
+            'date' => 'nullable|date|before_or_equal:today',
             'time' => 'nullable',
             'remarks' => 'nullable|string',
             'photo' => 'nullable|image|max:5120',
+        ], [
+            'date.before_or_equal' => 'Attendance cannot be marked for a future date.',
         ]);
 
         $targetDate = $data['date'] ?? now('Asia/Kolkata')->toDateString();
@@ -274,10 +317,14 @@ class EmployeeController extends Controller
             'type' => 'required|in:in,out',
             'time' => 'nullable',
             'remarks' => 'nullable|string',
-            'date' => 'nullable|date',
+            'date' => 'nullable|date|before_or_equal:today',
+        ], [
+            'date.before_or_equal' => 'Attendance cannot be marked for a future date.',
         ]);
 
-        $workDate = $data['date'] ?? now('Asia/Kolkata')->toDateString();
+        $workDate = !empty($data['date']) ? Carbon::parse($data['date'])->toDateString() : now('Asia/Kolkata')->toDateString();
+        $targetTime = !empty($data['time']) ? $data['time'] : ($data['type'] === 'out' ? '18:00:00' : '09:30:00');
+        $targetPunchedAt = Carbon::parse($workDate.' '.$targetTime)->toDateTimeString();
 
         foreach ($data['employee_ids'] as $id) {
             $user = User::find($id);
@@ -293,15 +340,14 @@ class EmployeeController extends Controller
                     'admin',
                     $request->user(),
                     true,
-                    $data['remarks'] ?? null
+                    $data['remarks'] ?? null,
+                    $workDate,
+                    $targetPunchedAt
                 );
-                if (!empty($data['time'])) {
-                    $punch->update(['punched_at' => Carbon::parse($workDate.' '.$data['time'])]);
-                }
             }
         }
 
-        return back()->with('ok', 'Bulk attendance marked for selected employees.');
+        return back()->with('ok', 'Bulk attendance marked successfully for ' . $workDate);
     }
 
     public function bulkShift(Request $request)
@@ -327,15 +373,33 @@ class EmployeeController extends Controller
         $date = Carbon::parse($request->get('date', now('Asia/Kolkata')->toDateString()));
         $type = strtolower($request->get('type', 'present'));
 
-        $query = User::query();
+        $authUser = $request->user();
+
         if ($type === 'archived') {
-            $query->where('status', 'archived');
+            $query = User::query()->where('status', 'archived');
+            if ($authUser && !$authUser->isAdmin()) {
+                $scopedIds = $authUser->scopedEmployeesQuery()->pluck('id');
+                $query->whereIn('id', $scopedIds);
+            }
         } else {
-            $query->where('status', 'active');
+            if ($authUser && !$authUser->isAdmin()) {
+                $query = $authUser->scopedEmployeesQuery();
+            } else {
+                $query = User::query()->where('status', 'active');
+            }
         }
 
-        if (in_array($type, ['admin', 'manager', 'employee'])) {
-            $query->where('role', $type);
+        if ($type === 'admin') {
+            $query->where(function ($q) {
+                $q->whereRaw('LOWER(TRIM(role)) IN (?, ?, ?)', ['admin', 'super admin', 'superadmin']);
+            });
+        } elseif ($type === 'manager') {
+            $query->whereRaw('LOWER(TRIM(role)) = ?', ['manager']);
+        } elseif ($type === 'employee') {
+            $query->where(function ($q) {
+                $q->whereNull('role')
+                  ->orWhereRaw('LOWER(TRIM(role)) NOT IN (?, ?, ?, ?)', ['admin', 'super admin', 'superadmin', 'manager']);
+            });
         }
 
         $employees = $query->orderBy('first_name')->get();
@@ -405,7 +469,69 @@ class EmployeeController extends Controller
             ->orderBy('punched_at')
             ->get();
 
-        return view('employees.day-modal', ['staff' => $employee, 'date' => $date, 'punches' => $punches]);
+        return view('employees.day-modal', [
+            'staff' => $employee,
+            'date' => $date,
+            'punches' => $punches,
+            'shifts' => Shift::orderBy('name')->get(),
+        ]);
+    }
+
+    public function updatePunch(Request $request, AttendancePunch $punch)
+    {
+        $actor = $request->user();
+        if (!$actor->isAdmin() && !$actor->isManager() && !$actor->hasPermission('attendance.edit')) {
+            return back()->with('error', 'You do not have permission to edit attendance punches.');
+        }
+
+        $data = $request->validate([
+            'status' => 'required|string',
+            'time' => 'nullable',
+            'location_text' => 'nullable|string',
+            'remarks' => 'nullable|string',
+            'shift_id' => 'nullable|exists:shifts,id',
+        ]);
+
+        $status = strtolower($data['status']);
+        $workDate = $punch->work_date->toDateString();
+
+        if (in_array($status, ['absent', 'week_off', 'holiday', 'leave'])) {
+            $punch->delete();
+            return back()->with('ok', 'Attendance punch removed and status set to ' . strtoupper($status) . '.');
+        }
+
+        $updates = [
+            'type' => in_array($status, ['wop', 'hop']) ? 'in' : $status,
+            'location_text' => $data['location_text'] ?? $punch->location_text,
+            'remarks' => $data['remarks'] ?? $punch->remarks,
+        ];
+
+        if (in_array($status, ['wop', 'hop'])) {
+            $updates['remarks'] = trim(($updates['remarks'] ? $updates['remarks'] . ' | ' : '') . strtoupper($status));
+        }
+
+        if (!empty($data['time'])) {
+            $updates['punched_at'] = Carbon::parse($workDate . ' ' . $data['time']);
+        }
+
+        $punch->update($updates);
+
+        if (!empty($data['shift_id'])) {
+            $punch->user?->update(['shift_id' => $data['shift_id']]);
+        }
+
+        return back()->with('ok', 'Attendance punch updated successfully.');
+    }
+
+    public function destroyPunch(Request $request, AttendancePunch $punch)
+    {
+        $actor = $request->user();
+        if (!$actor->isAdmin() && !$actor->isManager() && !$actor->hasPermission('attendance.delete') && !$actor->hasPermission('attendance.edit')) {
+            return back()->with('error', 'You do not have permission to delete attendance punches.');
+        }
+
+        $punch->delete();
+        return back()->with('ok', 'Attendance punch deleted successfully.');
     }
 
     public function monthlyPrint(User $employee, Request $request, AttendanceService $attendance)
@@ -501,6 +627,11 @@ class EmployeeController extends Controller
 
     public function importExcel(Request $request)
     {
+        $u = $request->user();
+        if ($u && !$u->hasPermission('employee.import') && !$u->hasPermission('employee.add')) {
+            return back()->with('error', 'You do not have permission to import employees via Excel.');
+        }
+
         $request->validate([
             'excel_file' => 'required|file',
         ], [
@@ -755,6 +886,7 @@ class EmployeeController extends Controller
             'employee_type' => 'nullable|string',
             'category_id' => 'nullable|exists:categories,id',
             'company_id' => 'nullable|exists:companies,id',
+            'accessible_company_ids' => 'nullable|array',
             'department_id' => 'nullable|exists:departments,id',
             'designation' => 'nullable|string',
             'department' => 'nullable|string',
@@ -840,6 +972,12 @@ class EmployeeController extends Controller
         if ($request->hasFile('aadhaar_document')) {
             $data['aadhaar_document'] = $request->file('aadhaar_document')->store('documents', 'public');
         }
+
+        $accessibleCompIds = $request->input('accessible_company_ids', []);
+        if (!empty($data['company_id']) && !in_array((int)$data['company_id'], array_map('intval', (array)$accessibleCompIds), true)) {
+            $accessibleCompIds[] = (int)$data['company_id'];
+        }
+        $data['accessible_company_ids'] = array_values(array_filter(array_map('intval', (array)$accessibleCompIds)));
 
         $staff->fill($data)->save();
 

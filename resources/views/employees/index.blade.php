@@ -12,7 +12,7 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
         @if(auth()->user()->hasPermission('tracking.view'))
             <a class="btn light" href="{{ route('tracking.realtime') }}"><i class="fa-solid fa-location-dot"></i> Live View</a>
         @endif
-        @if(auth()->user()->hasPermission('employee.add'))
+        @if(auth()->user()->hasPermission('employee.import'))
             <button class="btn light" onclick="openExcelImportModal()"><i class="fa-solid fa-file-excel" style="color:#16a34a"></i> Excel Import</button>
         @endif
         @if(auth()->user()->hasPermission('attendance.bulk'))
@@ -129,9 +129,9 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
 
     <!-- UPCOMING BIRTHDAYS SECTION (Next 7 Days) -->
     @php
-        $upcomingBirthdays = \App\Models\User::whereNotNull('birthday')
-            ->where('status', 'active')
-            ->get()
+        $empPool = isset($activeEmployees) ? $activeEmployees : \App\Models\User::where('status', 'active')->get();
+        $upcomingBirthdays = $empPool
+            ->whereNotNull('birthday')
             ->map(function($u) {
                 try {
                     $b = \Carbon\Carbon::parse($u->birthday);
@@ -202,7 +202,7 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
     <form method="get" class="row" style="gap:12px;justify-content:space-between">
         <input type="hidden" name="date" value="{{ $date->toDateString() }}">
         <div class="row" style="flex:1">
-            <input type="text" name="q" value="{{ $q }}" placeholder="Search employees by name, serial no, phone, dept..." style="max-width:380px">
+            <input type="text" name="q" id="employeeSearchInput" value="{{ $q }}" placeholder="Search employees by name, serial no, phone, dept..." style="max-width:380px" autocomplete="off">
             
             @if($categories->count() > 0)
                 <select name="category" onchange="this.form.submit()" style="width:160px">
@@ -322,7 +322,7 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
             <tbody>
             @forelse($rows as $i => $row)
                 @php $u = $row['user']; $color = $colors[$i % count($colors)]; @endphp
-                <tr>
+                <tr style="{{ $u->status === 'archived' ? 'background:#fff1f2;border-left:4px solid #ef4444;' : '' }}">
                     <td><input type="checkbox" name="employee_ids[]" value="{{ $u->id }}" class="emp-checkbox"></td>
                     <td>
                         <a class="person" href="{{ route('employees.show', $u) }}">
@@ -332,9 +332,11 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
                                 <span class="dot" style="background:{{ $color }}">{{ $u->initials() }}</span>
                             @endif
                             <div>
-                                <div>{{ $u->displayName() }}</div>
+                                <div style="{{ $u->status === 'archived' ? 'color:#991b1b;font-weight:700;' : '' }}">{{ $u->displayName() }}</div>
                                 <small class="muted">{{ $u->company->name ?? '' }}</small>
-                                @if($u->role)
+                                @if($u->status === 'archived')
+                                    <div><span class="chip" style="font-size:10px;padding:2px 6px;margin-top:2px;display:inline-block;background:#fee2e2;color:#991b1b;font-weight:700;border:1px solid #fca5a5"><i class="fa-solid fa-box-archive"></i> ARCHIVED</span></div>
+                                @elseif($u->role)
                                     <div><span class="chip" style="font-size:10px;padding:2px 6px;margin-top:2px;display:inline-block;background:#e0f2fe;color:#0369a1;font-weight:600">{{ ucfirst($u->role) }}</span></div>
                                 @endif
                             </div>
@@ -386,6 +388,9 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
             @endforelse
             </tbody>
         </table>
+        @if($rows->hasPages())
+            {{ $rows->links() }}
+        @endif
     </div>
 
 <!-- POPUP MODAL for Clickable Attendance Statistics (Matching Screenshot 2) -->
@@ -441,24 +446,27 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
         <p class="muted">Mark attendance for checked employees with remarks:</p>
         <form method="post" action="{{ route('employees.bulk-mark') }}" onsubmit="return validateBulkSubmit(this)">
             @csrf
-            <input type="hidden" name="date" value="{{ $date->toDateString() }}">
             <div id="bulkMarkInputs"></div>
-            <div class="grid-2">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
                 <div>
-                    <label>Punch Type</label>
-                    <select name="type" required>
+                    <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Punch Date *</label>
+                    <input type="date" name="date" value="{{ $date->toDateString() }}" max="{{ now('Asia/Kolkata')->toDateString() }}" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px">
+                </div>
+                <div>
+                    <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Punch Type *</label>
+                    <select name="type" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px">
                         <option value="in">Punch IN</option>
                         <option value="out">Punch OUT</option>
                     </select>
                 </div>
                 <div>
-                    <label>Time (optional)</label>
-                    <input type="time" name="time">
+                    <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Time (optional)</label>
+                    <input type="time" name="time" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px">
                 </div>
             </div>
-            <label>Reason / Remarks (Mandatory/Optional)</label>
-            <textarea name="remarks" placeholder="Enter reason for manual marking..."></textarea>
-            <div class="row" style="margin-top:16px;justify-content:flex-end">
+            <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Reason / Remarks (Mandatory/Optional)</label>
+            <textarea name="remarks" placeholder="Enter reason for manual marking..." style="width:100%;border-radius:8px;border:1px solid #d1d5db;padding:8px 10px;font-size:13px;min-height:70px"></textarea>
+            <div class="row" style="margin-top:16px;justify-content:flex-end;gap:8px">
                 <button type="button" class="btn light" onclick="document.getElementById('bulkMarkModal').classList.remove('open')">Cancel</button>
                 <button class="btn">Mark Attendance</button>
             </div>
@@ -714,6 +722,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     legend: { position: 'right', labels: { boxWidth: 12, font: { size: 12 } } }
                 }
             }
+        });
+    var searchTimer = null;
+    var empSearch = document.getElementById('employeeSearchInput');
+    if (empSearch) {
+        empSearch.addEventListener('input', function() {
+            clearTimeout(searchTimer);
+            var form = this.form;
+            searchTimer = setTimeout(function() {
+                form.submit();
+            }, 500);
         });
     }
 });

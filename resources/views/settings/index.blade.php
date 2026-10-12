@@ -142,9 +142,10 @@
                 <div>
                     <label>Salary Calculation Rule</label>
                     <select name="salary_calculation_days">
-                        <option value="30">Fixed 30 Days (30000 / 30 * Present Days)</option>
-                        <option value="31">Fixed 31 Days (30000 / 31 * Present Days)</option>
-                        <option value="actual">Actual Days in Month (28, 30 or 31)</option>
+                        <option value="actual">Actual Days in Month (e.g. 28, 30, 31)</option>
+                        <option value="30" selected>Fixed 30 Days (Salary / 30 * Present Days)</option>
+                        <option value="26">Fixed 26 Days (Salary / 26 * Present Days)</option>
+                        <option value="31">Fixed 31 Days (Salary / 31 * Present Days)</option>
                     </select>
                 </div>
                 <div>
@@ -206,7 +207,7 @@
                             </td>
                             <td>
                                 <span class="chip" style="background:#fef3c7;color:#92400e">
-                                    {{ $comp->salary_calculation_days ?? '30' }} Days Month Basis
+                                    {{ $comp->salary_calculation_days === 'actual' ? 'Actual Days' : ($comp->salary_calculation_days ?? '30').' Days' }} Basis
                                 </span>
                             </td>
                             <td>
@@ -773,6 +774,7 @@ function closeGeofenceModal() {
                     'Employee Management' => [
                         'employee.view' => 'View Employees',
                         'employee.add' => 'Add Employee',
+                        'employee.import' => 'Excel Import Employees',
                         'employee.edit' => 'Edit Employee',
                         'employee.delete' => 'Delete Employee',
                     ],
@@ -891,9 +893,10 @@ function closeGeofenceModal() {
                 <div>
                     <label>Salary Calculation Rule</label>
                     <select id="edit_comp_salary_days" name="salary_calculation_days">
+                        <option value="actual">Actual Days in Month (30000 / Days in Month * Present)</option>
                         <option value="30">Fixed 30 Days (30000 / 30 * Present)</option>
+                        <option value="26">Fixed 26 Days (30000 / 26 * Present)</option>
                         <option value="31">Fixed 31 Days (30000 / 31 * Present)</option>
-                        <option value="actual">Actual Days in Month</option>
                     </select>
                 </div>
                 <div>

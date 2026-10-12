@@ -22,11 +22,18 @@ class PayrollController extends Controller
         $year = (int) $request->get('y', now()->year);
         $categoryId = $request->get('category');
 
-        $employees = User::query()
+        $empQuery = User::query()
             ->where('status', 'active')
-            ->when($categoryId, fn ($q) => $q->where('category_id', $categoryId))
-            ->orderBy('first_name')
-            ->get();
+            ->when($categoryId, fn ($q) => $q->where('category_id', $categoryId));
+
+        if ($u && !$u->isAdmin()) {
+            $compIds = $u->accessibleCompanyIds();
+            if (!empty($compIds)) {
+                $empQuery->whereIn('company_id', $compIds);
+            }
+        }
+
+        $employees = $empQuery->orderBy('first_name')->get();
 
         $rows = $employees->map(function (User $user) use ($payroll, $year, $month) {
             return ['user' => $user, 'pay' => $payroll->compute($user, $year, $month)];
@@ -46,6 +53,13 @@ class PayrollController extends Controller
         $u = $request->user();
         if (!$u || !$u->hasPermission('payroll.view')) {
             return back()->with('error', 'You do not have permission to view payslips.');
+        }
+
+        if (!$u->isAdmin()) {
+            $compIds = $u->accessibleCompanyIds();
+            if (!empty($compIds) && !in_array((int)$employee->company_id, $compIds, true)) {
+                return back()->with('error', 'You are not authorized to view payslips for employees of another company.');
+            }
         }
         $month = (int) $request->get('m', now()->month);
         $year = (int) $request->get('y', now()->year);

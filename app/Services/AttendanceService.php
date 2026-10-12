@@ -198,7 +198,7 @@ class AttendanceService
             if ($hasIn) {
                 return 'hop'; // Holiday Present (HOP)
             }
-            if ($this->isHolidayQualified($user, $date)) {
+            if ($date->isFuture() || $date->isToday() || $this->isHolidayQualified($user, $date)) {
                 return 'holiday';
             } else {
                 return 'absent'; // Not qualified for holiday credit
@@ -212,6 +212,10 @@ class AttendanceService
             if ($hasIn) {
                 // Rule: WEEK OFF HAI AND WEEK OFF KE DIN AGAR KOI BHI EMPLOYEE PRESENT HOTA HAI TO USKO WOP AANA CHAHIYE , ( WEEK OFF PRESENT )
                 return 'wop';
+            }
+            // Future dates cannot be marked absent in advance - they show as scheduled week_off
+            if ($date->isFuture() || $date->isToday()) {
+                return 'week_off';
             }
             if ($this->isWeekOffQualified($user, $date)) {
                 return 'week_off';

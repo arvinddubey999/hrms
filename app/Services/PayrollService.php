@@ -13,24 +13,34 @@ class PayrollService
         
         $daily = $user->dailyRate($daysInMonth);
         
-        // Payable Days = Present + Week Off + Holiday + Leave
         $presentDays = $summary['present'] ?? 0;
         $weekOffDays = $summary['weekOff'] ?? 0;
         $holidayDays = $summary['holiday'] ?? 0;
         $leaveDays   = $summary['leave'] ?? 0;
-        $wopCount    = $summary['wop'] ?? 0;
 
-        $payableDays = max(0, $presentDays + $weekOffDays + $holidayDays + $leaveDays + $wopCount);
-        
-        // HOP (Holiday Present) bonus day calculation
-        $hopCount = 0;
-        if ($user->hop_applicable !== false) {
-            $hopCount = $summary['holidayPresent'] ?? 0;
+        // WOP & HOP applicability checked from Employee Master
+        $wopCount = ($user->wop_applicable) ? ($summary['wop'] ?? 0) : 0;
+        $hopCount = ($user->hop_applicable) ? ($summary['holidayPresent'] ?? 0) : 0;
+
+        if ($user->pay_type === 'daily') {
+            // Strictly Daily Basis from Employee Master (no company rules applicable)
+            $daily = (float) $user->salary;
+            $payableDays = max(0, $presentDays + $wopCount + $hopCount);
+            $hopBonus = 0;
+            $basic = round($daily * $payableDays, 2);
+        } else {
+            $daily = $user->dailyRate($daysInMonth);
+            $basis = $user->company?->salary_calculation_days ?? \App\Models\Setting::current()->salary_day_basis ?? '30';
+            if ($basis === '26') {
+                $payableDays = max(0, $presentDays + $wopCount);
+                $hopBonus = round($daily * $hopCount, 2);
+                $basic = round(($daily * $payableDays) + $hopBonus, 2);
+            } else {
+                $payableDays = max(0, $presentDays + $weekOffDays + $holidayDays + $leaveDays + $wopCount);
+                $hopBonus = round($daily * $hopCount, 2);
+                $basic = round(($daily * $payableDays) + $hopBonus, 2);
+            }
         }
-        $hopBonus = round($daily * $hopCount, 2);
-
-        // Basic Salary for Month + HOP Extra Day Pay
-        $basic = round(($daily * $payableDays) + $hopBonus, 2);
         
         $advances = $user->advances()
             ->whereYear('paid_on', $year)
@@ -67,10 +77,18 @@ class PayrollService
         $totalDeductions = round($advanceTotal + $employeeEsi + $employeePf, 2);
         $net = max(0, round($gross - $totalDeductions, 2));
 
-        $remarksNote = sprintf(
-            "Month: %02d/%d (%d days). Daily Rate: Rs. %.2f/day (%s). Payable Days: %d. Basic: Rs. %.2f.",
-            $month, $year, $daysInMonth, $daily, "Salary/".$daysInMonth, $payableDays, $basic
-        );
+        if ($user->pay_type === 'daily') {
+            $remarksNote = sprintf(
+                "Month: %02d/%d (%d days). Daily Wage: Rs. %.2f/day (Daily Basis from Master). Present: %d. Basic: Rs. %.2f.",
+                $month, $year, $daysInMonth, $daily, $payableDays, $basic
+            );
+        } else {
+            $basis = $user->company?->salary_calculation_days ?? \App\Models\Setting::current()->salary_day_basis ?? '30';
+            $remarksNote = sprintf(
+                "Month: %02d/%d (%d days). Daily Rate: Rs. %.2f/day (Rule: %s days). Payable Days: %d. Basic: Rs. %.2f.",
+                $month, $year, $daysInMonth, $daily, $basis, $payableDays, $basic
+            );
+        }
 
         return [
             'summary' => $summary,

@@ -47,6 +47,22 @@
             </div>
         </div>
 
+        <div style="margin-top:10px;margin-bottom:12px;background:#f8fafc;padding:10px 14px;border-radius:8px;border:1px solid #e2e8f0">
+            <label style="font-size:12px;font-weight:700;color:#1e293b;display:block;margin-bottom:4px">
+                <i class="fa-solid fa-building-user" style="color:var(--accent)"></i> Multi-Company Access Permissions (Optional)
+            </label>
+            <p class="muted" style="margin:0 0 8px 0;font-size:11px">If this employee or manager needs access to manage/view multiple companies, check them below:</p>
+            @php $userCompAccess = (array) ($staff->accessible_company_ids ?? []); @endphp
+            <div style="display:flex;flex-wrap:wrap;gap:14px">
+                @foreach($companies as $comp)
+                    <label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer">
+                        <input type="checkbox" name="accessible_company_ids[]" value="{{ $comp->id }}" {{ in_array($comp->id, $userCompAccess) || $staff->company_id == $comp->id ? 'checked' : '' }}>
+                        {{ $comp->name }}
+                    </label>
+                @endforeach
+            </div>
+        </div>
+
         <div class="grid-2">
             <div><label>First Name *</label><input name="first_name" value="{{ old('first_name', $staff->first_name) }}" required autocomplete="off"></div>
             <div><label>Last Name</label><input name="last_name" value="{{ old('last_name', $staff->last_name) }}" autocomplete="off"></div>
@@ -135,6 +151,7 @@
                     'Employee Management' => [
                         'employee.view' => 'View Employees',
                         'employee.add' => 'Add Employee',
+                        'employee.import' => 'Excel Import Employees',
                         'employee.edit' => 'Edit Employee',
                         'employee.delete' => 'Delete Employee',
                     ],

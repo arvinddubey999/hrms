@@ -19,8 +19,11 @@ class TrackingController extends Controller
         $userId = $request->get('employee');
         $authUser = auth()->user();
         $empQuery = User::query()->where('status', 'active');
-        if ($authUser && $authUser->company_id && !$authUser->isAdmin()) {
-            $empQuery->where('company_id', $authUser->company_id);
+        if ($authUser && !$authUser->isAdmin()) {
+            $accessible = $authUser->accessibleCompanyIds();
+            if (!empty($accessible)) {
+                $empQuery->whereIn('company_id', $accessible);
+            }
         }
         $employees = $empQuery->orderBy('first_name')->get();
         $employee = $userId ? User::find($userId) : $employees->first();
@@ -43,11 +46,18 @@ class TrackingController extends Controller
             return back()->with('error', 'You do not have permission to access Live Tracking.');
         }
 
-        $staff = User::query()
+        $staffQuery = User::query()
             ->where('status', 'active')
-            ->whereNotNull('last_lat')
-            ->orderByDesc('last_location_at')
-            ->get();
+            ->whereNotNull('last_lat');
+
+        if ($authUser && !$authUser->isAdmin()) {
+            $accessible = $authUser->accessibleCompanyIds();
+            if (!empty($accessible)) {
+                $staffQuery->whereIn('company_id', $accessible);
+            }
+        }
+
+        $staff = $staffQuery->orderByDesc('last_location_at')->get();
 
         return view('tracking.realtime', compact('staff'));
     }

@@ -27,13 +27,21 @@ class TaskController extends Controller
             'histories.user',
         ]);
 
-        if (!$user->isManager()) {
-            $query->where(function ($q) use ($user) {
-                $q->where('assigned_to', $user->id)
-                    ->orWhere('created_by', $user->id)
-                    ->orWhereHas('assignees', fn ($a) => $a->where('users.id', $user->id))
-                    ->orWhereHas('others', fn ($o) => $o->where('users.id', $user->id));
-            });
+        $canManage = $user->isAdmin() || $user->hasPermission('tasks.manage');
+        if (!$user->isAdmin()) {
+            if ($canManage) {
+                $compIds = $user->accessibleCompanyIds();
+                if (!empty($compIds)) {
+                    $query->whereHas('assignee', fn($emp) => $emp->whereIn('company_id', $compIds));
+                }
+            } else {
+                $query->where(function ($q) use ($user) {
+                    $q->where('assigned_to', $user->id)
+                        ->orWhere('created_by', $user->id)
+                        ->orWhereHas('assignees', fn ($a) => $a->where('users.id', $user->id))
+                        ->orWhereHas('others', fn ($o) => $o->where('users.id', $user->id));
+                });
+            }
         }
 
         $items = $query->latest()->get()->map(fn (Task $t) => $this->formatTask($t));
@@ -43,6 +51,18 @@ class TaskController extends Controller
 
     public function show(Task $task)
     {
+        $user = auth()->user();
+        $canManage = $user && ($user->isAdmin() || $user->hasPermission('tasks.manage'));
+        if (!$canManage) {
+            $isAssigned = $task->assigned_to == $user->id
+                || $task->created_by == $user->id
+                || $task->assignees()->where('users.id', $user->id)->exists()
+                || $task->others()->where('users.id', $user->id)->exists();
+            if (!$isAssigned) {
+                return response()->json(['message' => 'Unauthorized to view this task'], 403);
+            }
+        }
+
         $task->load([
             'assignee',
             'assignees',

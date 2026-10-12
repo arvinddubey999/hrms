@@ -21,6 +21,7 @@
                 <th>Time</th>
                 <th>Location Details</th>
                 <th>Punch Photo</th>
+                <th style="width:120px;text-align:right">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -39,15 +40,37 @@
                     <td>
                         @if($p->photo)
                             <a href="javascript:void(0)" onclick="openPhotoZoomModal('{{ asset('storage/'.$p->photo) }}')">
-                                <img src="{{ asset('storage/'.$p->photo) }}" width="48" height="48" style="border-radius:8px;object-fit:cover;border:1px solid #cbd5e1">
+                                <img src="{{ asset('storage/'.$p->photo) }}" width="44" height="44" style="border-radius:8px;object-fit:cover;border:1px solid #cbd5e1">
                             </a>
                         @else
                             <span class="muted">No photo</span>
                         @endif
                     </td>
+                    <td style="text-align:right">
+                        @if(auth()->user()->isAdmin() || auth()->user()->isManager() || auth()->user()->hasPermission('attendance.edit'))
+                            <button type="button" class="btn light" style="padding:4px 8px;font-size:11px" onclick="openEditPunchModal({{ json_encode([
+                                'id' => $p->id,
+                                'type' => strtoupper($p->type),
+                                'time' => $p->punched_at->format('H:i'),
+                                'location' => $p->location_text ?: '',
+                                'remarks' => $p->remarks ?: '',
+                                'shift_id' => $staff->shift_id,
+                                'update_url' => route('punches.update', $p),
+                                'delete_url' => route('punches.destroy', $p),
+                            ]) }})">
+                                <i class="fa-solid fa-pen-to-square"></i> Edit
+                            </button>
+                        @endif
+                        @if(auth()->user()->isAdmin() || auth()->user()->isManager() || auth()->user()->hasPermission('attendance.delete'))
+                            <form method="post" action="{{ route('punches.destroy', $p) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this punch?')">
+                                @csrf @method('delete')
+                                <button type="submit" class="btn light" style="padding:4px 8px;font-size:11px;color:#dc2626"><i class="fa-solid fa-trash"></i></button>
+                            </form>
+                        @endif
+                    </td>
                 </tr>
             @empty
-                <tr><td colspan="5" class="muted" style="text-align:center;padding:20px">No punches recorded for this date.</td></tr>
+                <tr><td colspan="6" class="muted" style="text-align:center;padding:20px">No punches recorded for this date.</td></tr>
             @endforelse
         </tbody>
     </table>
@@ -84,12 +107,73 @@
     </form>
 </div>
 
+<!-- Modal: Edit Attendance (Matches Screenshot 4 & 5) -->
+<div id="editPunchModal" class="modal-bg" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.65);z-index:9999;align-items:center;justify-content:center">
+    <div class="modal" style="background:#111827;color:#f9fafb;border-radius:16px;padding:24px;width:420px;max-width:92%;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+            <h3 style="margin:0;font-size:18px;color:#fff"><i class="fa-solid fa-pen-to-square"></i> Edit Attendance</h3>
+            <button type="button" onclick="closeEditPunchModal()" style="border:0;background:none;color:#9ca3af;font-size:20px;cursor:pointer">&times;</button>
+        </div>
+        <form id="editPunchForm" method="post">
+            @csrf @method('put')
+
+            <div style="margin-bottom:14px">
+                <label style="display:block;margin-bottom:6px;font-size:12px;font-weight:600;color:#9ca3af">Status</label>
+                <select id="punch_status" name="status" style="width:100%;background:#1f2937;border:1px solid #374151;color:#fff;border-radius:8px;padding:10px 12px">
+                    <option value="in" style="color:#22c55e;font-weight:700">IN</option>
+                    <option value="out" style="color:#ef4444;font-weight:700">OUT</option>
+                    <option value="absent" style="color:#ef4444;font-weight:700">ABSENT</option>
+                    <option value="leave" style="color:#f59e0b;font-weight:700">LEAVE</option>
+                    <option value="holiday" style="color:#22c55e;font-weight:700">HOLIDAY</option>
+                    <option value="week_off" style="color:#f59e0b;font-weight:700">WEEK OFF</option>
+                    <option value="wop" style="color:#38bdf8;font-weight:700">WEEK OFF PRESENT (WOP)</option>
+                    <option value="hop" style="color:#a855f7;font-weight:700">HOLIDAY - PRESENT (HOP)</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom:14px">
+                <label style="display:block;margin-bottom:6px;font-size:12px;font-weight:600;color:#9ca3af">Timestamp</label>
+                <input type="time" id="punch_time" name="time" style="width:100%;background:#1f2937;border:1px solid #374151;color:#fff;border-radius:8px;padding:10px 12px">
+            </div>
+
+            <div style="margin-bottom:14px">
+                <label style="display:block;margin-bottom:6px;font-size:12px;font-weight:600;color:#9ca3af">Shift</label>
+                <select id="punch_shift" name="shift_id" style="width:100%;background:#1f2937;border:1px solid #374151;color:#fff;border-radius:8px;padding:10px 12px">
+                    <option value="">Select Shift</option>
+                    @foreach($shifts as $s)
+                        <option value="{{ $s->id }}" {{ $staff->shift_id == $s->id ? 'selected' : '' }}>{{ $s->name }} ({{ $s->start_time }} - {{ $s->end_time }})</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div style="margin-bottom:14px">
+                <label style="display:block;margin-bottom:6px;font-size:12px;font-weight:600;color:#9ca3af">Geo Address</label>
+                <input type="text" id="punch_location" name="location_text" placeholder="Enter geo address..." style="width:100%;background:#1f2937;border:1px solid #374151;color:#fff;border-radius:8px;padding:10px 12px">
+            </div>
+
+            <div style="margin-bottom:20px">
+                <label style="display:block;margin-bottom:6px;font-size:12px;font-weight:600;color:#9ca3af">Remarks</label>
+                <input type="text" id="punch_remarks" name="remarks" placeholder="Enter remarks..." style="width:100%;background:#1f2937;border:1px solid #374151;color:#fff;border-radius:8px;padding:10px 12px">
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:10px">
+                <button type="submit" style="width:100%;padding:12px;background:#000;color:#fff;border:1px solid #374151;border-radius:10px;font-weight:700;cursor:pointer">Update</button>
+            </div>
+        </form>
+
+        <form id="deletePunchForm" method="post" style="margin-top:10px" onsubmit="return confirm('Are you sure you want to delete this punch record?')">
+            @csrf @method('delete')
+            <button type="submit" style="width:100%;padding:12px;background:#fee2e2;color:#ef4444;border:0;border-radius:10px;font-weight:700;cursor:pointer">Delete</button>
+        </form>
+    </div>
+</div>
+
 <!-- Modal: Photo Zoom Preview -->
-<div id="photoZoomModal" class="modal-bg" onclick="closePhotoZoomModal()">
-    <div class="modal" style="max-width:540px;text-align:center;background:#111827;padding:16px" onclick="event.stopPropagation()">
+<div id="photoZoomModal" class="modal-bg" onclick="closePhotoZoomModal()" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center">
+    <div class="modal" style="max-width:540px;text-align:center;background:#111827;padding:16px;border-radius:12px" onclick="event.stopPropagation()">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
             <h4 style="margin:0;color:#fff"><i class="fa-solid fa-image"></i> Punch Photo Clear View</h4>
-            <button type="button" onclick="closePhotoZoomModal()" class="btn light" style="padding:4px 10px;font-size:12px">✕ Close</button>
+            <button type="button" onclick="closePhotoZoomModal()" class="btn light" style="padding:4px 10px;font-size:12px">&times; Close</button>
         </div>
         <img id="photoZoomImg" src="" style="width:100%;max-height:480px;object-fit:contain;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.5)">
     </div>
@@ -98,10 +182,29 @@
 <script>
 function openPhotoZoomModal(url) {
     document.getElementById('photoZoomImg').src = url;
-    document.getElementById('photoZoomModal').style.display = 'block';
+    var m = document.getElementById('photoZoomModal');
+    m.style.display = 'flex';
 }
 function closePhotoZoomModal() {
-    document.getElementById('photoZoomModal').style.display = 'none';
+    var m = document.getElementById('photoZoomModal');
+    m.style.display = 'none';
+}
+
+function openEditPunchModal(data) {
+    var form = document.getElementById('editPunchForm');
+    form.action = data.update_url;
+    document.getElementById('deletePunchForm').action = data.delete_url;
+    document.getElementById('punch_status').value = data.type.toLowerCase();
+    document.getElementById('punch_time').value = data.time || '';
+    document.getElementById('punch_location').value = data.location || '';
+    document.getElementById('punch_remarks').value = data.remarks || '';
+    if (data.shift_id) {
+        document.getElementById('punch_shift').value = data.shift_id;
+    }
+    document.getElementById('editPunchModal').style.display = 'flex';
+}
+function closeEditPunchModal() {
+    document.getElementById('editPunchModal').style.display = 'none';
 }
 </script>
 @endsection

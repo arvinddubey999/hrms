@@ -28,8 +28,25 @@ class TaskController extends Controller
         $userId = $request->get('user_id');
         $dateFilter = $request->get('date_filter'); // overdue, today, future
 
+        $canManageAllTasks = $u->isAdmin() || $u->hasPermission('tasks.manage');
+
         $query = Task::query()
             ->with(['assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])
+            ->when(!$u->isAdmin(), function ($q) use ($u, $canManageAllTasks) {
+                if ($canManageAllTasks) {
+                    $compIds = $u->accessibleCompanyIds();
+                    if (!empty($compIds)) {
+                        $q->whereHas('assignee', fn($emp) => $emp->whereIn('company_id', $compIds));
+                    }
+                } else {
+                    $q->where(function ($inner) use ($u) {
+                        $inner->where('assigned_to', $u->id)
+                            ->orWhere('created_by', $u->id)
+                            ->orWhereHas('assignees', fn ($p) => $p->where('users.id', $u->id))
+                            ->orWhereHas('others', fn ($p) => $p->where('users.id', $u->id));
+                    });
+                }
+            })
             ->when($status && $status !== 'all', fn ($q) => $q->where('status', $status))
             ->when($priority, fn ($q) => $q->where('priority', $priority))
             ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
@@ -47,12 +64,29 @@ class TaskController extends Controller
 
         $items = $query->paginate(20);
 
+        $baseCountQuery = Task::query();
+        if (!$u->isAdmin()) {
+            if ($canManageAllTasks) {
+                $compIds = $u->accessibleCompanyIds();
+                if (!empty($compIds)) {
+                    $baseCountQuery->whereHas('assignee', fn($emp) => $emp->whereIn('company_id', $compIds));
+                }
+            } else {
+                $baseCountQuery->where(function ($inner) use ($u) {
+                    $inner->where('assigned_to', $u->id)
+                        ->orWhere('created_by', $u->id)
+                        ->orWhereHas('assignees', fn ($p) => $p->where('users.id', $u->id))
+                        ->orWhereHas('others', fn ($p) => $p->where('users.id', $u->id));
+                });
+            }
+        }
+
         $counts = [
-            'all' => Task::count(),
-            'pending' => Task::where('status', 'pending')->count(),
-            'in_progress' => Task::where('status', 'in_progress')->count(),
-            'completed' => Task::where('status', 'completed')->count(),
-            'overdue' => Task::where('status', '!=', 'completed')->whereDate('due_date', '<', now()->toDateString())->count(),
+            'all' => (clone $baseCountQuery)->count(),
+            'pending' => (clone $baseCountQuery)->where('status', 'pending')->count(),
+            'in_progress' => (clone $baseCountQuery)->where('status', 'in_progress')->count(),
+            'completed' => (clone $baseCountQuery)->where('status', 'completed')->count(),
+            'overdue' => (clone $baseCountQuery)->where('status', '!=', 'completed')->whereDate('due_date', '<', now()->toDateString())->count(),
         ];
 
         return view('tasks.index', [
@@ -65,9 +99,9 @@ class TaskController extends Controller
             'companyId' => $companyId,
             'userId' => $userId,
             'dateFilter' => $dateFilter,
-            'employees' => User::where('status', 'active')->orderBy('first_name')->get(),
+            'employees' => !$u->isAdmin() ? $u->scopedEmployeesQuery()->orderBy('first_name')->get() : User::where('status', 'active')->orderBy('first_name')->get(),
             'departments' => Department::orderBy('name')->get(),
-            'companies' => Company::orderBy('name')->get(),
+            'companies' => (!$u->isAdmin() && !empty($u->accessibleCompanyIds())) ? Company::whereIn('id', $u->accessibleCompanyIds())->orderBy('name')->get() : Company::orderBy('name')->get(),
             'categories' => Category::orderBy('name')->get(),
             'allTasksForCalendar' => Task::with(['assignee'])->select(['id', 'title', 'due_date', 'due_time', 'priority', 'status', 'assigned_to'])->get(),
         ]);
@@ -146,6 +180,18 @@ class TaskController extends Controller
 
     public function show(Task $task)
     {
+        $u = auth()->user();
+        $canManageAll = $u && ($u->isAdmin() || $u->hasPermission('tasks.manage'));
+        if (!$canManageAll) {
+            $isAssigned = $task->assigned_to == $u->id 
+                || $task->created_by == $u->id 
+                || $task->assignees()->where('users.id', $u->id)->exists()
+                || $task->others()->where('users.id', $u->id)->exists();
+            if (!$isAssigned) {
+                return redirect()->route('tasks.index')->with('error', 'You are not authorized to view this task.');
+            }
+        }
+
         $task->load(['assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments.user', 'histories.user']);
 
         return view('tasks.show', [

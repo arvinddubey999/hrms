@@ -18,9 +18,25 @@ class RequestController extends Controller
         $status = $request->get('status');
         $q = $request->get('q');
         $month = $request->get('month', now()->format('Y-m'));
+        $authUser = $request->user();
 
-        $items = LeaveRequest::query()
-            ->with(['user', 'updater'])
+        $scopedQuery = LeaveRequest::query()->with(['user', 'updater']);
+        $baseCount = LeaveRequest::query();
+
+        if ($authUser && !$authUser->isAdmin()) {
+            if ($authUser->hasPermission('leave.approve') || $authUser->hasPermission('leave.view')) {
+                $compIds = $authUser->accessibleCompanyIds();
+                if (!empty($compIds)) {
+                    $scopedQuery->whereHas('user', fn($q) => $q->whereIn('company_id', $compIds));
+                    $baseCount->whereHas('user', fn($q) => $q->whereIn('company_id', $compIds));
+                }
+            } else {
+                $scopedQuery->where('user_id', $authUser->id);
+                $baseCount->where('user_id', $authUser->id);
+            }
+        }
+
+        $items = $scopedQuery
             ->when($status && $status !== 'all', fn ($query) => $query->where('status', $status))
             ->when($q, function ($query) use ($q) {
                 $query->where(function ($inner) use ($q) {
@@ -40,13 +56,15 @@ class RequestController extends Controller
             ->withQueryString();
 
         $counts = [
-            'total' => LeaveRequest::count(),
-            'pending' => LeaveRequest::where('status', 'pending')->count(),
-            'approved' => LeaveRequest::where('status', 'approved')->count(),
-            'rejected' => LeaveRequest::where('status', 'rejected')->count(),
+            'total' => (clone $baseCount)->count(),
+            'pending' => (clone $baseCount)->where('status', 'pending')->count(),
+            'approved' => (clone $baseCount)->where('status', 'approved')->count(),
+            'rejected' => (clone $baseCount)->where('status', 'rejected')->count(),
         ];
 
-        $employees = User::where('status', 'active')->orderBy('first_name')->get();
+        $employees = $authUser && !$authUser->isAdmin()
+            ? $authUser->scopedEmployeesQuery()->orderBy('first_name')->get()
+            : User::where('status', 'active')->orderBy('first_name')->get();
 
         return view('requests.index', compact('items', 'counts', 'status', 'q', 'month', 'employees'));
     }

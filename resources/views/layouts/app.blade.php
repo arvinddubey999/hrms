@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ \App\Models\Setting::current()->company_name }} - {{ $title ?? 'Dashboard' }}</title>
-    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ file_exists(public_path('css/app.css')) ? filemtime(public_path('css/app.css')) : time() }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -20,8 +20,8 @@ $nav = str_starts_with($route, 'request') ? 'requests'
     : (str_contains($route, 'employee') || str_starts_with($route, 'attendance') ? 'attendances' : '')))))));
 $setting = \App\Models\Setting::current();
 @endphp
-<div class="topbar">
-    <div class="brand" style="display:flex;align-items:center;gap:10px">
+<div class="topbar" style="display:flex;align-items:center;justify-content:space-between;gap:18px">
+    <div class="brand" style="display:flex;align-items:center;gap:10px;flex-shrink:0">
         @if($setting->company_logo)
             <img src="{{ asset('storage/'.$setting->company_logo) }}" alt="Logo" style="height:32px;object-fit:contain;border-radius:4px;">
         @else
@@ -35,7 +35,7 @@ $setting = \App\Models\Setting::current();
             <i class="fa-solid fa-magnifying-glass"></i>
         </button>
     </div>
-    <div class="who" style="position:relative;margin-left:auto">
+    <div class="who" style="position:relative;margin-left:auto;display:flex;align-items:center;gap:10px;flex-shrink:0">
         @if(auth()->check() && auth()->user())
             <div id="userMenuTrigger" onclick="toggleUserDropdown(event)" style="display:flex;align-items:center;gap:10px;background:#2a2a2a;padding:5px 8px 5px 14px;border-radius:12px;cursor:pointer;user-select:none;transition:background 0.2s" onmouseover="this.style.background='#333'" onmouseout="this.style.background='#2a2a2a'" title="Click to open menu">
                 <div style="text-align:right">

@@ -28,31 +28,7 @@ class TaskController extends Controller
         $userId = $request->get('user_id');
         $dateFilter = $request->get('date_filter'); // overdue, today, future
 
-        $query = Task::query()
-            ->with(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])
-            ->when(!$u->isAdmin(), function ($q) use ($u) {
-                $q->where(function ($inner) use ($u) {
-                    $inner->where('assigned_to', $u->id)
-                        ->orWhere('created_by', $u->id)
-                        ->orWhereHas('assignees', fn ($p) => $p->where('users.id', $u->id))
-                        ->orWhereHas('others', fn ($p) => $p->where('users.id', $u->id));
-                });
-            })
-            ->when($status && $status !== 'all', fn ($q) => $q->where('status', $status))
-            ->when($priority, fn ($q) => $q->where('priority', $priority))
-            ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
-            ->when($companyId, fn ($q) => $q->whereHas('assignee', fn ($u) => $u->where('company_id', $companyId)))
-            ->when($userId, fn ($q) => $q->where(fn ($uQuery) => $uQuery->where('assigned_to', $userId)->orWhereHas('assignees', fn ($p) => $p->where('users.id', $userId))))
-            ->when($dateFilter === 'overdue', fn ($q) => $q->where('status', '!=', 'completed')->whereDate('due_date', '<', now()->toDateString()))
-            ->when($dateFilter === 'today', fn ($q) => $q->whereDate('due_date', now()->toDateString()))
-            ->when($dateFilter === 'future', fn ($q) => $q->whereDate('due_date', '>', now()->toDateString()))
-            ->when($q, fn ($qQuery) => $qQuery->where(function ($inner) use ($q) {
-                $inner->where('title', 'like', "%{$q}%")
-                    ->orWhere('description', 'like', "%{$q}%")
-                    ->orWhere('client', 'like', "%{$q}%");
-            }))
-            ->latest();
-
+        $query = $this->getFilteredTasksQuery($request);
         $items = $query->paginate(20);
 
         $baseCountQuery = Task::query();
@@ -343,28 +319,49 @@ class TaskController extends Controller
         return redirect()->route('tasks.index')->with('ok', 'Task deleted.');
     }
 
-    public function exportExcel()
+    public function exportExcel(Request $request)
     {
-        $tasks = Task::with(['assignee', 'department'])->latest()->get();
+        $u = $request->user();
+        if (!$u || (!$u->hasPermission('tasks.view') && !$u->hasPermission('tasks.create') && !$u->hasPermission('tasks.manage'))) {
+            return back()->with('error', 'You do not have permission to export tasks.');
+        }
+
+        $tasks = $this->getFilteredTasksQuery($request)->get();
         $filename = "tasks-report-" . date('Y-m-d') . ".csv";
 
         $headers = [
-            'Content-Type' => 'text/csv',
+            'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
         $callback = function () use ($tasks) {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['ID', 'Task Title', 'Department', 'Assigned To', 'Priority', 'Status', 'Due Date']);
+            // Write UTF-8 BOM so Excel opens Hindi / Unicode properly
+            fputs($out, "\xEF\xBB\xBF");
+            fputcsv($out, ['ID', 'Task Title', 'Department', 'Assigned To (To)', 'Assigned By (From)', 'Priority', 'Status', 'Due Date', 'Client / Description']);
             foreach ($tasks as $t) {
+                $assigneeNames = [];
+                if ($t->assignee) {
+                    $assigneeNames[] = $t->assignee->displayName();
+                }
+                foreach ($t->assignees as $otherAssignee) {
+                    if (!$t->assignee || $otherAssignee->id !== $t->assignee->id) {
+                        $assigneeNames[] = $otherAssignee->displayName();
+                    }
+                }
+                $assignedToStr = !empty($assigneeNames) ? implode(', ', $assigneeNames) : 'Unassigned';
+                $assignedByStr = $t->creator ? $t->creator->displayName() : 'Admin';
+
                 fputcsv($out, [
                     $t->id,
                     $t->title,
                     $t->department->name ?? '-',
-                    $t->assignee->displayName() ?? 'Unassigned',
+                    $assignedToStr,
+                    $assignedByStr,
                     strtoupper($t->priority),
-                    strtoupper($t->status),
+                    strtoupper(str_replace('_', ' ', $t->status)),
                     $t->due_date ? $t->due_date->format('Y-m-d') : '-',
+                    $t->client ? "Client: {$t->client}" : ($t->description ?? '-'),
                 ]);
             }
             fclose($out);
@@ -373,9 +370,53 @@ class TaskController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    public function exportPdf()
+    public function exportPdf(Request $request)
     {
-        $tasks = Task::with(['assignee', 'department'])->latest()->get();
+        $u = $request->user();
+        if (!$u || (!$u->hasPermission('tasks.view') && !$u->hasPermission('tasks.create') && !$u->hasPermission('tasks.manage'))) {
+            return back()->with('error', 'You do not have permission to export tasks.');
+        }
+
+        $tasks = $this->getFilteredTasksQuery($request)->get();
         return view('tasks.pdf', compact('tasks'));
+    }
+
+    protected function getFilteredTasksQuery(Request $request)
+    {
+        $u = $request->user();
+
+        $status = $request->get('status');
+        $priority = $request->get('priority');
+        $q = $request->get('q');
+        $departmentId = $request->get('department_id');
+        $companyId = $request->get('company_id');
+        $userId = $request->get('user_id');
+        $dateFilter = $request->get('date_filter'); // overdue, today, future
+
+        return Task::query()
+            ->with(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])
+            ->when(!$u || !$u->isAdmin(), function ($q) use ($u) {
+                if (!$u) return;
+                $q->where(function ($inner) use ($u) {
+                    $inner->where('assigned_to', $u->id)
+                        ->orWhere('created_by', $u->id)
+                        ->orWhereHas('assignees', fn ($p) => $p->where('users.id', $u->id))
+                        ->orWhereHas('others', fn ($p) => $p->where('users.id', $u->id));
+                });
+            })
+            ->when($status && $status !== 'all', fn ($q) => $q->where('status', $status))
+            ->when($priority, fn ($q) => $q->where('priority', $priority))
+            ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
+            ->when($companyId, fn ($q) => $q->whereHas('assignee', fn ($u) => $u->where('company_id', $companyId)))
+            ->when($userId, fn ($q) => $q->where(fn ($uQuery) => $uQuery->where('assigned_to', $userId)->orWhereHas('assignees', fn ($p) => $p->where('users.id', $userId))))
+            ->when($dateFilter === 'overdue', fn ($q) => $q->where('status', '!=', 'completed')->whereDate('due_date', '<', now()->toDateString()))
+            ->when($dateFilter === 'today', fn ($q) => $q->whereDate('due_date', now()->toDateString()))
+            ->when($dateFilter === 'future', fn ($q) => $q->whereDate('due_date', '>', now()->toDateString()))
+            ->when($q, fn ($qQuery) => $qQuery->where(function ($inner) use ($q) {
+                $inner->where('title', 'like', "%{$q}%")
+                    ->orWhere('description', 'like', "%{$q}%")
+                    ->orWhere('client', 'like', "%{$q}%");
+            }))
+            ->latest();
     }
 }

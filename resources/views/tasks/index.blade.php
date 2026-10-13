@@ -1,5 +1,6 @@
 @extends('layouts.app')
 @section('content')
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&display=swap">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
     <h1><i class="fa-solid fa-list-check" style="color:var(--accent)"></i> Task Management</h1>
     <div class="row" style="gap:8px">
@@ -13,8 +14,8 @@
             </button>
         </div>
 
-        <a class="btn light" href="{{ route('tasks.export.excel') }}"><i class="fa-solid fa-file-excel" style="color:#16a34a"></i> Excel</a>
-        <a class="btn light" href="{{ route('tasks.export.pdf') }}" target="_blank"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> PDF</a>
+        <a class="btn light" href="{{ route('tasks.export.excel', request()->query()) }}"><i class="fa-solid fa-file-excel" style="color:#16a34a"></i> Excel</a>
+        <a class="btn light" href="{{ route('tasks.export.pdf', request()->query()) }}" target="_blank"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> PDF</a>
         <button class="btn" onclick="openNewTaskDrawer()"><i class="fa-solid fa-plus"></i> New Task</button>
     </div>
 </div>
@@ -78,120 +79,177 @@
     <a class="{{ $dateFilter==='overdue'?'active':'' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['date_filter'=>'overdue'])) }}" style="color:#dc2626">Overdue ({{ $counts['overdue'] }})</a>
 </div>
 
-<!-- LIST VIEW CONTAINER -->
-<div id="taskListView" class="card" style="padding:14px">
+<!-- Screenshot-Matched Title -->
+<!-- <div style="text-align:center;margin:18px 0 24px">
+    <h1 style="font-family:'Playfair Display', Georgia, 'Times New Roman', serif;font-size:38px;font-weight:700;color:#0f172a;letter-spacing:-0.5px;margin:0">Task Assignments</h1>
+</div> -->
+
+<!-- LIST VIEW CONTAINER (Matching Screenshot) -->
+<div id="taskListView" style="background:#fff;border-radius:14px;box-shadow:0 4px 20px -2px rgba(0,0,0,0.06);border:1px solid #e2e8f0;overflow:hidden">
     <div style="overflow-x:auto">
-        <table class="table" style="width:100%">
+        <table style="width:100%;border-collapse:collapse;font-family:Inter,Segoe UI,-apple-system,sans-serif">
             <thead>
-                <tr>
-                    <th style="width:36px"><input type="checkbox" onchange="toggleTaskSelectAll(this)"></th>
-                    <th>Task & Client</th>
-                    <th>Description</th>
-                    <th>Department</th>
-                    <th>Due Date & Time</th>
-                    <th>Priority</th>
-                    <th>Status</th>
-                    <th>Assignment (From / To)</th>
+                <tr style="background:#334155;color:#ffffff">
+                    <th style="padding:15px 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:center;width:50px">#</th>
+                    <th style="padding:15px 18px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:left">TASK NAME</th>
+                    <th style="padding:15px 18px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:center">ASSIGNED TO</th>
+                    <th style="padding:15px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:left">PRIORITY</th>
+                    <th style="padding:15px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:left">DEADLINE</th>
+                    <th style="padding:15px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:left">STATUS</th>
+                    <th style="padding:15px 18px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:left">COMMENTS</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse($items as $task)
-                    <tr style="cursor:pointer" onclick="openTaskDetailsDrawer({{ json_encode($task->load(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])) }})" title="Click row to open details for {{ $task->title }}">
-                        <td onclick="event.stopPropagation()"><input type="checkbox" class="task-checkbox" value="{{ $task->id }}"></td>
-                        <td>
-                            <strong style="color:#111827;font-size:14px">{{ $task->title }}</strong>
-                            @if($task->replies && $task->replies->count() > 0)
-                                <span class="chip" style="background:#e0e7ff;color:#3730a3;font-size:11px;margin-left:6px;font-weight:bold" onclick="event.stopPropagation(); openTaskDetailsDrawer({{ json_encode($task->load(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])) }}, 'reports')" title="View {{ $task->replies->count() }} replies">
-                                    <i class="fa-solid fa-comments"></i> {{ $task->replies->count() }} {{ Str::plural('Reply', $task->replies->count()) }}
-                                </span>
-                            @endif
+                    @php
+                        $rowBg = $loop->even ? '#f8fafc' : '#ffffff';
+                        
+                        // Assignee styling matching screenshot
+                        $assigneeName = $task->assignee ? $task->assignee->displayName() : 'Unassigned';
+                        $colorPalettes = [
+                            ['bg' => '#c084fc', 'text' => '#ffffff'], // Lavender / Purple (Olivia Adams)
+                            ['bg' => '#818cf8', 'text' => '#ffffff'], // Indigo / Violet (Zoe Martinez)
+                            ['bg' => '#38bdf8', 'text' => '#0c4a6e'], // Sky Blue (Michael Brown)
+                            ['bg' => '#f472b6', 'text' => '#ffffff'], // Dusty Rose / Pink (Sarah Wilson)
+                            ['bg' => '#fcd34d', 'text' => '#78350f'], // Warm Gold / Amber (Alex Johnson)
+                            ['bg' => '#6ee7b7', 'text' => '#064e3b'], // Mint / Emerald (Mia Garcia)
+                            ['bg' => '#fb923c', 'text' => '#ffffff'], // Coral / Orange
+                            ['bg' => '#a78bfa', 'text' => '#ffffff'], // Purple-Indigo
+                            ['bg' => '#93c5fd', 'text' => '#1e3a8a'], // Soft Blue
+                        ];
+                        $paletteIndex = $task->assigned_to ? ($task->assigned_to % count($colorPalettes)) : abs(crc32($assigneeName)) % count($colorPalettes);
+                        $palette = $colorPalettes[$paletteIndex];
+
+                        // Priority vertical bar and label matching screenshot
+                        $priLower = strtolower($task->priority);
+                        $priBarColor = match($priLower) {
+                            'high' => '#ef4444',
+                            'medium' => '#eab308',
+                            default => '#22c55e',
+                        };
+                        $priText = match($priLower) {
+                            'high' => 'High',
+                            'medium' => 'Medium',
+                            default => 'Low',
+                        };
+
+                        // Status vertical bar and label matching screenshot
+                        $stLower = strtolower($task->status);
+                        $statusBarColor = match($stLower) {
+                            'completed' => '#22c55e',
+                            'in_progress' => '#eab308',
+                            default => '#ef4444',
+                        };
+                        $statusText = match($stLower) {
+                            'completed' => 'Completed',
+                            'in_progress' => 'In Progress',
+                            default => 'Not Started',
+                        };
+
+                        // Latest comment / reply or description
+                        $latestReply = $task->replies ? $task->replies->last() : null;
+                        $commentText = $latestReply ? $latestReply->message : ($task->description ?: '-');
+                    @endphp
+                    <tr style="background:{{ $rowBg }};border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background 0.15s ease" 
+                        onmouseover="this.style.background='#f1f5f9'" 
+                        onmouseout="this.style.background='{{ $rowBg }}'"
+                        onclick="openTaskDetailsDrawer({{ json_encode($task->load(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])) }})"
+                        title="Click row to open details for {{ $task->title }}">
+
+                        <!-- # (Index) -->
+                        <td style="padding:15px 12px;text-align:center;font-size:13px;font-weight:600;color:#64748b;width:50px">
+                            {{ ($items->currentPage() - 1) * $items->perPage() + $loop->iteration }}
+                        </td>
+
+                        <!-- TASK NAME -->
+                        <td style="padding:15px 18px">
+                            <div style="font-weight:600;color:#1e293b;font-size:13.5px;line-height:1.3">{{ $task->title }}</div>
                             @if($task->client)
-                                <div style="font-size:11px;color:#6b7280"><i class="fa-solid fa-user-tie"></i> Client: {{ $task->client }}</div>
+                                <div style="font-size:11px;color:#64748b;margin-top:2px">
+                                    <i class="fa-solid fa-user-tie" style="font-size:10px"></i> Client: <b>{{ $task->client }}</b>
+                                </div>
+                            @endif
+                            @if($task->department)
+                                <div style="font-size:10.5px;color:#94a3b8;margin-top:2px">
+                                    Dept: {{ $task->department->name }}
+                                </div>
                             @endif
                         </td>
-                        <td style="max-width:260px">
-                            <span class="muted" style="font-size:12px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden">
-                                {{ $task->description ?: '-' }}
-                            </span>
+
+                        <!-- ASSIGNED TO -->
+                        <td style="padding:15px 18px;text-align:center">
+                            <div style="display:inline-flex;flex-direction:column;align-items:center">
+                                <div style="background:{{ $palette['bg'] }};color:{{ $palette['text'] }};border-radius:6px;padding:6px 16px;font-size:11.5px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;box-shadow:0 1px 2px rgba(0,0,0,0.06);white-space:nowrap">
+                                    {{ $assigneeName }}
+                                </div>
+                                @if($task->creator)
+                                    <div style="font-size:10px;color:#64748b;margin-top:3px;font-weight:500">
+                                        FROM: <b style="color:#475569">{{ $task->creator->displayName() }}</b>
+                                    </div>
+                                @endif
+                            </div>
                         </td>
-                        <td>
-                            <span class="chip" style="background:#f1f5f9;color:#475569"><i class="fa-solid fa-sitemap"></i> {{ $task->department->name ?? 'General' }}</span>
+
+                        <!-- PRIORITY -->
+                        <td style="padding:15px 16px;white-space:nowrap">
+                            <div style="display:flex;align-items:center;gap:8px">
+                                <span style="display:inline-block;width:4.5px;height:16px;background:{{ $priBarColor }};border-radius:2px"></span>
+                                <span style="font-size:13px;font-weight:500;color:#334155">{{ $priText }}</span>
+                            </div>
                         </td>
-                        <td style="white-space:nowrap">
+
+                        <!-- DEADLINE -->
+                        <td style="padding:15px 16px;white-space:nowrap">
                             @if($task->due_date)
                                 @php $isOverdue = $task->status !== 'completed' && $task->due_date->isPast() && !$task->due_date->isToday(); @endphp
-                                <div style="{{ $isOverdue ? 'color:#dc2626;font-weight:bold' : '' }}">
-                                    <i class="fa-regular fa-calendar"></i> {{ $task->due_date->format('Y-m-d') }}
+                                <div style="font-size:13px;color:{{ $isOverdue ? '#dc2626' : '#334155' }};font-weight:{{ $isOverdue ? '700' : '500' }}">
+                                    {{ $task->due_date->format('F j, Y') }}
                                 </div>
                                 @if($task->due_time)
-                                    <small class="muted"><i class="fa-regular fa-clock"></i> {{ $task->due_time }}</small>
+                                    <small style="color:#94a3b8;font-size:11px">{{ $task->due_time }}</small>
                                 @endif
                             @else
-                                <span class="muted">-</span>
+                                <span style="color:#94a3b8;font-size:13px">-</span>
                             @endif
                         </td>
-                        <td>
-                            @if($task->priority === 'high')
-                                <span class="chip" style="background:#fee2e2;color:#991b1b;font-weight:700"><i class="fa-solid fa-circle-exclamation"></i> High</span>
-                            @elseif($task->priority === 'medium')
-                                <span class="chip" style="background:#fef3c7;color:#92400e;font-weight:600"><i class="fa-regular fa-clock"></i> Medium</span>
-                            @else
-                                <span class="chip" style="background:#f1f5f9;color:#475569">Low</span>
-                            @endif
+
+                        <!-- STATUS -->
+                        <td style="padding:15px 16px;white-space:nowrap">
+                            <div style="display:flex;align-items:center;gap:8px">
+                                <span style="display:inline-block;width:4.5px;height:16px;background:{{ $statusBarColor }};border-radius:2px"></span>
+                                <span style="font-size:13px;font-weight:500;color:#334155">{{ $statusText }}</span>
+                            </div>
                         </td>
-                        <td>
-                            @if($task->status === 'completed')
-                                <span class="chip" style="background:#dcfce7;color:#166534;font-weight:700">Completed</span>
-                            @elseif($task->status === 'in_progress')
-                                <span class="chip" style="background:#e0f2fe;color:#0369a1;font-weight:700">In Progress</span>
-                            @else
-                                <span class="chip" style="background:#fef9c3;color:#854d0e;font-weight:700">Pending</span>
-                            @endif
-                        </td>
-                        <td style="min-width:180px">
-                            <div style="display:flex;flex-direction:column;gap:5px">
-                                <!-- TO (Assignee) -->
-                                <div style="display:flex;align-items:center;gap:6px">
-                                    <span class="chip" style="background:#e0f2fe;color:#0369a1;font-size:10px;padding:1px 6px;font-weight:700">TO</span>
-                                    @if($task->assignee)
-                                        @if($task->assignee->profile_photo)
-                                            <img src="{{ asset('storage/'.$task->assignee->profile_photo) }}" style="width:22px;height:22px;border-radius:50%;object-fit:cover">
-                                        @else
-                                            <div style="width:22px;height:22px;background:var(--accent);color:#fff;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700">
-                                                {{ $task->assignee->initials() }}
-                                            </div>
-                                        @endif
-                                        <span style="font-size:12px;font-weight:700;color:#111827">{{ $task->assignee->displayName() }}</span>
-                                    @else
-                                        <span class="muted" style="font-size:11px">Unassigned</span>
+
+                        <!-- COMMENTS -->
+                        <td style="padding:15px 18px">
+                            <div style="font-size:12.5px;color:#475569;max-width:260px;line-height:1.4">
+                                @if($commentText !== '-')
+                                    <span title="{{ $commentText }}">{{ \Illuminate\Support\Str::limit($commentText, 50) }}</span>
+                                    @if($task->replies && $task->replies->count() > 0)
+                                        <span style="display:inline-block;margin-left:4px;background:#e0e7ff;color:#4338ca;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px">
+                                            💬 {{ $task->replies->count() }}
+                                        </span>
                                     @endif
-                                </div>
-                                <!-- FROM (Creator / Assigned By) -->
-                                <div style="display:flex;align-items:center;gap:6px">
-                                    <span class="chip" style="background:#fef3c7;color:#92400e;font-size:10px;padding:1px 6px;font-weight:700">FROM</span>
-                                    @if($task->creator)
-                                        @if($task->creator->profile_photo)
-                                            <img src="{{ asset('storage/'.$task->creator->profile_photo) }}" style="width:20px;height:20px;border-radius:50%;object-fit:cover">
-                                        @else
-                                            <div style="width:20px;height:20px;background:#6366f1;color:#fff;border-radius:50%;display:grid;place-items:center;font-size:9px;font-weight:700">
-                                                {{ $task->creator->initials() }}
-                                            </div>
-                                        @endif
-                                        <span style="font-size:11.5px;font-weight:600;color:#475569">{{ $task->creator->displayName() }}</span>
-                                    @else
-                                        <span class="muted" style="font-size:11px">Admin</span>
-                                    @endif
-                                </div>
+                                @else
+                                    <span style="color:#94a3b8">-</span>
+                                @endif
                             </div>
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="muted" style="text-align:center;padding:24px">No tasks found matching current filters. Click "+ New Task" to create one.</td></tr>
+                    <tr>
+                        <td colspan="7" style="text-align:center;padding:36px;color:#64748b;font-size:13.5px">
+                            No tasks found matching current filters. Click "+ New Task" to create one.
+                        </td>
+                    </tr>
                 @endforelse
             </tbody>
         </table>
     </div>
-    <div style="margin-top:14px">{{ $items->links() }}</div>
+    <div style="padding:14px 18px;background:#fafafa;border-top:1px solid #f1f5f9">
+        {{ $items->links() }}
+    </div>
 </div>
 
 <!-- CALENDAR VIEW CONTAINER (Full Month Task Grid View) -->

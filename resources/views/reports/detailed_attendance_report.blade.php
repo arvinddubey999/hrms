@@ -31,6 +31,7 @@
         /* Status Colors matching screenshot */
         .st-P { background: #dcfce7; color: #166534; font-weight: 700; }
         .st-PL { background: #fef9c3; color: #854d0e; font-weight: 700; }
+        .st-HD { background: #fef3c7; color: #b45309; font-weight: 700; }
         .st-WO { background: #f1f5f9; color: #475569; font-weight: 700; }
         .st-A { background: #ffe4e6; color: #9f1239; font-weight: 700; }
         .st-H { background: #dbeafe; color: #1e40af; font-weight: 700; }
@@ -66,14 +67,14 @@
             $monthDays = $from->daysInMonth;
             $monthSummary = $attendance->monthSummary($emp, $from->year, $from->month);
 
-            $pCount = 0; $hCount = 0; $woCount = 0; $hdCount = 0; $aCount = 0;
-            $totalSecs = 0; $shortSecs = 0; $otSecs = 0;
-
+            $totalSecs = 0;
             $dailyData = [];
+
             for ($d = 1; $d <= $monthDays; $d++) {
                 $cDate = \Carbon\Carbon::create($from->year, $from->month, $d);
                 $dStr = $cDate->toDateString();
-                $st = $attendance->dayStatus($emp, $cDate);
+                $dayRow = $monthSummary['rows'][$d - 1] ?? null;
+                $st = $dayRow['status'] ?? $attendance->dayStatus($emp, $cDate);
 
                 $punchIn = \App\Models\AttendancePunch::where('user_id', $emp->id)->whereDate('work_date', $dStr)->where('type', 'in')->orderBy('punched_at')->first();
                 $punchOut = \App\Models\AttendancePunch::where('user_id', $emp->id)->whereDate('work_date', $dStr)->where('type', 'out')->orderByDesc('punched_at')->first();
@@ -87,49 +88,56 @@
                 $workingStr = '-';
                 $shortStr = '-';
                 $otStr = '-';
+
+                $workedMins = $dayRow['worked_minutes'] ?? 0;
+                if ($workedMins > 0) {
+                    $totalSecs += ($workedMins * 60);
+                    $workingStr = sprintf('%02d:%02d', intdiv($workedMins, 60), $workedMins % 60);
+                }
+
+                $otMins = $dayRow['ot_minutes'] ?? 0;
+                if ($otMins > 0) {
+                    $otStr = sprintf('%02d:%02d', intdiv($otMins, 60), $otMins % 60);
+                }
+
+                $shortMins = $dayRow['short_minutes'] ?? 0;
+                if ($shortMins > 0) {
+                    $shortStr = sprintf('%02d:%02d', intdiv($shortMins, 60), $shortMins % 60);
+                }
+
                 $stLabel = 'A';
                 $stClass = 'st-A';
 
-                if ($st === 'present' || $st === 'late') {
-                    $stLabel = $st === 'late' ? 'P(L)' : 'P';
-                    $stClass = $st === 'late' ? 'st-PL' : 'st-P';
-                    $pCount++;
-
-                    if ($punchIn && $punchOut) {
-                        $secs = \Carbon\Carbon::parse($punchIn->punched_at)->diffInSeconds(\Carbon\Carbon::parse($punchOut->punched_at));
-                        $totalSecs += $secs;
-                        $hours = floor($secs / 3600);
-                        $mins = floor(($secs % 3600) / 60);
-                        $workingStr = sprintf('%02d:%02d', $hours, $mins);
-                    }
-                } elseif ($st === 'leave') {
-                    $stLabel = 'HD';
+                if ($st === 'present') {
+                    $stLabel = 'P';
+                    $stClass = 'st-P';
+                } elseif ($st === 'late') {
+                    $stLabel = 'P(L)';
                     $stClass = 'st-PL';
-                    $hdCount++;
-                } elseif ($cDate->format('l') === ($emp->week_off_day ?: 'Sunday')) {
-                    if ($punchIn) {
-                        $stLabel = 'WOP';
-                        $stClass = 'st-WOP';
-                        $pCount++;
-                    } else {
-                        $stLabel = 'WO';
-                        $stClass = 'st-WO';
-                        $woCount++;
-                    }
+                } elseif ($st === 'half_day') {
+                    $stLabel = 'HD';
+                    $stClass = 'st-HD';
+                } elseif ($st === 'wop') {
+                    $stLabel = 'WOP';
+                    $stClass = 'st-WOP';
+                } elseif ($st === 'hop') {
+                    $stLabel = 'HOP';
+                    $stClass = 'st-HOP';
+                } elseif ($st === 'week_off') {
+                    $stLabel = 'WO';
+                    $stClass = 'st-WO';
                 } elseif ($st === 'holiday') {
-                    if ($punchIn) {
-                        $stLabel = 'HOP';
-                        $stClass = 'st-HOP';
-                        $pCount++;
-                    } else {
-                        $stLabel = 'H';
-                        $stClass = 'st-H';
-                        $hCount++;
-                    }
+                    $stLabel = 'H';
+                    $stClass = 'st-H';
+                } elseif ($st === 'leave') {
+                    $stLabel = 'L';
+                    $stClass = 'st-PL';
+                } elseif ($st === 'not_marked') {
+                    $stLabel = $cDate->isPast() && !$cDate->isToday() ? 'A' : '-';
+                    $stClass = $cDate->isPast() && !$cDate->isToday() ? 'st-A' : 'st-WO';
                 } else {
                     $stLabel = 'A';
                     $stClass = 'st-A';
-                    $aCount++;
                 }
 
                 $dailyData[$d] = [
@@ -145,7 +153,6 @@
                 ];
             }
 
-            $paidDays = $pCount + $hCount + $woCount;
             $workHrsStr = sprintf('%02d:%02d', floor($totalSecs / 3600), floor(($totalSecs % 3600) / 60));
         @endphp
 
@@ -172,15 +179,15 @@
                 </thead>
                 <tbody>
                     <tr>
-                        <td>{{ $pCount }}</td>
-                        <td>{{ $hCount }}</td>
-                        <td>{{ $woCount }}</td>
-                        <td>{{ $hdCount }}</td>
-                        <td>{{ $aCount }}</td>
-                        <td>{{ $paidDays }}</td>
+                        <td>{{ $monthSummary['present'] }}</td>
+                        <td>{{ $monthSummary['holiday'] }}</td>
+                        <td>{{ $monthSummary['weekOff'] }}</td>
+                        <td>{{ $monthSummary['half'] }}</td>
+                        <td>{{ $monthSummary['absent'] }}</td>
+                        <td>{{ $monthSummary['payable'] }}</td>
                         <td>{{ $workHrsStr }}</td>
-                        <td>00:00</td>
-                        <td>00:00</td>
+                        <td>{{ $monthSummary['totalShortHoursFormatted'] }}</td>
+                        <td>{{ $monthSummary['totalOtHoursFormatted'] }}</td>
                     </tr>
                 </tbody>
             </table>

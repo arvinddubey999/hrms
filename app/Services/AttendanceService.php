@@ -158,15 +158,17 @@ class AttendanceService
 
     public function isHolidayQualified(User $user, Carbon $holidayDate): bool
     {
+        $userWeekOff = (!empty($user->week_off_day) && strcasecmp($user->week_off_day, 'None') !== 0) ? $user->week_off_day : null;
+
         // Check preceding working day (skipping week-off days)
         $prevDay = $holidayDate->copy()->subDay();
-        while (strcasecmp($user->week_off_day ?: 'Sunday', $prevDay->format('l')) === 0 && $prevDay->gt($holidayDate->copy()->subDays(7))) {
+        while ($userWeekOff && strcasecmp($userWeekOff, $prevDay->format('l')) === 0 && $prevDay->gt($holidayDate->copy()->subDays(7))) {
             $prevDay->subDay();
         }
 
         // Check succeeding working day (skipping week-off days)
         $nextDay = $holidayDate->copy()->addDay();
-        while (strcasecmp($user->week_off_day ?: 'Sunday', $nextDay->format('l')) === 0 && $nextDay->lt($holidayDate->copy()->addDays(7))) {
+        while ($userWeekOff && strcasecmp($userWeekOff, $nextDay->format('l')) === 0 && $nextDay->lt($holidayDate->copy()->addDays(7))) {
             $nextDay->addDay();
         }
 
@@ -206,7 +208,9 @@ class AttendanceService
         }
 
         // Check Week Off
-        $isWeekOffDay = strcasecmp($user->week_off_day ?: 'Sunday', $date->format('l')) === 0;
+        $isWeekOffDay = (!empty($user->week_off_day) && strcasecmp($user->week_off_day, 'None') !== 0)
+            ? (strcasecmp($user->week_off_day, $date->format('l')) === 0)
+            : false;
 
         if ($isWeekOffDay) {
             if ($hasIn) {
@@ -231,12 +235,38 @@ class AttendanceService
                 ->where('type', 'in')
                 ->orderBy('punched_at')
                 ->first();
+            $lastOut = AttendancePunch::query()
+                ->where('user_id', $user->id)
+                ->whereDate('work_date', $date->toDateString())
+                ->where('type', 'out')
+                ->orderByDesc('punched_at')
+                ->first();
+
+            $shiftMinutes = $this->getShiftMinutes($user);
+            $workedMinutes = $this->getDayWorkedMinutes($user, $date);
+
+            $isLate = false;
             $shiftStart = $user->shift?->start_time;
             if ($shiftStart && $firstIn && $firstIn->punched_at->format('H:i:s') > $shiftStart) {
-                return 'late';
+                $isLate = true;
             }
 
-            return 'present';
+            // Half Day Rule:
+            // 1. If past date and only punched IN without OUT -> Half Day
+            // 2. If both IN and OUT exist, but worked minutes is less than standard full-day threshold
+            $isPastDate = $date->isPast() && !$date->isToday();
+            if ($isPastDate && !$lastOut) {
+                return 'half_day';
+            }
+
+            if ($lastOut && $workedMinutes > 0) {
+                $fullDayThreshold = max(360, $shiftMinutes - 60);
+                if ($workedMinutes < $fullDayThreshold) {
+                    return 'half_day';
+                }
+            }
+
+            return $isLate ? 'late' : 'present';
         }
 
         if ($date->isToday() || $date->isFuture()) {
@@ -246,12 +276,55 @@ class AttendanceService
         return 'absent';
     }
 
+    public function getShiftMinutes(User $user): int
+    {
+        if ($user->shift && $user->shift->start_time && $user->shift->end_time) {
+            $start = Carbon::parse($user->shift->start_time);
+            $end = Carbon::parse($user->shift->end_time);
+            if ($end->lt($start)) {
+                $end->addDay();
+            }
+            $diff = $start->diffInMinutes($end);
+            if ($diff > 0) {
+                return $diff;
+            }
+        }
+        return 480; // Standard 8 hours
+    }
+
+    public function getDayWorkedMinutes(User $user, Carbon $date): int
+    {
+        $ins = AttendancePunch::query()
+            ->where('user_id', $user->id)
+            ->whereDate('work_date', $date->toDateString())
+            ->where('type', 'in')
+            ->orderBy('punched_at')
+            ->get();
+        $outs = AttendancePunch::query()
+            ->where('user_id', $user->id)
+            ->whereDate('work_date', $date->toDateString())
+            ->where('type', 'out')
+            ->orderBy('punched_at')
+            ->get();
+
+        $minutes = 0;
+        $pairs = max($ins->count(), $outs->count());
+        for ($i = 0; $i < $pairs; $i++) {
+            if (isset($ins[$i], $outs[$i])) {
+                $minutes += $ins[$i]->punched_at->diffInMinutes($outs[$i]->punched_at);
+            }
+        }
+        return $minutes;
+    }
+
     public function monthSummary(User $user, int $year, int $month): array
     {
         $start = Carbon::create($year, $month, 1);
         $days = $start->daysInMonth;
         $present = $absent = $leave = $weekOff = $late = $holiday = $half = $wop = $hop = 0;
+        $totalOtMinutes = $totalShortMinutes = 0;
         $rows = [];
+        $shiftMinutes = $this->getShiftMinutes($user);
 
         for ($d = 1; $d <= $days; $d++) {
             $date = Carbon::create($year, $month, $d);
@@ -275,17 +348,15 @@ class AttendanceService
                 ->orderBy('punched_at')
                 ->get();
 
-            // Check Punch IN without OUT condition (half-green half-red indicator requirement!)
             $hasInNoOut = ($ins->count() > 0 && $outs->count() === 0);
 
             if ($status === 'present') {
-                if ($hasInNoOut) {
-                    $half++;
-                }
                 $present++;
             } elseif ($status === 'late') {
                 $late++;
                 $present++;
+            } elseif ($status === 'half_day') {
+                $half++;
             } elseif ($status === 'wop') {
                 $wop++;
                 $present++;
@@ -309,6 +380,20 @@ class AttendanceService
                     $minutes += $ins[$i]->punched_at->diffInMinutes($outs[$i]->punched_at);
                 }
             }
+
+            // OT and Short calculation
+            $otMins = 0;
+            $shortMins = 0;
+            if ($minutes > 0) {
+                if ($minutes > $shiftMinutes) {
+                    $otMins = $minutes - $shiftMinutes;
+                    $totalOtMinutes += $otMins;
+                } elseif ($minutes < $shiftMinutes) {
+                    $shortMins = $shiftMinutes - $minutes;
+                    $totalShortMinutes += $shortMins;
+                }
+            }
+
             $rows[] = [
                 'date' => $date->toDateString(),
                 'status' => $status,
@@ -317,12 +402,19 @@ class AttendanceService
                 'ins' => $ins,
                 'outs' => $outs,
                 'hours' => sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60),
+                'ot_hours' => sprintf('%02d:%02d', intdiv($otMins, 60), $otMins % 60),
+                'short_hours' => sprintf('%02d:%02d', intdiv($shortMins, 60), $shortMins % 60),
+                'worked_minutes' => $minutes,
+                'ot_minutes' => $otMins,
+                'short_minutes' => $shortMins,
             ];
         }
 
-        $payable = $present + $weekOff + $leave + $holiday;
+        $payable = $present + ($half * 0.5) + $weekOff + $leave + $holiday;
+        $totalOtHoursFormatted = sprintf('%02d:%02d', intdiv($totalOtMinutes, 60), $totalOtMinutes % 60);
+        $totalShortHoursFormatted = sprintf('%02d:%02d', intdiv($totalShortMinutes, 60), $totalShortMinutes % 60);
 
-        return compact('present', 'absent', 'leave', 'weekOff', 'late', 'holiday', 'half', 'wop', 'hop', 'days', 'rows', 'payable');
+        return compact('present', 'absent', 'leave', 'weekOff', 'late', 'holiday', 'half', 'wop', 'hop', 'days', 'rows', 'payable', 'totalOtMinutes', 'totalShortMinutes', 'totalOtHoursFormatted', 'totalShortHoursFormatted');
     }
 
     private function fallbackLocation(?float $lat, ?float $lng, Setting $setting): string

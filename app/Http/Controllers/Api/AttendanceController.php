@@ -138,6 +138,8 @@ class AttendanceController extends Controller
             $isAbsent = false;
             $isLeave = false;
 
+            $isHalfDay = false;
+            $otMins = 0;
             if ($isPresent) {
                 $presentUserIds[] = $u->id;
                 $shiftStart = $u->shift?->start_time;
@@ -150,9 +152,22 @@ class AttendanceController extends Controller
                     $isEarly = true;
                     $earlyUserIds[] = $u->id;
                 }
+
+                // Check half day & OT
+                if ($firstIn && $lastOut) {
+                    $workedMins = $firstIn->punched_at->diffInMinutes($lastOut->punched_at);
+                    if ($workedMins > 0 && $workedMins < 420) {
+                        $isHalfDay = true;
+                    }
+                    if ($workedMins > 480) {
+                        $otMins = $workedMins - 480;
+                    }
+                }
             } else {
                 $notMarkedUserIds[] = $u->id;
             }
+
+            $todayStatus = $isPresent ? ($isHalfDay ? 'half_day' : ($isLate ? 'late' : 'present')) : 'not_marked';
 
             $employeesList[] = [
                 'id' => $u->id,
@@ -168,13 +183,16 @@ class AttendanceController extends Controller
                 'designation' => $u->designation ?: 'Employee',
                 'photo' => $u->profile_photo ? url('storage/'.$u->profile_photo) : null,
                 'status' => $u->status,
-                'today_status' => $isPresent ? ($isLate ? 'late' : 'present') : 'not_marked',
+                'today_status' => $todayStatus,
                 'is_present' => $isPresent,
+                'is_half_day' => $isHalfDay,
                 'is_not_marked' => $isNotMarked,
                 'is_late' => $isLate,
                 'is_early' => $isEarly,
                 'is_absent' => $isAbsent,
                 'is_leave' => $isLeave,
+                'ot_minutes' => $otMins,
+                'ot_hours' => sprintf('%02d:%02d', intdiv($otMins, 60), $otMins % 60),
                 'in_time' => $firstIn ? $firstIn->punched_at->format('h:i A') : null,
                 'out_time' => $lastOut ? $lastOut->punched_at->format('h:i A') : null,
                 'in_photo' => $firstIn && $firstIn->photo ? url('storage/'.$firstIn->photo) : null,

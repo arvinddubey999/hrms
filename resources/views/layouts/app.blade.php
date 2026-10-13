@@ -29,8 +29,13 @@ $setting = \App\Models\Setting::current();
         @endif
         <span>{{ $setting->company_name }}</span>
     </div>
-    <input class="search" placeholder="Search employees by name, serial no, phone, dept..." onkeydown="if(event.key==='Enter'){ location.href='{{ route('attendances.index') }}?q='+this.value }">
-    <div class="who" style="position:relative">
+    <div style="position:relative;display:flex;align-items:center;flex:1;max-width:440px;margin:0 auto">
+        <input class="search" id="topbarSearchInput" placeholder="Search employees by name, serial no, phone, dept..." style="width:100%;padding-right:38px" onkeydown="if(event.key==='Enter'){ location.href='{{ route('attendances.index') }}?q='+encodeURIComponent(this.value) }">
+        <button type="button" onclick="location.href='{{ route('attendances.index') }}?q='+encodeURIComponent(document.getElementById('topbarSearchInput').value)" style="position:absolute;right:6px;background:none;border:none;color:#9ca3af;cursor:pointer;padding:6px;display:flex;align-items:center;justify-content:center" title="Search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+        </button>
+    </div>
+    <div class="who" style="position:relative;margin-left:auto">
         @if(auth()->check() && auth()->user())
             <div id="userMenuTrigger" onclick="toggleUserDropdown(event)" style="display:flex;align-items:center;gap:10px;background:#2a2a2a;padding:5px 8px 5px 14px;border-radius:12px;cursor:pointer;user-select:none;transition:background 0.2s" onmouseover="this.style.background='#333'" onmouseout="this.style.background='#2a2a2a'" title="Click to open menu">
                 <div style="text-align:right">

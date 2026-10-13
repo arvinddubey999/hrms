@@ -29,7 +29,11 @@
                 <tr>
                     <td><span class="chip" style="background:#f1f5f9;color:#475569">{{ strtoupper($p->source) }}</span></td>
                     <td>
-                        @if($p->type === 'in')
+                        @if(str_contains(strtoupper($p->remarks ?? ''), 'WOP'))
+                            <span class="chip" style="background:#e0e7ff;color:#3730a3;font-weight:700"><i class="fa-solid fa-calendar-check"></i> WOP</span>
+                        @elseif(str_contains(strtoupper($p->remarks ?? ''), 'HOP'))
+                            <span class="chip" style="background:#f3e8ff;color:#6b21a8;font-weight:700"><i class="fa-solid fa-gift"></i> HOP</span>
+                        @elseif($p->type === 'in')
                             <span class="chip" style="background:#dcfce7;color:#166534;font-weight:700"><i class="fa-solid fa-arrow-right-to-bracket"></i> PUNCH IN</span>
                         @else
                             <span class="chip" style="background:#fef3c7;color:#92400e;font-weight:700"><i class="fa-solid fa-arrow-right-from-bracket"></i> PUNCH OUT</span>
@@ -84,9 +88,15 @@
 
         <div>
             <label>Punch Type *</label>
-            <select name="type" required>
-                <option value="in" {{ optional($punches->last())->type === 'out' || $punches->isEmpty() ? 'selected' : '' }}>Punch IN</option>
-                <option value="out" {{ optional($punches->last())->type === 'in' ? 'selected' : '' }}>Punch OUT</option>
+            <select name="type" required style="font-weight:600">
+                <option value="in" style="color:#22c55e;font-weight:700" {{ optional($punches->last())->type === 'out' || $punches->isEmpty() ? 'selected' : '' }}>IN</option>
+                <option value="out" style="color:#ef4444;font-weight:700" {{ optional($punches->last())->type === 'in' ? 'selected' : '' }}>OUT</option>
+                <option value="absent" style="color:#ef4444;font-weight:700">ABSENT</option>
+                <option value="leave" style="color:#f59e0b;font-weight:700">LEAVE</option>
+                <option value="holiday" style="color:#22c55e;font-weight:700">HOLIDAY</option>
+                <option value="week_off" style="color:#f59e0b;font-weight:700">WEEK OFF</option>
+                <option value="wop" style="color:#38bdf8;font-weight:700">WEEK OFF PRESENT (WOP)</option>
+                <option value="hop" style="color:#a855f7;font-weight:700">HOLIDAY - PRESENT (HOP)</option>
             </select>
         </div>
 

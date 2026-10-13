@@ -91,17 +91,17 @@
                     <th>Due Date & Time</th>
                     <th>Priority</th>
                     <th>Status</th>
-                    <th>Assigned User</th>
+                    <th>Assignment (From / To)</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse($items as $task)
-                    <tr style="cursor:pointer" onclick="openTaskDetailsDrawer({{ json_encode($task->load(['assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])) }})" title="Click row to open details for {{ $task->title }}">
+                    <tr style="cursor:pointer" onclick="openTaskDetailsDrawer({{ json_encode($task->load(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])) }})" title="Click row to open details for {{ $task->title }}">
                         <td onclick="event.stopPropagation()"><input type="checkbox" class="task-checkbox" value="{{ $task->id }}"></td>
                         <td>
                             <strong style="color:#111827;font-size:14px">{{ $task->title }}</strong>
                             @if($task->replies && $task->replies->count() > 0)
-                                <span class="chip" style="background:#e0e7ff;color:#3730a3;font-size:11px;margin-left:6px;font-weight:bold" onclick="event.stopPropagation(); openTaskDetailsDrawer({{ json_encode($task->load(['assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])) }}, 'reports')" title="View {{ $task->replies->count() }} replies">
+                                <span class="chip" style="background:#e0e7ff;color:#3730a3;font-size:11px;margin-left:6px;font-weight:bold" onclick="event.stopPropagation(); openTaskDetailsDrawer({{ json_encode($task->load(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])) }}, 'reports')" title="View {{ $task->replies->count() }} replies">
                                     <i class="fa-solid fa-comments"></i> {{ $task->replies->count() }} {{ Str::plural('Reply', $task->replies->count()) }}
                                 </span>
                             @endif
@@ -148,20 +148,40 @@
                                 <span class="chip" style="background:#fef9c3;color:#854d0e;font-weight:700">Pending</span>
                             @endif
                         </td>
-                        <td>
-                            <div style="display:flex;align-items:center;gap:6px">
-                                @if($task->assignee)
-                                    @if($task->assignee->profile_photo)
-                                        <img src="{{ asset('storage/'.$task->assignee->profile_photo) }}" style="width:28px;height:28px;border-radius:50%;object-fit:cover">
+                        <td style="min-width:180px">
+                            <div style="display:flex;flex-direction:column;gap:5px">
+                                <!-- TO (Assignee) -->
+                                <div style="display:flex;align-items:center;gap:6px">
+                                    <span class="chip" style="background:#e0f2fe;color:#0369a1;font-size:10px;padding:1px 6px;font-weight:700">TO</span>
+                                    @if($task->assignee)
+                                        @if($task->assignee->profile_photo)
+                                            <img src="{{ asset('storage/'.$task->assignee->profile_photo) }}" style="width:22px;height:22px;border-radius:50%;object-fit:cover">
+                                        @else
+                                            <div style="width:22px;height:22px;background:var(--accent);color:#fff;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700">
+                                                {{ $task->assignee->initials() }}
+                                            </div>
+                                        @endif
+                                        <span style="font-size:12px;font-weight:700;color:#111827">{{ $task->assignee->displayName() }}</span>
                                     @else
-                                        <div style="width:28px;height:28px;background:var(--accent);color:#fff;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700">
-                                            {{ $task->assignee->initials() }}
-                                        </div>
+                                        <span class="muted" style="font-size:11px">Unassigned</span>
                                     @endif
-                                    <span style="font-size:12px;font-weight:600">{{ $task->assignee->displayName() }}</span>
-                                @else
-                                    <span class="muted">Unassigned</span>
-                                @endif
+                                </div>
+                                <!-- FROM (Creator / Assigned By) -->
+                                <div style="display:flex;align-items:center;gap:6px">
+                                    <span class="chip" style="background:#fef3c7;color:#92400e;font-size:10px;padding:1px 6px;font-weight:700">FROM</span>
+                                    @if($task->creator)
+                                        @if($task->creator->profile_photo)
+                                            <img src="{{ asset('storage/'.$task->creator->profile_photo) }}" style="width:20px;height:20px;border-radius:50%;object-fit:cover">
+                                        @else
+                                            <div style="width:20px;height:20px;background:#6366f1;color:#fff;border-radius:50%;display:grid;place-items:center;font-size:9px;font-weight:700">
+                                                {{ $task->creator->initials() }}
+                                            </div>
+                                        @endif
+                                        <span style="font-size:11.5px;font-weight:600;color:#475569">{{ $task->creator->displayName() }}</span>
+                                    @else
+                                        <span class="muted" style="font-size:11px">Admin</span>
+                                    @endif
+                                </div>
                             </div>
                         </td>
                     </tr>
@@ -365,8 +385,16 @@
                 </div>
 
                 <div style="background:#fff;padding:12px;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:14px">
-                    <strong style="display:block;margin-bottom:6px;font-size:13px">Assigned Team:</strong>
-                    <div id="dtlAssigneesList" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+                        <div style="flex:1">
+                            <strong style="display:block;margin-bottom:6px;font-size:13px;color:#1e293b"><i class="fa-solid fa-user-check" style="color:var(--accent)"></i> Assigned To:</strong>
+                            <div id="dtlAssigneesList" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
+                        </div>
+                        <div style="flex:1;border-left:1px dashed #cbd5e1;padding-left:12px">
+                            <strong style="display:block;margin-bottom:6px;font-size:13px;color:#1e293b"><i class="fa-solid fa-user-tag" style="color:#6366f1"></i> Assigned By (From):</strong>
+                            <div id="dtlCreatorInfo" style="display:flex;align-items:center;gap:6px"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Action Buttons: Re-assign, Send Reminder & Delete -->
@@ -517,6 +545,16 @@ function openTaskDetailsDrawer(task, initialTab = 'details') {
         task.others.forEach(o => {
             assigneesDiv.innerHTML += `<span class="chip" style="background:#e0f2fe;color:#0369a1">${o.first_name} ${o.last_name || ''}</span>`;
         });
+    }
+
+    // Creator / Assigned By Info
+    const creatorDiv = document.getElementById('dtlCreatorInfo');
+    if (creatorDiv) {
+        if (task.creator) {
+            creatorDiv.innerHTML = `<span class="chip" style="background:#e0e7ff;color:#3730a3;font-weight:700"><i class="fa-solid fa-user-tie"></i> ${task.creator.first_name} ${task.creator.last_name || ''}</span>`;
+        } else {
+            creatorDiv.innerHTML = `<span class="chip" style="background:#f1f5f9;color:#475569"><i class="fa-solid fa-user-shield"></i> Admin</span>`;
+        }
     }
 
     // Set forms

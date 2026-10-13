@@ -86,17 +86,36 @@ class EmployeeController extends Controller
             if ($companyId) {
                 $scopedActiveQuery->where('company_id', $companyId);
             }
+            if ($categoryId) {
+                $scopedActiveQuery->where('category_id', $categoryId);
+            }
+            if ($departmentId) {
+                $scopedActiveQuery->where('department_id', $departmentId);
+            }
             $activeEmployees = $scopedActiveQuery->get();
             $scopedIds = $activeEmployees->pluck('id');
-            $archivedCount = User::query()->where('status', 'archived')->whereIn('id', $scopedIds)->count();
+            $archivedCount = User::query()->where('status', 'archived')
+                ->whereIn('id', $scopedIds)
+                ->when($companyId, fn($q) => $q->where('company_id', $companyId))
+                ->when($categoryId, fn($q) => $q->where('category_id', $categoryId))
+                ->when($departmentId, fn($q) => $q->where('department_id', $departmentId))
+                ->count();
         } else {
             $statsQuery = User::query()->where('status', 'active');
             if ($companyId) {
                 $statsQuery->where('company_id', $companyId);
             }
+            if ($categoryId) {
+                $statsQuery->where('category_id', $categoryId);
+            }
+            if ($departmentId) {
+                $statsQuery->where('department_id', $departmentId);
+            }
             $activeEmployees = $statsQuery->get();
             $archivedCount = User::query()->where('status', 'archived')
                 ->when($companyId, fn($q) => $q->where('company_id', $companyId))
+                ->when($categoryId, fn($q) => $q->where('category_id', $categoryId))
+                ->when($departmentId, fn($q) => $q->where('department_id', $departmentId))
                 ->count();
         }
 
@@ -124,8 +143,23 @@ class EmployeeController extends Controller
 
         foreach ($activeEmployees as $actEmp) {
             $dayStatus = $attendance->dayStatus($actEmp, $date);
-            if (isset($stats[$dayStatus])) {
-                $stats[$dayStatus]++;
+            if (in_array($dayStatus, ['present', 'late', 'wop', 'half_day', 'hop'])) {
+                $stats['present']++;
+            }
+            if ($dayStatus === 'late') {
+                $stats['late']++;
+            }
+            if ($dayStatus === 'absent') {
+                $stats['absent']++;
+            }
+            if ($dayStatus === 'not_marked') {
+                $stats['not_marked']++;
+            }
+            if ($dayStatus === 'leave') {
+                $stats['leave']++;
+            }
+            if ($dayStatus === 'early') {
+                $stats['early']++;
             }
         }
 
@@ -272,7 +306,7 @@ class EmployeeController extends Controller
         }
 
         $data = $request->validate([
-            'type' => 'required|in:in,out',
+            'type' => 'required|in:in,out,absent,leave,holiday,week_off,wop,hop',
             'date' => 'nullable|date|before_or_equal:today',
             'time' => 'nullable',
             'remarks' => 'nullable|string',
@@ -284,10 +318,38 @@ class EmployeeController extends Controller
         $targetDate = $data['date'] ?? now('Asia/Kolkata')->toDateString();
         $targetTime = !empty($data['time']) ? $data['time'] : now('Asia/Kolkata')->format('H:i:s');
         $customPunchedAt = Carbon::parse($targetDate.' '.$targetTime)->toDateTimeString();
+        $type = strtolower($data['type']);
+
+        if (in_array($type, ['absent', 'week_off', 'holiday', 'leave'])) {
+            AttendancePunch::query()
+                ->where('user_id', $employee->id)
+                ->whereDate('work_date', $targetDate)
+                ->delete();
+
+            if ($type === 'leave') {
+                \App\Models\LeaveRequest::updateOrCreate([
+                    'user_id' => $employee->id,
+                    'from_date' => $targetDate,
+                    'to_date' => $targetDate,
+                ], [
+                    'leave_type' => 'Manual Leave',
+                    'reason' => $data['remarks'] ?? 'Manually marked as LEAVE',
+                    'status' => 'approved',
+                ]);
+            }
+
+            return back()->with('ok', 'Attendance status updated to ' . strtoupper($type) . ' for ' . $targetDate);
+        }
+
+        $remarks = $data['remarks'] ?? null;
+        if (in_array($type, ['wop', 'hop'])) {
+            $remarks = trim(($remarks ? $remarks . ' | ' : '') . strtoupper($type));
+            $type = 'in';
+        }
 
         $punch = $attendance->punch(
             $employee,
-            $data['type'],
+            $type,
             (float) Setting::current()->office_lat,
             (float) Setting::current()->office_lng,
             Setting::current()->company_name.' office',
@@ -296,7 +358,7 @@ class EmployeeController extends Controller
             'admin',
             $request->user(),
             true,
-            $data['remarks'] ?? null,
+            $remarks,
             $targetDate,
             $customPunchedAt
         );
@@ -314,7 +376,7 @@ class EmployeeController extends Controller
         $data = $request->validate([
             'employee_ids' => 'required|array',
             'employee_ids.*' => 'exists:users,id',
-            'type' => 'required|in:in,out',
+            'type' => 'required|in:in,out,absent,leave,holiday,week_off,wop,hop',
             'time' => 'nullable',
             'remarks' => 'nullable|string',
             'date' => 'nullable|date|before_or_equal:today',
@@ -325,13 +387,43 @@ class EmployeeController extends Controller
         $workDate = !empty($data['date']) ? Carbon::parse($data['date'])->toDateString() : now('Asia/Kolkata')->toDateString();
         $targetTime = !empty($data['time']) ? $data['time'] : ($data['type'] === 'out' ? '18:00:00' : '09:30:00');
         $targetPunchedAt = Carbon::parse($workDate.' '.$targetTime)->toDateTimeString();
+        $type = strtolower($data['type']);
+
+        if (in_array($type, ['absent', 'week_off', 'holiday', 'leave'])) {
+            AttendancePunch::query()
+                ->whereIn('user_id', $data['employee_ids'])
+                ->whereDate('work_date', $workDate)
+                ->delete();
+
+            if ($type === 'leave') {
+                foreach ($data['employee_ids'] as $id) {
+                    \App\Models\LeaveRequest::updateOrCreate([
+                        'user_id' => $id,
+                        'from_date' => $workDate,
+                        'to_date' => $workDate,
+                    ], [
+                        'leave_type' => 'Manual Leave',
+                        'reason' => $data['remarks'] ?? 'Bulk marked as LEAVE',
+                        'status' => 'approved',
+                    ]);
+                }
+            }
+
+            return back()->with('ok', 'Bulk attendance status set to ' . strtoupper($type) . ' for ' . $workDate);
+        }
+
+        $remarks = $data['remarks'] ?? null;
+        if (in_array($type, ['wop', 'hop'])) {
+            $remarks = trim(($remarks ? $remarks . ' | ' : '') . strtoupper($type));
+            $type = 'in';
+        }
 
         foreach ($data['employee_ids'] as $id) {
             $user = User::find($id);
             if ($user) {
                 $punch = $attendance->punch(
                     $user,
-                    $data['type'],
+                    $type,
                     (float) Setting::current()->office_lat,
                     (float) Setting::current()->office_lng,
                     'Admin Manual Bulk Mark',
@@ -340,7 +432,7 @@ class EmployeeController extends Controller
                     'admin',
                     $request->user(),
                     true,
-                    $data['remarks'] ?? null,
+                    $remarks,
                     $workDate,
                     $targetPunchedAt
                 );
@@ -372,6 +464,9 @@ class EmployeeController extends Controller
     {
         $date = Carbon::parse($request->get('date', now('Asia/Kolkata')->toDateString()));
         $type = strtolower($request->get('type', 'present'));
+        $companyId = $request->get('company_id');
+        $categoryId = $request->get('category');
+        $departmentId = $request->get('department_id');
 
         $authUser = $request->user();
 
@@ -387,6 +482,16 @@ class EmployeeController extends Controller
             } else {
                 $query = User::query()->where('status', 'active');
             }
+        }
+
+        if ($companyId) {
+            $query->where('company_id', $companyId);
+        }
+        if ($categoryId) {
+            $query->where('category_id', $categoryId);
+        }
+        if ($departmentId) {
+            $query->where('department_id', $departmentId);
         }
 
         if ($type === 'admin') {
@@ -413,7 +518,7 @@ class EmployeeController extends Controller
             $match = false;
             if (in_array($type, ['total', 'admin', 'manager', 'employee', 'archived'])) {
                 $match = true;
-            } elseif ($type === 'present' && in_array($st, ['present', 'late', 'wop', 'half_day'])) {
+            } elseif ($type === 'present' && in_array($st, ['present', 'late', 'wop', 'half_day', 'hop'])) {
                 $match = true;
             } elseif ($type === 'late' && $st === 'late') {
                 $match = true;
@@ -924,6 +1029,33 @@ class EmployeeController extends Controller
             $data['email'] = null;
         }
 
+        // Security check: Only Admin (or user with settings.roles permission) can edit full details / roles / permissions / salary.
+        // Non-admin can only update their/staff phone and email.
+        $actor = $request->user();
+        $canManageAll = $actor && ($actor->isAdmin() || $actor->hasPermission('settings.roles'));
+        if ($staff->exists && !$canManageAll) {
+            $staff->phone = $data['phone'];
+            if (array_key_exists('email', $data)) {
+                $staff->email = $data['email'];
+            }
+            if (!empty($data['password'])) {
+                $staff->password = \Illuminate\Support\Facades\Hash::make($data['password']);
+            }
+            $staff->save();
+            return;
+        }
+
+        // WEB ME COMPANY ASSIGN ONLY ADMIN SE HI HONA CHAHIYE
+        if (!$actor || !$actor->isAdmin()) {
+            if ($staff->exists) {
+                unset($data['company_id'], $data['accessible_company_ids']);
+            } else {
+                $data['company_id'] = $actor?->company_id;
+                $data['accessible_company_ids'] = $actor?->company_id ? [(int)$actor->company_id] : [];
+            }
+        }
+
+        $data['week_off_day'] = (!empty($data['week_off_day']) && strtolower($data['week_off_day']) !== 'none') ? $data['week_off_day'] : 'None';
         $data['salary'] = $data['salary'] ?? 0.00;
 
         if (empty($data['employee_code'])) {
@@ -973,11 +1105,15 @@ class EmployeeController extends Controller
             $data['aadhaar_document'] = $request->file('aadhaar_document')->store('documents', 'public');
         }
 
-        $accessibleCompIds = $request->input('accessible_company_ids', []);
-        if (!empty($data['company_id']) && !in_array((int)$data['company_id'], array_map('intval', (array)$accessibleCompIds), true)) {
-            $accessibleCompIds[] = (int)$data['company_id'];
+        if ($actor && $actor->isAdmin()) {
+            $accessibleCompIds = $request->input('accessible_company_ids', []);
+            if (!empty($data['company_id']) && !in_array((int)$data['company_id'], array_map('intval', (array)$accessibleCompIds), true)) {
+                $accessibleCompIds[] = (int)$data['company_id'];
+            }
+            $data['accessible_company_ids'] = array_values(array_filter(array_map('intval', (array)$accessibleCompIds)));
+        } else {
+            unset($data['accessible_company_ids']);
         }
-        $data['accessible_company_ids'] = array_values(array_filter(array_map('intval', (array)$accessibleCompIds)));
 
         $staff->fill($data)->save();
 

@@ -140,6 +140,17 @@ class ReportController extends Controller
             ]);
         }
 
+        // Detailed Attendance Matrix Report
+        if ($type === 'detailed') {
+            return view('reports.detailed_attendance_report', [
+                'companyName' => $companyName,
+                'from' => $from,
+                'to' => $to,
+                'employees' => $employees,
+                'attendance' => $attendance,
+            ]);
+        }
+
         // 2. PDF Format Generation
         if ($format === 'pdf') {
             $tasks = Task::with(['assignee', 'department'])->whereBetween('created_at', [$from, $to])->get();

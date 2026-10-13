@@ -18,6 +18,7 @@ class TaskController extends Controller
         $user = $request->user();
 
         $query = Task::query()->with([
+            'creator',
             'assignee',
             'assignees',
             'others',
@@ -27,21 +28,13 @@ class TaskController extends Controller
             'histories.user',
         ]);
 
-        $canManage = $user->isAdmin() || $user->hasPermission('tasks.manage');
         if (!$user->isAdmin()) {
-            if ($canManage) {
-                $compIds = $user->accessibleCompanyIds();
-                if (!empty($compIds)) {
-                    $query->whereHas('assignee', fn($emp) => $emp->whereIn('company_id', $compIds));
-                }
-            } else {
-                $query->where(function ($q) use ($user) {
-                    $q->where('assigned_to', $user->id)
-                        ->orWhere('created_by', $user->id)
-                        ->orWhereHas('assignees', fn ($a) => $a->where('users.id', $user->id))
-                        ->orWhereHas('others', fn ($o) => $o->where('users.id', $user->id));
-                });
-            }
+            $query->where(function ($q) use ($user) {
+                $q->where('assigned_to', $user->id)
+                    ->orWhere('created_by', $user->id)
+                    ->orWhereHas('assignees', fn ($a) => $a->where('users.id', $user->id))
+                    ->orWhereHas('others', fn ($o) => $o->where('users.id', $user->id));
+            });
         }
 
         $items = $query->latest()->get()->map(fn (Task $t) => $this->formatTask($t));
@@ -310,6 +303,7 @@ class TaskController extends Controller
             'assigned_to_id' => $t->assigned_to,
             'assigned_to_name' => $t->assignee?->displayName() ?? 'Unassigned',
             'created_by' => $t->created_by,
+            'created_by_name' => $t->creator?->displayName() ?? 'Admin',
             'attachment_url' => $t->attachment ? asset('storage/' . $t->attachment) : null,
             'replies_count' => $t->replies ? $t->replies->count() : 0,
             'replies' => $t->replies ? $t->replies->map(fn ($r) => [

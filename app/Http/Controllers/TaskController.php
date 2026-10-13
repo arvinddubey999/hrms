@@ -28,24 +28,15 @@ class TaskController extends Controller
         $userId = $request->get('user_id');
         $dateFilter = $request->get('date_filter'); // overdue, today, future
 
-        $canManageAllTasks = $u->isAdmin() || $u->hasPermission('tasks.manage');
-
         $query = Task::query()
-            ->with(['assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])
-            ->when(!$u->isAdmin(), function ($q) use ($u, $canManageAllTasks) {
-                if ($canManageAllTasks) {
-                    $compIds = $u->accessibleCompanyIds();
-                    if (!empty($compIds)) {
-                        $q->whereHas('assignee', fn($emp) => $emp->whereIn('company_id', $compIds));
-                    }
-                } else {
-                    $q->where(function ($inner) use ($u) {
-                        $inner->where('assigned_to', $u->id)
-                            ->orWhere('created_by', $u->id)
-                            ->orWhereHas('assignees', fn ($p) => $p->where('users.id', $u->id))
-                            ->orWhereHas('others', fn ($p) => $p->where('users.id', $u->id));
-                    });
-                }
+            ->with(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])
+            ->when(!$u->isAdmin(), function ($q) use ($u) {
+                $q->where(function ($inner) use ($u) {
+                    $inner->where('assigned_to', $u->id)
+                        ->orWhere('created_by', $u->id)
+                        ->orWhereHas('assignees', fn ($p) => $p->where('users.id', $u->id))
+                        ->orWhereHas('others', fn ($p) => $p->where('users.id', $u->id));
+                });
             })
             ->when($status && $status !== 'all', fn ($q) => $q->where('status', $status))
             ->when($priority, fn ($q) => $q->where('priority', $priority))
@@ -66,19 +57,12 @@ class TaskController extends Controller
 
         $baseCountQuery = Task::query();
         if (!$u->isAdmin()) {
-            if ($canManageAllTasks) {
-                $compIds = $u->accessibleCompanyIds();
-                if (!empty($compIds)) {
-                    $baseCountQuery->whereHas('assignee', fn($emp) => $emp->whereIn('company_id', $compIds));
-                }
-            } else {
-                $baseCountQuery->where(function ($inner) use ($u) {
-                    $inner->where('assigned_to', $u->id)
-                        ->orWhere('created_by', $u->id)
-                        ->orWhereHas('assignees', fn ($p) => $p->where('users.id', $u->id))
-                        ->orWhereHas('others', fn ($p) => $p->where('users.id', $u->id));
-                });
-            }
+            $baseCountQuery->where(function ($inner) use ($u) {
+                $inner->where('assigned_to', $u->id)
+                    ->orWhere('created_by', $u->id)
+                    ->orWhereHas('assignees', fn ($p) => $p->where('users.id', $u->id))
+                    ->orWhereHas('others', fn ($p) => $p->where('users.id', $u->id));
+            });
         }
 
         $counts = [
@@ -103,7 +87,7 @@ class TaskController extends Controller
             'departments' => Department::orderBy('name')->get(),
             'companies' => (!$u->isAdmin() && !empty($u->accessibleCompanyIds())) ? Company::whereIn('id', $u->accessibleCompanyIds())->orderBy('name')->get() : Company::orderBy('name')->get(),
             'categories' => Category::orderBy('name')->get(),
-            'allTasksForCalendar' => Task::with(['assignee'])->select(['id', 'title', 'due_date', 'due_time', 'priority', 'status', 'assigned_to'])->get(),
+            'allTasksForCalendar' => (clone $baseCountQuery)->with(['assignee'])->select(['id', 'title', 'due_date', 'due_time', 'priority', 'status', 'assigned_to'])->get(),
         ]);
     }
 

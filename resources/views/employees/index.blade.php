@@ -202,7 +202,12 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
     <form method="get" class="row" style="gap:12px;justify-content:space-between">
         <input type="hidden" name="date" value="{{ $date->toDateString() }}">
         <div class="row" style="flex:1">
-            <input type="text" name="q" id="employeeSearchInput" value="{{ $q }}" placeholder="Search employees by name, serial no, phone, dept..." style="max-width:380px" autocomplete="off">
+            <div style="display:flex;align-items:center;position:relative;max-width:380px;width:100%">
+                <input type="text" name="q" id="employeeSearchInput" value="{{ $q }}" placeholder="Search employees by name, serial no, phone, dept..." style="width:100%;padding-right:75px" autocomplete="off">
+                <button type="submit" class="btn" style="position:absolute;right:3px;top:50%;transform:translateY(-50%);padding:6px 12px;font-size:12px;display:flex;align-items:center;gap:4px;border-radius:6px" title="Search">
+                    <i class="fa-solid fa-magnifying-glass"></i> Search
+                </button>
+            </div>
             
             @if($categories->count() > 0)
                 <select name="category" onchange="this.form.submit()" style="width:160px">
@@ -454,9 +459,15 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
                 </div>
                 <div>
                     <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Punch Type *</label>
-                    <select name="type" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px">
-                        <option value="in">Punch IN</option>
-                        <option value="out">Punch OUT</option>
+                    <select name="type" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px;font-weight:600">
+                        <option value="in" style="color:#22c55e;font-weight:700" selected>IN</option>
+                        <option value="out" style="color:#ef4444;font-weight:700">OUT</option>
+                        <option value="absent" style="color:#ef4444;font-weight:700">ABSENT</option>
+                        <option value="leave" style="color:#f59e0b;font-weight:700">LEAVE</option>
+                        <option value="holiday" style="color:#22c55e;font-weight:700">HOLIDAY</option>
+                        <option value="week_off" style="color:#f59e0b;font-weight:700">WEEK OFF</option>
+                        <option value="wop" style="color:#38bdf8;font-weight:700">WEEK OFF PRESENT (WOP)</option>
+                        <option value="hop" style="color:#a855f7;font-weight:700">HOLIDAY - PRESENT (HOP)</option>
                     </select>
                 </div>
                 <div>
@@ -571,7 +582,10 @@ document.querySelectorAll('.emp-checkbox').forEach(c => {
 
 function openStatModal(type) {
     var date = "{{ $date->toDateString() }}";
-    fetch(`{{ route('attendances.stat-modal') }}?type=${type}&date=${date}`)
+    var params = new URLSearchParams(window.location.search);
+    params.set('type', type);
+    params.set('date', date);
+    fetch(`{{ route('attendances.stat-modal') }}?${params.toString()}`)
         .then(res => res.json())
         .then(data => {
             document.getElementById('statModalTitle').innerText = data.title;
@@ -723,6 +737,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
+    }
     var searchTimer = null;
     var empSearch = document.getElementById('employeeSearchInput');
     if (empSearch) {

@@ -1029,27 +1029,18 @@ class EmployeeController extends Controller
             $data['email'] = null;
         }
 
-        // Security check: Only Admin (or user with settings.roles permission) can edit full details / roles / permissions / salary.
-        // Non-admin can only update their/staff phone and email.
+        // Security check: Only Super Admin can change System Role, Role Permissions, and Company Assignment.
+        // Employees with 'employee.edit' permission CAN edit general employee data (name, contact, department, etc.),
+        // but cannot escalate privileges by changing role, permissions, or company access.
         $actor = $request->user();
-        $canManageAll = $actor && ($actor->isAdmin() || $actor->hasPermission('settings.roles'));
-        if ($staff->exists && !$canManageAll) {
-            $staff->phone = $data['phone'];
-            if (array_key_exists('email', $data)) {
-                $staff->email = $data['email'];
-            }
-            if (!empty($data['password'])) {
-                $staff->password = \Illuminate\Support\Facades\Hash::make($data['password']);
-            }
-            $staff->save();
-            return;
-        }
+        $isSuperAdmin = $actor && $actor->isAdmin();
 
-        // WEB ME COMPANY ASSIGN ONLY ADMIN SE HI HONA CHAHIYE
-        if (!$actor || !$actor->isAdmin()) {
+        if (!$isSuperAdmin) {
             if ($staff->exists) {
-                unset($data['company_id'], $data['accessible_company_ids']);
+                unset($data['role'], $data['permissions'], $data['company_id'], $data['accessible_company_ids']);
             } else {
+                $data['role'] = 'employee';
+                $data['permissions'] = [];
                 $data['company_id'] = $actor?->company_id;
                 $data['accessible_company_ids'] = $actor?->company_id ? [(int)$actor->company_id] : [];
             }

@@ -53,7 +53,7 @@ $setting = \App\Models\Setting::current();
 
             <!-- Profile Dropdown Menu (Matches User Screenshot) -->
             <div id="userProfileDropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;width:225px;background:#fff;border-radius:16px;box-shadow:0 12px 30px rgba(0,0,0,0.18), 0 4px 6px rgba(0,0,0,0.06);border:1px solid #e5e7eb;padding:8px 0;z-index:1000;color:#1f2937">
-                <a href="{{ route('employees.show', auth()->id()) }}" style="display:flex;align-items:center;gap:12px;padding:10px 18px;color:#374151;font-size:13.5px;font-weight:500;text-decoration:none;transition:background 0.15s" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
+                <a href="{{ route('profile.settings') }}" style="display:flex;align-items:center;gap:12px;padding:10px 18px;color:#374151;font-size:13.5px;font-weight:500;text-decoration:none;transition:background 0.15s" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
                     <i class="fa-regular fa-circle-user" style="font-size:17px;width:18px;color:#4b5563"></i> Profile Settings
                 </a>
 
@@ -63,17 +63,13 @@ $setting = \App\Models\Setting::current();
                     </a>
                 @endif
 
-                <a href="javascript:void(0)" onclick="openChangePasswordModal();hideUserDropdown();" style="display:flex;align-items:center;gap:12px;padding:10px 18px;color:#374151;font-size:13.5px;font-weight:500;text-decoration:none;transition:background 0.15s" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
-                    <i class="fa-solid fa-key" style="font-size:15px;width:18px;color:#4b5563"></i> Change Password
+                <a href="javascript:void(0)" onclick="alert('Tulsi HRMS mobile app APK is available on your dashboard');hideUserDropdown();" style="display:flex;align-items:center;gap:12px;padding:10px 18px;color:#374151;font-size:13.5px;font-weight:500;text-decoration:none;transition:background 0.15s" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
+                    <i class="fa-solid fa-mobile-screen" style="font-size:16px;width:18px;color:#4b5563"></i> Install Mobile App
                 </a>
 
-                <!-- <a href="javascript:void(0)" onclick="alert('Tulsi HRMS mobile app APK is available on your dashboard');hideUserDropdown();" style="display:flex;align-items:center;gap:12px;padding:10px 18px;color:#374151;font-size:13.5px;font-weight:500;text-decoration:none;transition:background 0.15s" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
-                    <i class="fa-solid fa-mobile-screen" style="font-size:16px;width:18px;color:#4b5563"></i> Install Mobile App
-                </a> -->
-
-                <!-- <a href="javascript:void(0)" onclick="alert('For support, please contact your administrator');hideUserDropdown();" style="display:flex;align-items:center;gap:12px;padding:10px 18px;color:#374151;font-size:13.5px;font-weight:500;text-decoration:none;transition:background 0.15s" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
+                <a href="javascript:void(0)" onclick="alert('For support, please contact your administrator');hideUserDropdown();" style="display:flex;align-items:center;gap:12px;padding:10px 18px;color:#374151;font-size:13.5px;font-weight:500;text-decoration:none;transition:background 0.15s" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
                     <i class="fa-regular fa-circle-question" style="font-size:16px;width:18px;color:#4b5563"></i> Help Center
-                </a> -->
+                </a>
 
                 <div style="height:1px;background:#f3f4f6;margin:6px 0"></div>
 

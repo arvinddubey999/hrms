@@ -71,21 +71,101 @@
 </div>
 
 <!-- STATUS BADGE TABS -->
-<div class="tabs" style="margin-bottom:14px">
-    <a class="{{ !$status?'active':'' }}" href="{{ route('tasks.index', request()->except('status')) }}">All ({{ $counts['all'] }})</a>
-    <a class="{{ $status==='pending'?'active':'' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'pending'])) }}">Pending ({{ $counts['pending'] }})</a>
-    <a class="{{ $status==='in_progress'?'active':'' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'in_progress'])) }}">In Progress ({{ $counts['in_progress'] }})</a>
-    <a class="{{ $status==='completed'?'active':'' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'completed'])) }}">Completed ({{ $counts['completed'] }})</a>
-    <a class="{{ $dateFilter==='overdue'?'active':'' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['date_filter'=>'overdue'])) }}" style="color:#dc2626">Overdue ({{ $counts['overdue'] }})</a>
+<div class="tabs" style="margin-bottom:14px;flex-wrap:wrap">
+    <a class="{{ $status==='all' && !$viewMode ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'all', 'view_mode'=>null])) }}">All ({{ $counts['all'] }})</a>
+    <a class="{{ $status==='pending' && !$viewMode ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'pending', 'view_mode'=>null])) }}">Pending ({{ $counts['pending'] }})</a>
+    <a class="{{ $status==='in_progress' && !$viewMode ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'in_progress', 'view_mode'=>null])) }}">In Progress ({{ $counts['in_progress'] }})</a>
+    <a class="{{ $status==='completed' && !$viewMode ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'completed', 'view_mode'=>null])) }}">Completed ({{ $counts['completed'] }})</a>
+    <a class="{{ $dateFilter==='overdue' && !$viewMode ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['date_filter'=>'overdue', 'view_mode'=>null])) }}" style="color:#dc2626">Overdue ({{ $counts['overdue'] }})</a>
+    <a class="{{ $viewMode==='user_wise' ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['view_mode'=>'user_wise'])) }}" style="color:#4f46e5;font-weight:700"><i class="fa-solid fa-users"></i> User Wise</a>
 </div>
 
-<!-- Screenshot-Matched Title -->
-<!-- <div style="text-align:center;margin:18px 0 24px">
-    <h1 style="font-family:'Playfair Display', Georgia, 'Times New Roman', serif;font-size:38px;font-weight:700;color:#0f172a;letter-spacing:-0.5px;margin:0">Task Assignments</h1>
-</div> -->
+@if($viewMode === 'user_wise' && $userWiseGroups)
+    <!-- USER WISE GROUPED DISPLAY -->
+    <div style="background:#eef2ff;border:1.5px solid #c7d2fe;padding:12px 18px;border-radius:10px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div>
+            <strong style="color:#3730a3;font-size:14px;display:flex;align-items:center;gap:6px"><i class="fa-solid fa-users-viewfinder"></i> User-Wise Task Breakdown</strong>
+            <div style="color:#4f46e5;font-size:12px;margin-top:2px">Viewing tasks grouped by assigned team member. Total {{ $userWiseGroups->count() }} user(s) currently have tasks.</div>
+        </div>
+        <a href="{{ route('tasks.index') }}" class="btn light" style="background:#fff;color:#dc2626;border:1px solid #fca5a5;font-weight:700;font-size:12px">
+            <i class="fa-solid fa-xmark"></i> Clear Filter (Normal Mode)
+        </a>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:18px;margin-bottom:24px">
+        @forelse($userWiseGroups as $assigneeGroupName => $grpTasks)
+            <div class="card" style="padding:0;overflow:hidden;border:1px solid #cbd5e1;border-radius:12px">
+                <div style="background:#f8fafc;padding:12px 18px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+                    <div style="display:flex;align-items:center;gap:10px">
+                        <div style="background:#3b82f6;color:#fff;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px">
+                            {{ strtoupper(substr($assigneeGroupName, 0, 2)) }}
+                        </div>
+                        <div>
+                            <strong style="color:#0f172a;font-size:14px">{{ $assigneeGroupName }}</strong>
+                            <span style="font-size:11px;color:#64748b;margin-left:8px">Total: {{ $grpTasks->count() }} task(s)</span>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:6px">
+                        <span class="chip" style="background:#fee2e2;color:#991b1b;font-size:11px;font-weight:700">Pending: {{ $grpTasks->where('status','pending')->count() }}</span>
+                        <span class="chip" style="background:#fef3c7;color:#92400e;font-size:11px;font-weight:700">In Progress: {{ $grpTasks->where('status','in_progress')->count() }}</span>
+                        <span class="chip" style="background:#dcfce7;color:#166534;font-size:11px;font-weight:700">Done: {{ $grpTasks->where('status','completed')->count() }}</span>
+                    </div>
+                </div>
+                <div style="overflow-x:auto">
+                    <table style="width:100%;border-collapse:collapse;font-size:13px">
+                        <thead>
+                            <tr style="background:#f1f5f9;color:#475569">
+                                <th style="padding:10px 14px;text-align:center;width:40px">#</th>
+                                <th style="padding:10px 14px;text-align:left">Task Title</th>
+                                <th style="padding:10px 14px;text-align:left">Assigned By</th>
+                                <th style="padding:10px 14px;text-align:left">Priority</th>
+                                <th style="padding:10px 14px;text-align:left">Deadline</th>
+                                <th style="padding:10px 14px;text-align:left">Status (Update)</th>
+                                <th style="padding:10px 14px;text-align:left">Comments</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($grpTasks as $gTask)
+                                <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer" onclick="openTaskDetailsDrawer({{ json_encode($gTask->load(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])) }})">
+                                    <td style="padding:10px 14px;text-align:center;color:#64748b">{{ $loop->iteration }}</td>
+                                    <td style="padding:10px 14px">
+                                        <b style="color:#1e293b">{{ $gTask->title }}</b>
+                                        @if($gTask->client)<small style="display:block;color:#64748b">Client: {{ $gTask->client }}</small>@endif
+                                    </td>
+                                    <td style="padding:10px 14px;color:#475569">{{ $gTask->creator ? $gTask->creator->displayName() : 'Admin' }}</td>
+                                    <td style="padding:10px 14px">
+                                        <span class="chip" style="font-size:10px;text-transform:uppercase;font-weight:700;{{ $gTask->priority==='high' ? 'background:#fee2e2;color:#991b1b' : ($gTask->priority==='medium' ? 'background:#fef3c7;color:#92400e' : 'background:#dcfce7;color:#166534') }}">{{ $gTask->priority }}</span>
+                                    </td>
+                                    <td style="padding:10px 14px;color:#334155">{{ $gTask->due_date ? $gTask->due_date->format('d M Y') : '-' }}</td>
+                                    <td style="padding:10px 14px;white-space:nowrap" onclick="event.stopPropagation()">
+                                        <form method="post" action="{{ route('tasks.status', $gTask) }}" style="margin:0;display:inline-flex;align-items:center;gap:6px">
+                                            @csrf
+                                            <select name="status" onchange="this.form.submit()" style="font-size:11px;font-weight:700;padding:3px 6px;border-radius:6px;border:1px solid #cbd5e1;cursor:pointer">
+                                                <option value="pending" {{ $gTask->status==='pending' ? 'selected' : '' }}>⏳ Not Started</option>
+                                                <option value="in_progress" {{ $gTask->status==='in_progress' ? 'selected' : '' }}>⚡ In Process</option>
+                                                <option value="completed" {{ $gTask->status==='completed' ? 'selected' : '' }}>✓ Closed / Done</option>
+                                            </select>
+                                        </form>
+                                    </td>
+                                    <td style="padding:10px 14px;color:#64748b;font-size:12px">
+                                        {{ \Illuminate\Support\Str::limit($gTask->description ?: '-', 40) }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @empty
+            <div class="card" style="padding:30px;text-align:center;color:#64748b">
+                No active tasks found for user-wise grouping.
+            </div>
+        @endforelse
+    </div>
+@endif
 
 <!-- LIST VIEW CONTAINER (Matching Screenshot) -->
-<div id="taskListView" style="background:#fff;border-radius:14px;box-shadow:0 4px 20px -2px rgba(0,0,0,0.06);border:1px solid #e2e8f0;overflow:hidden">
+<div id="taskListView" style="background:#fff;border-radius:14px;box-shadow:0 4px 20px -2px rgba(0,0,0,0.06);border:1px solid #e2e8f0;overflow:hidden;{{ $viewMode==='user_wise' ? 'display:none;' : '' }}">
     <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-family:Inter,Segoe UI,-apple-system,sans-serif">
             <thead>
@@ -141,10 +221,14 @@
                             default => '#ef4444',
                         };
                         $statusText = match($stLower) {
-                            'completed' => 'Completed',
-                            'in_progress' => 'In Progress',
+                            'completed' => 'Closed / Done',
+                            'in_progress' => 'In Process',
                             default => 'Not Started',
                         };
+
+                        // Extra Assignees Count
+                        $allAssignees = $task->assignees->merge($task->others)->unique('id');
+                        $extraCount = $allAssignees->filter(fn($u) => $u->id !== $task->assigned_to)->count();
 
                         // Latest comment / reply or description
                         $latestReply = $task->replies ? $task->replies->last() : null;
@@ -179,8 +263,15 @@
                         <!-- ASSIGNED TO -->
                         <td style="padding:15px 18px;text-align:center">
                             <div style="display:inline-flex;flex-direction:column;align-items:center">
-                                <div style="background:{{ $palette['bg'] }};color:{{ $palette['text'] }};border-radius:6px;padding:6px 16px;font-size:11.5px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;box-shadow:0 1px 2px rgba(0,0,0,0.06);white-space:nowrap">
-                                    {{ $assigneeName }}
+                                <div style="display:flex;align-items:center;gap:5px">
+                                    <div style="background:{{ $palette['bg'] }};color:{{ $palette['text'] }};border-radius:6px;padding:6px 14px;font-size:11.5px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;box-shadow:0 1px 2px rgba(0,0,0,0.06);white-space:nowrap">
+                                        {{ $assigneeName }}
+                                    </div>
+                                    @if($extraCount > 0)
+                                        <span style="background:#e0e7ff;color:#3730a3;font-size:11px;font-weight:800;padding:3px 7px;border-radius:12px;border:1px solid #c7d2fe;white-space:nowrap" title="{{ $extraCount }} more employee(s) assigned">
+                                            +{{ $extraCount }}
+                                        </span>
+                                    @endif
                                 </div>
                                 @if($task->creator)
                                     <div style="font-size:10px;color:#64748b;margin-top:3px;font-weight:500">
@@ -213,12 +304,17 @@
                             @endif
                         </td>
 
-                        <!-- STATUS -->
-                        <td style="padding:15px 16px;white-space:nowrap">
-                            <div style="display:flex;align-items:center;gap:8px">
-                                <span style="display:inline-block;width:4.5px;height:16px;background:{{ $statusBarColor }};border-radius:2px"></span>
-                                <span style="font-size:13px;font-weight:500;color:#334155">{{ $statusText }}</span>
-                            </div>
+                        <!-- STATUS (Quick Update / Close) -->
+                        <td style="padding:10px 14px;white-space:nowrap" onclick="event.stopPropagation()">
+                            <form method="post" action="{{ route('tasks.status', $task) }}" style="margin:0;display:inline-flex;align-items:center;gap:6px">
+                                @csrf
+                                <span style="display:inline-block;width:4.5px;height:24px;background:{{ $statusBarColor }};border-radius:2px"></span>
+                                <select name="status" onchange="this.form.submit()" style="font-size:12px;font-weight:700;padding:4px 8px;border-radius:6px;border:1.5px solid {{ $statusBarColor }};background:#fff;color:#1e293b;cursor:pointer" title="Update Task Status / Close Task">
+                                    <option value="pending" {{ $task->status==='pending' ? 'selected' : '' }} style="color:#ef4444;font-weight:700">⏳ Not Started</option>
+                                    <option value="in_progress" {{ $task->status==='in_progress' ? 'selected' : '' }} style="color:#d97706;font-weight:700">⚡ In Process</option>
+                                    <option value="completed" {{ $task->status==='completed' ? 'selected' : '' }} style="color:#16a34a;font-weight:700">✓ Closed / Done</option>
+                                </select>
+                            </form>
                         </td>
 
                         <!-- COMMENTS -->
@@ -429,7 +525,14 @@
                 <div style="background:#f8fafc;padding:14px;border-radius:10px;border:1px solid #e2e8f0;margin-bottom:14px">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
                         <span style="font-size:12px;font-weight:700;color:#64748b">TASK STATUS</span>
-                        <span id="dtlStatusBadge" class="chip">Pending</span>
+                        <form id="drawerStatusForm" method="post" style="margin:0;display:flex;align-items:center;gap:6px">
+                            @csrf
+                            <select id="dtlStatusSelect" name="status" onchange="this.form.submit()" style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;border:1.5px solid #cbd5e1;cursor:pointer;background:#fff" title="Change Status / Close Task">
+                                <option value="pending">⏳ Not Started</option>
+                                <option value="in_progress">⚡ In Process</option>
+                                <option value="completed">✓ Closed / Done</option>
+                            </select>
+                        </form>
                     </div>
                     <h3 id="dtlTitle" style="margin:0 0 6px 0;color:#111827">Task Title</h3>
                     <p id="dtlDescription" class="muted" style="margin:0 0 10px 0;font-size:13px">Description...</p>
@@ -501,19 +604,19 @@
 
 <!-- Modal: Re-Assign Task -->
 <div id="reassignModal" class="modal-bg">
-    <div class="modal" style="max-width:420px;z-index:10000">
+    <div class="modal" style="max-width:440px;z-index:10000">
         <h3 style="margin-top:0"><i class="fa-solid fa-right-left" style="color:var(--accent)"></i> Re-Assign Task</h3>
-        <p class="muted" style="font-size:13px">If you feel this task belongs to someone else, re-assign it below. A push notification will be sent immediately to the new assignee.</p>
+        <p class="muted" style="font-size:13px">Select one or multiple employees to re-assign this task to. A push notification will be sent immediately to the new assignee(s).</p>
         <form id="reassignForm" method="post">
             @csrf
-            <label style="margin-bottom:4px;display:block">Select New Assignee *</label>
-            <select name="new_assigned_to" required style="margin-bottom:12px;width:100%">
-                <option value="">Choose Employee</option>
+            <label style="margin-bottom:4px;display:block;font-size:13px;font-weight:600">Select New Assignee(s) *</label>
+            <select name="new_assigned_to[]" multiple required style="height:120px;width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:6px;margin-bottom:4px">
                 @foreach($employees as $e)
                     <option value="{{ $e->id }}">{{ $e->displayName() }} ({{ $e->department ?: 'Staff' }})</option>
                 @endforeach
             </select>
-            <label style="margin-bottom:4px;display:block">Reason / Remarks (Optional)</label>
+            <small class="muted" style="display:block;margin-bottom:12px"><i class="fa-solid fa-circle-info"></i> Hold Ctrl (or Cmd on Mac) to select multiple employees.</small>
+            <label style="margin-bottom:4px;display:block;font-size:13px;font-weight:600">Reason / Remarks (Optional)</label>
             <textarea name="remarks" rows="2" placeholder="e.g. Belongs to Accounts Dept..." style="margin-bottom:14px;width:100%"></textarea>
             <div style="display:flex;justify-content:flex-end;gap:8px">
                 <button type="button" class="btn light" onclick="closeReassignModal()">Cancel</button>
@@ -526,6 +629,18 @@
 <script>
 let currentActiveTask = null;
 const allEmployeesList = @json($employees);
+
+function formatDateTime(dtStr) {
+    if (!dtStr) return '';
+    try {
+        const d = new Date(dtStr);
+        if (isNaN(d.getTime())) return dtStr;
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + 
+               d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch(e) {
+        return dtStr;
+    }
+}
 
 function toggleTaskView(view) {
     if (view === 'list') {
@@ -546,21 +661,19 @@ function toggleTaskView(view) {
 }
 
 function filterEmployeesByDept(deptId) {
-    const primarySelect = document.getElementById('newTaskPrimaryEmpSelect');
+    // Keep primarySelect intact with ALL company employees as requested ("Assigned To Primary Employee column me all emloyee us company ke aane chahiye")
     const othersSelect = document.getElementById('newTaskOthersEmpSelect');
+    if (othersSelect) {
+        othersSelect.innerHTML = '';
+        const filtered = deptId 
+            ? allEmployeesList.filter(e => e.department_id == deptId)
+            : allEmployeesList;
 
-    primarySelect.innerHTML = '<option value="">Select Employee</option>';
-    othersSelect.innerHTML = '';
-
-    const filtered = deptId 
-        ? allEmployeesList.filter(e => e.department_id == deptId)
-        : allEmployeesList;
-
-    filtered.forEach(e => {
-        const nameText = (e.first_name || e.name || '') + ' ' + (e.last_name || '') + ' (' + (e.department || 'Staff') + ')';
-        primarySelect.add(new Option(nameText, e.id));
-        othersSelect.add(new Option(nameText, e.id));
-    });
+        filtered.forEach(e => {
+            const nameText = (e.first_name || e.name || '') + ' ' + (e.last_name || '') + ' (' + (e.department || 'Staff') + ')';
+            othersSelect.add(new Option(nameText, e.id));
+        });
+    }
 }
 
 function openNewTaskDrawer() {
@@ -589,9 +702,11 @@ function openTaskDetailsDrawer(task, initialTab = 'details') {
     document.getElementById('dtlPriority').innerText = (task.priority || 'medium').toUpperCase();
     document.getElementById('dtlRepeat').innerText = (task.repeat_type || 'none').toUpperCase();
 
-    // Status Badge
-    const stBadge = document.getElementById('dtlStatusBadge');
-    stBadge.innerText = (task.status || 'pending').replace('_', ' ').toUpperCase();
+    // Status Select in Drawer
+    const stSelect = document.getElementById('dtlStatusSelect');
+    if (stSelect) {
+        stSelect.value = task.status || 'pending';
+    }
 
     // Assignees List
     const assigneesDiv = document.getElementById('dtlAssigneesList');
@@ -616,6 +731,9 @@ function openTaskDetailsDrawer(task, initialTab = 'details') {
     }
 
     // Set forms
+    if (document.getElementById('drawerStatusForm')) {
+        document.getElementById('drawerStatusForm').action = "/tasks/" + task.id + "/status";
+    }
     document.getElementById('postReplyForm').action = "/tasks/" + task.id + "/reply";
     document.getElementById('remindTaskForm').action = "/tasks/" + task.id + "/remind";
     document.getElementById('deleteTaskForm').action = "/tasks/" + task.id;
@@ -643,11 +761,12 @@ function renderReplies(replies) {
     replies.forEach(r => {
         let name = r.user ? (r.user.first_name + ' ' + (r.user.last_name || '')) : 'User';
         let fileHtml = r.attachment ? `<div style="margin-top:4px"><a href="/storage/${r.attachment}" target="_blank" style="color:var(--accent);font-size:11px"><i class="fa-solid fa-paperclip"></i> View Attachment</a></div>` : '';
+        let timeStr = formatDateTime(r.created_at);
         container.innerHTML += `
             <div style="background:#f8fafc;padding:10px;border-radius:8px;border:1px solid #e2e8f0;font-size:12px">
                 <div style="display:flex;justify-content:space-between;font-weight:700;color:#111827">
                     <span>${name}</span>
-                    <small class="muted">${r.created_at ? r.created_at.substring(0,10) : ''}</small>
+                    <small class="muted" style="color:#64748b;font-weight:600"><i class="fa-regular fa-clock" style="font-size:10px"></i> ${timeStr}</small>
                 </div>
                 <div style="margin-top:4px;color:#374151">${r.message}</div>
                 ${fileHtml}
@@ -665,11 +784,12 @@ function renderHistories(histories) {
     }
     histories.forEach(h => {
         let uname = h.user ? h.user.first_name : 'System';
+        let timeStr = formatDateTime(h.created_at);
         container.innerHTML += `
             <div style="background:#fff;padding:8px 12px;border-radius:6px;border-left:3px solid var(--accent);box-shadow:0 1px 2px rgba(0,0,0,0.04);font-size:12px">
                 <div style="font-weight:700;color:#111827">${h.action.toUpperCase()} by ${uname}</div>
                 <div class="muted">${h.details || ''}</div>
-                <small style="color:#94a3b8">${h.created_at ? h.created_at.substring(0,16).replace('T',' ') : ''}</small>
+                <small style="color:#64748b;font-weight:600;display:block;margin-top:4px"><i class="fa-regular fa-clock" style="font-size:10px"></i> ${timeStr}</small>
             </div>
         `;
     });

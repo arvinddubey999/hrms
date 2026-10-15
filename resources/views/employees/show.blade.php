@@ -39,11 +39,11 @@
             <!-- Employee Info Details -->
             <div style="line-height:1.6;font-size:14px;color:#374151">
                 <h2 style="margin:0 0 6px 0;font-size:22px;font-weight:800;color:#111827">{{ $staff->displayName() }}</h2>
-                <div><span style="display:inline-block;width:18px;text-align:center">▷</span> Employee Code: <b>{{ $staff->employee_code ?: '00002' }}</b></div>
-                <div><span style="display:inline-block;width:18px;text-align:center">💼</span> Designation: <b>{{ $staff->designation ?: 'Accounts Head' }}</b></div>
-                <div><span style="display:inline-block;width:18px;text-align:center">🏛</span> Department: <b>{{ $staff->department ?: 'Accounts' }}</b></div>
-                <div><span style="display:inline-block;width:18px;text-align:center">📞</span> Phone: <b>{{ $staff->phone }}</b></div>
-                <div><span style="display:inline-block;width:18px;text-align:center">✉</span> Email: <b>{{ $staff->email ?: '919377041054@hisaab.reev.group' }}</b></div>
+                <div><span style="display:inline-block;width:18px;text-align:center">▷</span> Employee Code: <b>{{ $staff->employee_code ?: '-' }}</b></div>
+                <div><span style="display:inline-block;width:18px;text-align:center">💼</span> Designation: <b>{{ $staff->designation ?: '-' }}</b></div>
+                <div><span style="display:inline-block;width:18px;text-align:center">🏛</span> Department: <b>{{ $staff->department ?: '-' }}</b></div>
+                <div><span style="display:inline-block;width:18px;text-align:center">📞</span> Phone: <b>{{ $staff->phone ?: '-' }}</b></div>
+                <div><span style="display:inline-block;width:18px;text-align:center">✉</span> Email: <b>{{ $staff->email ?: '' }}</b></div>
             </div>
         </div>
 

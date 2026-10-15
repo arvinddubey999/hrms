@@ -24,7 +24,7 @@ class RequestController extends Controller
         $baseCount = LeaveRequest::query();
 
         if ($authUser && !$authUser->isAdmin()) {
-            if ($authUser->hasPermission('leave.approve') || $authUser->hasPermission('leave.view')) {
+            if ($authUser->hasPermission('leave.approve') || $authUser->isManager()) {
                 $compIds = $authUser->accessibleCompanyIds();
                 if (!empty($compIds)) {
                     $scopedQuery->whereHas('user', fn($q) => $q->whereIn('company_id', $compIds));
@@ -62,9 +62,10 @@ class RequestController extends Controller
             'rejected' => (clone $baseCount)->where('status', 'rejected')->count(),
         ];
 
-        $employees = $authUser && !$authUser->isAdmin()
-            ? $authUser->scopedEmployeesQuery()->orderBy('first_name')->get()
-            : User::where('status', 'active')->orderBy('first_name')->get();
+        $canApprove = $authUser && ($authUser->isAdmin() || $authUser->isManager() || $authUser->hasPermission('leave.approve'));
+        $employees = $canApprove
+            ? (!$authUser->isAdmin() ? $authUser->scopedEmployeesQuery()->orderBy('first_name')->get() : User::where('status', 'active')->orderBy('first_name')->get())
+            : collect([$authUser]);
 
         return view('requests.index', compact('items', 'counts', 'status', 'q', 'month', 'employees'));
     }
@@ -84,6 +85,11 @@ class RequestController extends Controller
             'reason' => 'nullable|string',
             'status' => 'required|in:pending,approved,rejected',
         ]);
+
+        if (!$u->isAdmin() && !$u->isManager() && !$u->hasPermission('leave.approve')) {
+            $data['user_id'] = $u->id;
+            $data['status'] = 'pending';
+        }
 
         $data['updated_by'] = $request->user()->id;
         LeaveRequest::create($data);

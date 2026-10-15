@@ -20,16 +20,27 @@ class TaskController extends Controller
             return back()->with('error', 'You do not have permission to view tasks.');
         }
 
-        $status = $request->get('status');
+        // By default cursor / active view should be on 'pending' unless explicitly requested
+        $status = $request->has('status') ? $request->get('status') : 'pending';
         $priority = $request->get('priority');
         $q = $request->get('q');
         $departmentId = $request->get('department_id');
         $companyId = $request->get('company_id');
         $userId = $request->get('user_id');
         $dateFilter = $request->get('date_filter'); // overdue, today, future
+        $viewMode = $request->get('view_mode'); // 'user_wise' or null
 
         $query = $this->getFilteredTasksQuery($request);
         $items = $query->paginate(20);
+
+        // In user_wise mode, group tasks by assignee
+        $userWiseGroups = null;
+        if ($viewMode === 'user_wise') {
+            $allMatchingTasks = (clone $query)->get();
+            $userWiseGroups = $allMatchingTasks->groupBy(function ($task) {
+                return $task->assignee ? $task->assignee->displayName() : 'Unassigned';
+            });
+        }
 
         $baseCountQuery = Task::query();
         if (!$u->isAdmin()) {
@@ -49,6 +60,14 @@ class TaskController extends Controller
             'overdue' => (clone $baseCountQuery)->where('status', '!=', 'completed')->whereDate('due_date', '<', now()->toDateString())->count(),
         ];
 
+        // Ensure all active employees of the company are included for task creation
+        $compIds = $u->accessibleCompanyIds();
+        $companyEmployeesQuery = User::where('status', 'active');
+        if (!$u->isAdmin() && !empty($compIds)) {
+            $companyEmployeesQuery->whereIn('company_id', $compIds);
+        }
+        $companyEmployees = $companyEmployeesQuery->orderBy('first_name')->get();
+
         return view('tasks.index', [
             'items' => $items,
             'counts' => $counts,
@@ -59,7 +78,9 @@ class TaskController extends Controller
             'companyId' => $companyId,
             'userId' => $userId,
             'dateFilter' => $dateFilter,
-            'employees' => !$u->isAdmin() ? $u->scopedEmployeesQuery()->orderBy('first_name')->get() : User::where('status', 'active')->orderBy('first_name')->get(),
+            'viewMode' => $viewMode,
+            'userWiseGroups' => $userWiseGroups,
+            'employees' => $companyEmployees,
             'departments' => Department::orderBy('name')->get(),
             'companies' => (!$u->isAdmin() && !empty($u->accessibleCompanyIds())) ? Company::whereIn('id', $u->accessibleCompanyIds())->orderBy('name')->get() : Company::orderBy('name')->get(),
             'categories' => Category::orderBy('name')->get(),
@@ -239,32 +260,75 @@ class TaskController extends Controller
     public function reassign(Request $request, Task $task)
     {
         $data = $request->validate([
-            'new_assigned_to' => 'required|exists:users,id',
+            'new_assigned_to' => 'required',
             'remarks' => 'nullable|string',
         ]);
 
-        $newAssignee = User::findOrFail($data['new_assigned_to']);
+        $rawAssignees = is_array($data['new_assigned_to']) ? $data['new_assigned_to'] : [$data['new_assigned_to']];
+        $assigneeIds = array_filter(array_map('intval', $rawAssignees));
+
+        if (empty($assigneeIds)) {
+            return back()->with('error', 'Please select at least one assignee.');
+        }
+
+        $assignees = User::whereIn('id', $assigneeIds)->get();
+        if ($assignees->isEmpty()) {
+            return back()->with('error', 'Selected employees not found.');
+        }
+
+        $primaryAssignee = $assignees->first();
         $oldAssigneeName = $task->assignee ? $task->assignee->displayName() : 'Unassigned';
 
-        $task->update(['assigned_to' => $newAssignee->id]);
-        $task->assignees()->syncWithoutDetaching([$newAssignee->id]);
+        $task->update(['assigned_to' => $primaryAssignee->id]);
+        $task->assignees()->sync($assigneeIds);
 
-        $logMsg = "Task re-assigned from {$oldAssigneeName} to {$newAssignee->displayName()}";
+        $newNames = $assignees->map(fn ($u) => $u->displayName())->implode(', ');
+        $logMsg = "Task re-assigned from {$oldAssigneeName} to {$newNames}";
         if (!empty($data['remarks'])) {
             $logMsg .= " (Reason: {$data['remarks']})";
         }
 
         $task->logHistory('reassigned', $logMsg, $request->user()->id);
 
-        // Send FCM Notification to new assignee
-        \App\Services\FirebaseNotificationService::sendTaskNotification(
-            $newAssignee,
-            'Task Re-Assigned To You: ' . $task->title,
-            $logMsg,
-            $task->id
-        );
+        // Send FCM Notification to all new assignees
+        foreach ($assignees as $newAssignee) {
+            \App\Services\FirebaseNotificationService::sendTaskNotification(
+                $newAssignee,
+                'Task Re-Assigned To You: ' . $task->title,
+                $logMsg,
+                $task->id
+            );
+        }
 
-        return back()->with('ok', "Task re-assigned to {$newAssignee->displayName()} successfully.");
+        return back()->with('ok', "Task re-assigned to {$newNames} successfully.");
+    }
+
+    public function updateStatus(Request $request, Task $task)
+    {
+        $u = $request->user();
+        if (!$u) {
+            return redirect()->route('login');
+        }
+
+        $data = $request->validate([
+            'status' => 'required|in:pending,in_progress,completed',
+        ]);
+
+        $oldStatus = $task->status;
+        $task->update(['status' => $data['status']]);
+
+        $statusLabels = [
+            'pending' => 'Not Started / Pending',
+            'in_progress' => 'In Progress',
+            'completed' => 'Closed / Done',
+        ];
+
+        $oldLabel = $statusLabels[$oldStatus] ?? $oldStatus;
+        $newLabel = $statusLabels[$task->status] ?? $task->status;
+
+        $task->logHistory('status_updated', "Status updated from '{$oldLabel}' to '{$newLabel}' by " . $u->displayName(), $u->id);
+
+        return back()->with('ok', "Task status updated to '{$newLabel}' successfully.");
     }
 
     public function remind(Request $request, Task $task)
@@ -385,7 +449,8 @@ class TaskController extends Controller
     {
         $u = $request->user();
 
-        $status = $request->get('status');
+        // By default, status is 'pending' unless explicitly requested
+        $status = $request->has('status') ? $request->get('status') : 'pending';
         $priority = $request->get('priority');
         $q = $request->get('q');
         $departmentId = $request->get('department_id');

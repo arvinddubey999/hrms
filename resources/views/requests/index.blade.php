@@ -2,8 +2,13 @@
 @section('content')
 <div class="page-head">
     <h1>Leave Requests Management</h1>
+    @php
+        $isApprover = auth()->user()->isAdmin() || auth()->user()->isManager() || auth()->user()->hasPermission('leave.approve');
+    @endphp
     @if(auth()->user()->hasPermission('leave.apply') || auth()->user()->hasPermission('leave.approve'))
-        <button class="btn" onclick="document.getElementById('newLeaveModal').classList.add('open')">+ Create Leave Request (Admin)</button>
+        <button class="btn" onclick="document.getElementById('newLeaveModal').classList.add('open')">
+            {{ $isApprover ? '+ Create Leave Request (Admin/Manager)' : '+ Apply Leave Request' }}
+        </button>
     @endif
 </div>
 
@@ -81,19 +86,26 @@
     {{ $items->links() }}
 </div>
 
-<!-- Modal: Admin Create Leave Request -->
+<!-- Modal: Create / Apply Leave Request -->
 <div id="newLeaveModal" class="modal-bg">
     <form class="modal" method="post" action="{{ route('requests.store') }}" style="max-width:520px">
         @csrf
-        <h3>Create Leave Request (Admin Option)</h3>
+        @php
+            $isApprover = auth()->user()->isAdmin() || auth()->user()->isManager() || auth()->user()->hasPermission('leave.approve');
+        @endphp
+        <h3>{{ $isApprover ? 'Create Leave Request (Admin/Manager)' : 'Apply Leave Request' }}</h3>
         
-        <label>Select Employee *</label>
-        <select name="user_id" required>
-            <option value="">Select Employee</option>
-            @foreach($employees as $e)
-                <option value="{{ $e->id }}">{{ $e->displayName() }} ({{ $e->employee_code ?: 'N/A' }})</option>
-            @endforeach
-        </select>
+        @if($isApprover)
+            <label>Select Employee *</label>
+            <select name="user_id" required>
+                <option value="">Select Employee</option>
+                @foreach($employees as $e)
+                    <option value="{{ $e->id }}" {{ $e->id == auth()->id() ? 'selected' : '' }}>{{ $e->displayName() }} ({{ $e->employee_code ?: 'N/A' }})</option>
+                @endforeach
+            </select>
+        @else
+            <input type="hidden" name="user_id" value="{{ auth()->id() }}">
+        @endif
 
         <label>Leave Type *</label>
         <select name="leave_type" required>
@@ -118,16 +130,20 @@
         <label>Reason / Notes</label>
         <textarea name="reason" rows="2" placeholder="Reason for leave..."></textarea>
 
-        <label>Status *</label>
-        <select name="status" required>
-            <option value="approved">Approved</option>
-            <option value="pending">Pending</option>
-            <option value="rejected">Rejected</option>
-        </select>
+        @if($isApprover)
+            <label>Status *</label>
+            <select name="status" required>
+                <option value="pending" selected>Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+            </select>
+        @else
+            <input type="hidden" name="status" value="pending">
+        @endif
 
         <div class="row" style="margin-top:16px;justify-content:flex-end">
             <button type="button" class="btn light" onclick="document.getElementById('newLeaveModal').classList.remove('open')">Cancel</button>
-            <button class="btn">Create Request</button>
+            <button class="btn">{{ $isApprover ? 'Create Request' : 'Submit Application' }}</button>
         </div>
     </form>
 </div>

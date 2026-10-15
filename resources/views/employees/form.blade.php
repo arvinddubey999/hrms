@@ -2,26 +2,13 @@
 @section('content')
 @php
     $currentUser = auth()->user();
-    $canManageFull = $currentUser && ($currentUser->isAdmin() || $currentUser->hasPermission('settings.roles'));
-    $isEditLocked = $staff->exists && !$canManageFull;
-    $canAssignCompany = $currentUser && $currentUser->isAdmin();
+    $isSuperAdmin = $currentUser && $currentUser->isAdmin();
+    $canAssignCompany = $isSuperAdmin;
 @endphp
 <div class="page-head">
     <h1><a href="{{ route('attendances.index') }}">←</a> {{ $staff->exists ? 'Edit Staff Member' : 'Add New Staff Member' }}</h1>
     <button class="btn" form="staff-form">{{ $staff->exists ? 'Save Staff Member' : 'Create Staff Member' }}</button>
 </div>
-
-@if($isEditLocked)
-    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
-        <div style="background:#3b82f6;color:#fff;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:14px;flex-shrink:0">
-            <i class="fa-solid fa-user-lock"></i>
-        </div>
-        <div>
-            <strong style="color:#1e40af;font-size:13px;display:block">Staff Profile Edit Policy: Restricted Access</strong>
-            <span style="color:#2563eb;font-size:12px">Only Administrators can modify employee roles, permissions, organizational structure, and salary settings. You are authorized to update only Phone Number, Email, and Password.</span>
-        </div>
-    </div>
-@endif
 
 <form id="staff-form" method="post" enctype="multipart/form-data" action="{{ $staff->exists ? route('employees.update', $staff) : route('employees.store') }}" autocomplete="off">
     @csrf
@@ -41,20 +28,28 @@
         <div class="grid-3">
             <div>
                 <label>Company Name (Select from Master) *</label>
-                <select name="company_id" id="company_select" onchange="onCompanyChange()" required {{ !$canAssignCompany ? 'disabled style=background:#f1f5f9;cursor:not-allowed' : '' }}>
-                    <option value="">Select Company Master</option>
-                    @foreach($companies as $comp)
-                        <option value="{{ $comp->id }}" data-prefix="{{ $comp->code_prefix }}" {{ ($staff->company_id ?: ($currentUser->company_id ?? null)) == $comp->id ? 'selected' : '' }}>{{ $comp->name }} {{ $comp->code_prefix ? '('.$comp->code_prefix.')' : '' }}</option>
-                    @endforeach
-                </select>
-                @if(!$canAssignCompany)
+                @if($isSuperAdmin)
+                    <select name="company_id" id="company_select" onchange="onCompanyChange()" required>
+                        <option value="">Select Company Master</option>
+                        @foreach($companies as $comp)
+                            <option value="{{ $comp->id }}" data-prefix="{{ $comp->code_prefix }}" {{ ($staff->company_id ?: ($currentUser->company_id ?? null)) == $comp->id ? 'selected' : '' }}>{{ $comp->name }} {{ $comp->code_prefix ? '('.$comp->code_prefix.')' : '' }}</option>
+                        @endforeach
+                    </select>
+                @else
+                    <select name="company_id" id="company_select" disabled style="background:#f1f5f9;cursor:not-allowed">
+                        @foreach($companies as $comp)
+                            @if(($staff->company_id ?: ($currentUser->company_id ?? null)) == $comp->id)
+                                <option value="{{ $comp->id }}" selected>{{ $comp->name }} {{ $comp->code_prefix ? '('.$comp->code_prefix.')' : '' }}</option>
+                            @endif
+                        @endforeach
+                    </select>
                     <input type="hidden" name="company_id" value="{{ $staff->company_id ?: ($currentUser->company_id ?? '') }}">
-                    <small style="color:#64748b;font-weight:600;display:block;margin-top:2px"><i class="fa-solid fa-lock" style="color:#ef4444"></i> Company assignment is restricted to Admin only.</small>
+                    <small style="color:#64748b;font-weight:600;display:block;margin-top:2px"><i class="fa-solid fa-lock" style="color:#ef4444"></i> Company assignment is restricted to Super Admin only.</small>
                 @endif
             </div>
             <div>
                 <label>Employee Code *</label>
-                <input id="employee_code_input" name="employee_code" value="{{ old('employee_code', $staff->employee_code ?: \App\Models\User::generateNextEmployeeCode()) }}" required style="background:#f8fafc;font-weight:700;letter-spacing:0.5px;{{ $isEditLocked ? 'cursor:not-allowed' : '' }}" autocomplete="off" {{ $isEditLocked ? 'readonly' : '' }}>
+                <input id="employee_code_input" name="employee_code" value="{{ old('employee_code', $staff->employee_code ?: \App\Models\User::generateNextEmployeeCode()) }}" required style="background:#f8fafc;font-weight:700;letter-spacing:0.5px" autocomplete="off">
                 @error('employee_code')
                     <small style="color:#dc2626;font-weight:600;display:block;margin-top:2px"><i class="fa-solid fa-triangle-exclamation"></i> {{ $message }}</small>
                 @enderror
@@ -62,15 +57,16 @@
             </div>
             <div>
                 <label>Add Profile Picture</label>
-                <input type="file" name="profile_photo" accept="image/*" {{ $isEditLocked ? 'disabled' : '' }}>
+                <input type="file" name="profile_photo" accept="image/*">
                 @if($staff->profile_photo)
                     <div style="margin-top:4px"><img src="{{ asset('storage/'.$staff->profile_photo) }}" style="width:36px;height:36px;border-radius:50%;object-fit:cover"></div>
                 @endif
             </div>
         </div>
 
-        <!-- Professional Multi-Company Access Permissions Card -->
-        <div style="margin-top:16px;margin-bottom:20px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;{{ !$canAssignCompany ? 'pointer-events:none;opacity:0.75' : '' }}">
+        @if($isSuperAdmin)
+        <!-- Professional Multi-Company Access Permissions Card (Super Admin Only) -->
+        <div style="margin-top:16px;margin-bottom:20px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden">
             <div style="background:#f8fafc;padding:12px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
                 <div style="display:flex;align-items:center;gap:10px">
                     <div style="background:#e0e7ff;color:#4f46e5;width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:14px">
@@ -80,19 +76,14 @@
                         <div style="font-size:13px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:6px">
                             Multi-Company Access Permissions
                             <span style="background:#f1f5f9;color:#64748b;font-size:10px;padding:2px 8px;border-radius:12px;font-weight:600">Cross-Company Portal</span>
-                            @if(!$canAssignCompany)
-                                <span style="background:#fee2e2;color:#991b1b;font-size:10px;padding:2px 8px;border-radius:12px;font-weight:600"><i class="fa-solid fa-lock"></i> Admin Only</span>
-                            @endif
                         </div>
                         <p class="muted" style="margin:2px 0 0 0;font-size:11px">Grant this staff member authorization to manage or view attendance across multiple companies.</p>
                     </div>
                 </div>
-                @if($canAssignCompany)
-                    <div style="display:flex;gap:6px">
-                        <button type="button" class="btn light" onclick="selectAllCompanies(true)" style="padding:4px 10px;font-size:11px;border-radius:6px"><i class="fa-solid fa-check-double"></i> Select All</button>
-                        <button type="button" class="btn light" onclick="selectAllCompanies(false)" style="padding:4px 10px;font-size:11px;border-radius:6px"><i class="fa-solid fa-xmark"></i> Clear</button>
-                    </div>
-                @endif
+                <div style="display:flex;gap:6px">
+                    <button type="button" class="btn light" onclick="selectAllCompanies(true)" style="padding:4px 10px;font-size:11px;border-radius:6px"><i class="fa-solid fa-check-double"></i> Select All</button>
+                    <button type="button" class="btn light" onclick="selectAllCompanies(false)" style="padding:4px 10px;font-size:11px;border-radius:6px"><i class="fa-solid fa-xmark"></i> Clear</button>
+                </div>
             </div>
 
             @php $userCompAccess = (array) ($staff->accessible_company_ids ?? []); @endphp
@@ -102,9 +93,9 @@
                         $isBaseComp = ($staff->company_id == $comp->id);
                         $isChecked = in_array($comp->id, $userCompAccess) || $isBaseComp;
                     @endphp
-                    <label class="comp-card-item" id="comp_card_{{ $comp->id }}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:8px;border:1.5px solid {{ $isChecked ? '#3b82f6' : '#e2e8f0' }};background:{{ $isChecked ? '#f0f7ff' : '#f8fafc' }};cursor:{{ !$canAssignCompany ? 'default' : 'pointer' }};transition:all 0.2s ease">
+                    <label class="comp-card-item" id="comp_card_{{ $comp->id }}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:8px;border:1.5px solid {{ $isChecked ? '#3b82f6' : '#e2e8f0' }};background:{{ $isChecked ? '#f0f7ff' : '#f8fafc' }};cursor:pointer;transition:all 0.2s ease">
                         <div style="display:flex;align-items:center;gap:10px">
-                            <input type="checkbox" name="accessible_company_ids[]" value="{{ $comp->id }}" class="comp-chk" {{ $isChecked ? 'checked' : '' }} {{ !$canAssignCompany ? 'disabled' : '' }} onchange="toggleCompCardStyle(this, {{ $comp->id }})" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
+                            <input type="checkbox" name="accessible_company_ids[]" value="{{ $comp->id }}" class="comp-chk" {{ $isChecked ? 'checked' : '' }} onchange="toggleCompCardStyle(this, {{ $comp->id }})" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
                             <div>
                                 <strong style="font-size:12px;color:#1e293b;display:block">{{ $comp->name }}</strong>
                                 @if($comp->code_prefix)
@@ -119,22 +110,20 @@
                 @endforeach
             </div>
         </div>
+        @endif
 
         <div class="grid-2">
-            <div><label>First Name *</label><input name="first_name" value="{{ old('first_name', $staff->first_name) }}" required autocomplete="off" {{ $isEditLocked ? 'readonly style=background:#f1f5f9;cursor:not-allowed' : '' }}></div>
-            <div><label>Last Name</label><input name="last_name" value="{{ old('last_name', $staff->last_name) }}" autocomplete="off" {{ $isEditLocked ? 'readonly style=background:#f1f5f9;cursor:not-allowed' : '' }}></div>
+            <div><label>First Name *</label><input name="first_name" value="{{ old('first_name', $staff->first_name) }}" required autocomplete="off"></div>
+            <div><label>Last Name</label><input name="last_name" value="{{ old('last_name', $staff->last_name) }}" autocomplete="off"></div>
         </div>
 
         <label>Employee Status & Resignation Details</label>
         <div class="row" style="gap:20px;margin-bottom:12px">
-            <label style="font-weight:normal"><input type="radio" name="status" value="active" {{ in_array($staff->status, ['active', null]) ? 'checked' : '' }} onchange="toggleResignationFields()" {{ $isEditLocked ? 'disabled' : '' }}> Active</label>
-            <label style="font-weight:normal"><input type="radio" name="status" value="resigned" {{ $staff->status==='resigned'?'checked':'' }} onchange="toggleResignationFields()" {{ $isEditLocked ? 'disabled' : '' }}> Resigned</label>
-            <label style="font-weight:normal"><input type="radio" name="status" value="inactive" {{ $staff->status==='inactive'?'checked':'' }} onchange="toggleResignationFields()" {{ $isEditLocked ? 'disabled' : '' }}> Left / Inactive</label>
-            <label style="font-weight:normal"><input type="radio" name="status" value="archived" {{ $staff->status==='archived'?'checked':'' }} onchange="toggleResignationFields()" {{ $isEditLocked ? 'disabled' : '' }}> Archived</label>
+            <label style="font-weight:normal"><input type="radio" name="status" value="active" {{ in_array($staff->status, ['active', null]) ? 'checked' : '' }} onchange="toggleResignationFields()"> Active</label>
+            <label style="font-weight:normal"><input type="radio" name="status" value="resigned" {{ $staff->status==='resigned'?'checked':'' }} onchange="toggleResignationFields()"> Resigned</label>
+            <label style="font-weight:normal"><input type="radio" name="status" value="inactive" {{ $staff->status==='inactive'?'checked':'' }} onchange="toggleResignationFields()"> Left / Inactive</label>
+            <label style="font-weight:normal"><input type="radio" name="status" value="archived" {{ $staff->status==='archived'?'checked':'' }} onchange="toggleResignationFields()"> Archived</label>
         </div>
-        @if($isEditLocked)
-            <input type="hidden" name="status" value="{{ $staff->status ?: 'active' }}">
-        @endif
 
         <div id="resignation_box" style="display:{{ in_array($staff->status, ['resigned', 'inactive']) ? 'block' : 'none' }};background:#fff1f2;padding:12px 16px;border-radius:10px;border:1px solid #fecdd3;margin-bottom:14px">
             <h4 style="margin:0 0 10px 0;color:#9f1239;font-size:14px"><i class="fa-solid fa-user-slash"></i> Resignation / Left Record</h4>
@@ -177,37 +166,45 @@
             </div>
             <div>
                 <label>Assign System Role *</label>
-                <select name="role" id="role_select" onchange="onRoleSelectChange(this.value)" {{ $isEditLocked ? 'disabled style=background:#f1f5f9;cursor:not-allowed' : '' }}>
-                    @php
-                        $roleList = isset($roles) && count($roles) > 0 ? $roles->pluck('name')->toArray() : ['Admin', 'Manager', 'HR', 'Accountant', 'Supervisor', 'Developer', 'Employee'];
-                    @endphp
-                    @foreach($roleList as $rName)
-                        <option value="{{ strtolower($rName) }}" {{ strtolower($staff->role ?: 'employee') === strtolower($rName) ? 'selected' : '' }}>{{ $rName }}</option>
-                    @endforeach
-                </select>
-                @if($isEditLocked)
-                    <input type="hidden" name="role" value="{{ $staff->role }}">
+                @if($isSuperAdmin)
+                    <select name="role" id="role_select" onchange="onRoleSelectChange(this.value)">
+                        @php
+                            $roleList = isset($roles) && count($roles) > 0 ? $roles->pluck('name')->toArray() : ['Admin', 'Manager', 'HR', 'Accountant', 'Supervisor', 'Developer', 'Employee'];
+                        @endphp
+                        @foreach($roleList as $rName)
+                            <option value="{{ strtolower($rName) }}" {{ strtolower($staff->role ?: 'employee') === strtolower($rName) ? 'selected' : '' }}>{{ $rName }}</option>
+                        @endforeach
+                    </select>
+                @else
+                    <select name="role" id="role_select" disabled style="background:#f1f5f9;cursor:not-allowed">
+                        @php
+                            $roleList = isset($roles) && count($roles) > 0 ? $roles->pluck('name')->toArray() : ['Admin', 'Manager', 'HR', 'Accountant', 'Supervisor', 'Developer', 'Employee'];
+                        @endphp
+                        @foreach($roleList as $rName)
+                            @if(strtolower($staff->role ?: 'employee') === strtolower($rName))
+                                <option value="{{ strtolower($rName) }}" selected>{{ $rName }}</option>
+                            @endif
+                        @endforeach
+                    </select>
+                    <input type="hidden" name="role" value="{{ $staff->role ?: 'employee' }}">
+                    <small style="color:#ef4444;font-weight:600;display:block;margin-top:2px"><i class="fa-solid fa-lock"></i> Only Super Admin can change system roles.</small>
                 @endif
             </div>
         </div>
 
-        <!-- Role & Permissions Section -->
-        <div id="manager_permissions_box" style="background:#f8fafc;padding:16px;border-radius:12px;border:1px solid #cbd5e1;margin-bottom:16px;{{ $isEditLocked ? 'pointer-events:none;opacity:0.75' : '' }}">
+        @if($isSuperAdmin)
+        <!-- Role & Permissions Section (Super Admin Only) -->
+        <div id="manager_permissions_box" style="background:#f8fafc;padding:16px;border-radius:12px;border:1px solid #cbd5e1;margin-bottom:16px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
                 <div>
                     <label style="font-weight:700;margin:0;color:var(--accent);font-size:14px;display:flex;align-items:center;gap:6px">
                         <i class="fa-solid fa-user-shield"></i> Role & Module-Wise Access Permissions
-                        @if($isEditLocked)
-                            <span style="background:#fee2e2;color:#991b1b;font-size:10px;padding:2px 8px;border-radius:12px;font-weight:600"><i class="fa-solid fa-lock"></i> Admin Only</span>
-                        @endif
                     </label>
                     <small class="muted" id="roleSyncNotice" style="display:none;color:#2563eb;font-weight:600;margin-top:2px"></small>
                 </div>
-                @if(!$isEditLocked)
-                    <button type="button" class="btn light" onclick="onRoleSelectChange(document.getElementById('role_select').value)" style="padding:4px 10px;font-size:11px;border-radius:6px">
-                        <i class="fa-solid fa-arrows-rotate"></i> Sync With Selected Role
-                    </button>
-                @endif
+                <button type="button" class="btn light" onclick="onRoleSelectChange(document.getElementById('role_select').value)" style="padding:4px 10px;font-size:11px;border-radius:6px">
+                    <i class="fa-solid fa-arrows-rotate"></i> Sync With Selected Role
+                </button>
             </div>
 
             @php
@@ -277,6 +274,7 @@
                 @endforeach
             </div>
         </div>
+        @endif
 
         <label>Address</label>
         <textarea name="address" rows="2">{{ old('address', $staff->address) }}</textarea>
@@ -342,7 +340,6 @@
 
     <!-- PANE 2: EMPLOYMENT & COMPANY -->
     <div class="pane card">
-        <fieldset {{ $isEditLocked ? 'disabled style=border:0;padding:0;margin:0;opacity:0.85' : 'style=border:0;padding:0;margin:0' }}>
         <h3>Employment & Organization Details</h3>
 
         <div style="margin-bottom:12px">
@@ -407,12 +404,10 @@
             <div><label>Branch Name</label><input name="branch_name" value="{{ $staff->branch_name }}"></div>
             <div><label>Bank A/C Holder Name</label><input name="bank_holder" value="{{ $staff->bank_holder }}"></div>
         </div>
-        </fieldset>
     </div>
 
     <!-- PANE 3: ATTENDANCE SETTINGS -->
     <div class="pane card">
-        <fieldset {{ $isEditLocked ? 'disabled style=border:0;padding:0;margin:0;opacity:0.85' : 'style=border:0;padding:0;margin:0' }}>
         <h3>Attendance Settings</h3>
         <div class="grid-2">
             <label><input type="checkbox" name="mobile_attendance" value="1" {{ $staff->mobile_attendance?'checked':'' }}> Mobile Attendance — mark from mobile</label>
@@ -461,12 +456,10 @@
                 @endforeach
             </div>
         @endif
-        </fieldset>
     </div>
 
     <!-- PANE 4: PAYROLL & OVERTIME -->
     <div class="pane card">
-        <fieldset {{ $isEditLocked ? 'disabled style=border:0;padding:0;margin:0;opacity:0.85' : 'style=border:0;padding:0;margin:0' }}>
         <h3>Payroll & Benefits</h3>
         <div class="grid-2">
             <div>
@@ -484,15 +477,12 @@
         </div>
         
         <label>Week-Off Day</label>
-        <select name="week_off_day" {{ $isEditLocked ? 'disabled style=background:#f1f5f9;cursor:not-allowed' : '' }}>
+        <select name="week_off_day">
             <option value="None" {{ ($staff->week_off_day === 'None' || empty($staff->week_off_day)) ? 'selected' : '' }}>None (No Week Off)</option>
             @foreach(['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'] as $d)
                 <option value="{{ $d }}" {{ $staff->week_off_day === $d ? 'selected' : '' }}>{{ $d }}</option>
             @endforeach
         </select>
-        @if($isEditLocked)
-            <input type="hidden" name="week_off_day" value="{{ $staff->week_off_day ?: 'Sunday' }}">
-        @endif
         
         <div class="grid-2" style="margin-top:12px">
             <div><label>PF Number</label><input name="pf_number" value="{{ $staff->pf_number }}"></div>

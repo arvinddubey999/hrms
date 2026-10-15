@@ -32,6 +32,8 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/profile-settings', [AuthController::class, 'showProfileSettings'])->name('profile.settings');
+    Route::post('/profile-settings', [AuthController::class, 'updateProfileSettings'])->name('profile.settings.update');
     Route::post('/change-password', [AuthController::class, 'changePassword'])->name('change-password');
     Route::put('/punches/{punch}', [EmployeeController::class, 'updatePunch'])->name('punches.update');
     Route::delete('/punches/{punch}', [EmployeeController::class, 'destroyPunch'])->name('punches.destroy');
@@ -78,6 +80,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/tasks/{task}', [TaskController::class, 'show'])->name('tasks.show');
     Route::put('/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
     Route::post('/tasks/{task}/reply', [TaskController::class, 'reply'])->name('tasks.reply');
+    Route::post('/tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status');
     Route::post('/tasks/{task}/reassign', [TaskController::class, 'reassign'])->name('tasks.reassign');
     Route::post('/tasks/{task}/remind', [TaskController::class, 'remind'])->name('tasks.remind');
     Route::post('/tasks/{task}/attachment', [TaskController::class, 'uploadAttachment'])->name('tasks.attachment');

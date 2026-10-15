@@ -63,13 +63,13 @@ $setting = \App\Models\Setting::current();
                     </a>
                 @endif
 
-                <a href="javascript:void(0)" onclick="alert('Tulsi HRMS mobile app APK is available on your dashboard');hideUserDropdown();" style="display:flex;align-items:center;gap:12px;padding:10px 18px;color:#374151;font-size:13.5px;font-weight:500;text-decoration:none;transition:background 0.15s" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
+                <!-- <a href="javascript:void(0)" onclick="alert('Tulsi HRMS mobile app APK is available on your dashboard');hideUserDropdown();" style="display:flex;align-items:center;gap:12px;padding:10px 18px;color:#374151;font-size:13.5px;font-weight:500;text-decoration:none;transition:background 0.15s" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
                     <i class="fa-solid fa-mobile-screen" style="font-size:16px;width:18px;color:#4b5563"></i> Install Mobile App
                 </a>
 
                 <a href="javascript:void(0)" onclick="alert('For support, please contact your administrator');hideUserDropdown();" style="display:flex;align-items:center;gap:12px;padding:10px 18px;color:#374151;font-size:13.5px;font-weight:500;text-decoration:none;transition:background 0.15s" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
                     <i class="fa-regular fa-circle-question" style="font-size:16px;width:18px;color:#4b5563"></i> Help Center
-                </a>
+                </a> -->
 
                 <div style="height:1px;background:#f3f4f6;margin:6px 0"></div>
 

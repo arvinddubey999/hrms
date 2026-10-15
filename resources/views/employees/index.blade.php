@@ -25,29 +25,6 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
     </div>
 </div>
 
-@if(session('ok'))
-    <div style="background:#ecfdf5;color:#065f46;padding:12px 16px;border-radius:10px;margin-bottom:14px;border:1px solid #a7f3d0;font-weight:600">
-        <i class="fa-solid fa-circle-check"></i> {{ session('ok') }}
-    </div>
-@endif
-
-@if(session('error'))
-    <div style="background:#fff1f2;color:#9f1239;padding:12px 16px;border-radius:10px;margin-bottom:14px;border:1px solid #fecdd3;font-weight:600">
-        <i class="fa-solid fa-triangle-exclamation"></i> {{ session('error') }}
-    </div>
-@endif
-
-@if($errors->any())
-    <div style="background:#fff1f2;color:#9f1239;padding:12px 16px;border-radius:10px;margin-bottom:14px;border:1px solid #fecdd3">
-        <strong style="display:block;margin-bottom:4px"><i class="fa-solid fa-circle-xmark"></i> Validation Errors:</strong>
-        <ul style="margin:0;padding-left:20px;font-size:13px">
-            @foreach($errors->all() as $err)
-                <li>{{ $err }}</li>
-            @endforeach
-        </ul>
-    </div>
-@endif
-
 @if(auth()->user()->hasPermission('dashboard.view'))
     <div class="card hello">
         <div class="row" style="justify-space-between">

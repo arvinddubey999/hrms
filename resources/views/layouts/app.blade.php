@@ -145,6 +145,7 @@ $setting = \App\Models\Setting::current();
     </aside>
     <main class="main">
         @if(session('ok'))<div class="flash"><i class="fa-solid fa-circle-check"></i> {{ session('ok') }}</div>@endif
+        @if(session('error'))<div class="flash" style="background:#fee2e2;color:#991b1b"><i class="fa-solid fa-triangle-exclamation"></i> {{ session('error') }}</div>@endif
         @if(isset($errors) && $errors->any())<div class="flash" style="background:#fee2e2;color:#991b1b"><i class="fa-solid fa-triangle-exclamation"></i> {{ $errors->first() }}</div>@endif
         @yield('content')
     </main>

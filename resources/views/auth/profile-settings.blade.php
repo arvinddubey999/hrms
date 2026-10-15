@@ -15,16 +15,6 @@
             </button>
         </div>
 
-        @if(session('ok'))
-            <div class="flash" style="margin-bottom:20px"><i class="fa-solid fa-circle-check"></i> {{ session('ok') }}</div>
-        @endif
-
-        @if($errors->any())
-            <div class="flash" style="background:#fee2e2;color:#991b1b;margin-bottom:20px">
-                <i class="fa-solid fa-triangle-exclamation"></i> {{ $errors->first() }}
-            </div>
-        @endif
-
         <!-- Section 1: Personal Information -->
         <div style="display:grid;grid-template-columns:260px 1fr;gap:36px;margin-bottom:36px;align-items:start">
             <div>

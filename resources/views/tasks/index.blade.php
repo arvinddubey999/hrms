@@ -20,12 +20,6 @@
     </div>
 </div>
 
-@if(session('ok'))
-    <div style="background:#ecfdf5;color:#065f46;padding:10px 14px;border-radius:8px;margin-bottom:14px;border:1px solid #a7f3d0">
-        <i class="fa-solid fa-circle-check"></i> {{ session('ok') }}
-    </div>
-@endif
-
 <!-- COMPREHENSIVE FILTER BAR (Matching User, Company, Department, Overdue, Future Dated requirement) -->
 <div class="card" style="padding:14px;margin-bottom:16px">
     <form method="get" class="row" style="gap:10px;flex-wrap:wrap;align-items:center">

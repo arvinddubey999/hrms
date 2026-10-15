@@ -4,12 +4,6 @@
     <h1><i class="fa-solid fa-gears" style="color:var(--accent)"></i> Settings & Masters</h1>
 </div>
 
-@if(session('ok'))
-    <div style="background:#ecfdf5;color:#065f46;padding:12px 16px;border-radius:8px;margin-bottom:16px;border:1px solid #a7f3d0">
-        <i class="fa-solid fa-circle-check"></i> {{ session('ok') }}
-    </div>
-@endif
-
 <div class="card" style="display:flex;align-items:center;gap:18px;margin-bottom:18px">
     @if($setting->company_logo)
         <img src="{{ asset('storage/'.$setting->company_logo) }}" alt="Logo" style="height:54px;object-fit:contain;border-radius:8px;border:1px solid #eee">

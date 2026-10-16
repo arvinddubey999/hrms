@@ -68,6 +68,11 @@ Route::middleware('api.token')->group(function () {
     Route::get('/payroll', [PayrollController::class, 'me']);
     Route::post('/location/ping', [LocationController::class, 'ping']);
 
+    // Live Tracking Timeline API routes (with Bearer token)
+    Route::post('/tracking/store', [LocationController::class, 'storeTimeline']);
+    Route::post('/tracking/timeline', [LocationController::class, 'storeTimeline']);
+    Route::get('/tracking/timeline', [LocationController::class, 'getTimeline']);
+
     Route::get('/masters', function () {
         return response()->json([
             'companies' => Company::orderBy('name')->get(['id', 'name']),
@@ -75,3 +80,9 @@ Route::middleware('api.token')->group(function () {
         ]);
     });
 });
+
+// Live Tracking Timeline API routes (Accessible directly with user_id / employee_code or Bearer token)
+Route::post('/tracking/store', [LocationController::class, 'storeTimeline']);
+Route::post('/tracking/timeline', [LocationController::class, 'storeTimeline']);
+Route::get('/tracking/timeline', [LocationController::class, 'getTimeline']);
+

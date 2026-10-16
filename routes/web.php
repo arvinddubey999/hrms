@@ -93,6 +93,7 @@ Route::middleware('auth')->group(function () {
 
     // Live Tracking
     Route::get('/tracking/timeline', [TrackingController::class, 'timeline'])->name('tracking.timeline');
+    Route::get('/tracking/timeline/export', [TrackingController::class, 'exportTimeline'])->name('tracking.timeline.export');
     Route::get('/tracking/realtime', [TrackingController::class, 'realtime'])->name('tracking.realtime');
 
     // Monthly Roster

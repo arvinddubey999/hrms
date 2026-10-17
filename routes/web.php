@@ -91,10 +91,16 @@ Route::middleware('auth')->group(function () {
     Route::get('/reports/generate', [ReportController::class, 'generate'])->name('reports.generate');
     Route::get('/reports/tracker', [ReportController::class, 'tracker'])->name('reports.tracker');
 
-    // Live Tracking
+    // Live Tracking & Geofences
     Route::get('/tracking/timeline', [TrackingController::class, 'timeline'])->name('tracking.timeline');
     Route::get('/tracking/timeline/export', [TrackingController::class, 'exportTimeline'])->name('tracking.timeline.export');
     Route::get('/tracking/realtime', [TrackingController::class, 'realtime'])->name('tracking.realtime');
+    Route::get('/tracking/geofences', [TrackingController::class, 'geofences'])->name('tracking.geofences');
+    Route::get('/attendance/geofence-list', [TrackingController::class, 'geofences'])->name('attendance.geofence-list');
+    Route::post('/tracking/geofences', [TrackingController::class, 'storeGeofence'])->name('tracking.geofences.store');
+    Route::put('/tracking/geofences/{geofence}', [TrackingController::class, 'updateGeofence'])->name('tracking.geofences.update');
+    Route::delete('/tracking/geofences/{geofence}', [TrackingController::class, 'destroyGeofence'])->name('tracking.geofences.destroy');
+
 
     // Monthly Roster
     Route::get('/roster', [RosterController::class, 'index'])->name('roster.index');

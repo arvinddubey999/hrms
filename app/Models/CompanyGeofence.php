@@ -15,6 +15,7 @@ class CompanyGeofence extends Model
         'radius',
         'category',
         'assigned_categories',
+        'assigned_departments',
         'assigned_employees',
         'status',
     ];
@@ -24,8 +25,10 @@ class CompanyGeofence extends Model
         'longitude' => 'float',
         'radius' => 'integer',
         'assigned_categories' => 'array',
+        'assigned_departments' => 'array',
         'assigned_employees' => 'array',
     ];
+
 
     public function company()
     {

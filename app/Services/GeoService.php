@@ -40,6 +40,9 @@ class GeoService
                 if (!empty($fence->assigned_employees) && !in_array($user->id, $fence->assigned_employees)) {
                     continue;
                 }
+                if (!empty($fence->assigned_departments) && !in_array($user->department_id, $fence->assigned_departments)) {
+                    continue;
+                }
                 if (!empty($fence->assigned_categories) && !in_array($user->category_id, $fence->assigned_categories)) {
                     continue;
                 }

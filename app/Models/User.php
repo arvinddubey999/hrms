@@ -63,18 +63,24 @@ class User extends Authenticatable
         return $this->belongsTo(Role::class, 'role', 'name');
     }
 
+    public function isSuperAdmin(): bool
+    {
+        return strtolower($this->role ?? '') === 'super admin' || (int) $this->id === 1;
+    }
+
     public function hasPermission(string $permissionKey): bool
     {
-        if (in_array(strtolower($this->role ?? ''), ['admin', 'super admin'], true)) {
+        // 1. Super Admin can see EVERYTHING unconditionally
+        if ($this->isSuperAdmin()) {
             return true;
         }
 
-        // 1. If employee has explicit custom permissions set on their profile, it is the STRICT authority!
+        // 2. If employee has explicit custom permissions set on their profile, it is the STRICT authority!
         if (is_array($this->permissions)) {
             return in_array($permissionKey, $this->permissions, true);
         }
 
-        // 2. Fallback to Role's default permissions if employee has no custom permissions array set
+        // 3. Admin / Other Roles: check the Role's assigned permissions (Admin has limited rights as per Role!)
         if (!empty($this->role)) {
             $roleObj = Role::where('name', $this->role)
                 ->orWhereRaw('LOWER(name) = ?', [strtolower($this->role)])
@@ -89,7 +95,7 @@ class User extends Authenticatable
 
     public function allPermissions(): array
     {
-        if (in_array(strtolower($this->role ?? ''), ['admin', 'super admin'], true)) {
+        if ($this->isSuperAdmin()) {
             return [
                 'dashboard.view', 'dashboard.reports', 'dashboard.download',
                 'employee.view', 'employee.add', 'employee.edit', 'employee.delete',
@@ -97,7 +103,8 @@ class User extends Authenticatable
                 'leave.view', 'leave.apply', 'leave.approve',
                 'payroll.view', 'payroll.process', 'payroll.advances', 'payroll.expenses',
                 'tasks.view', 'tasks.create', 'tasks.manage',
-                'settings.view', 'settings.roles'
+                'geofence.view', 'geofence.tracking',
+                'settings.view', 'settings.roles', 'settings.manage'
             ];
         }
 
@@ -108,6 +115,7 @@ class User extends Authenticatable
         $roleObj = !empty($this->role) ? Role::where('name', $this->role)->orWhereRaw('LOWER(name) = ?', [strtolower($this->role)])->first() : null;
         return ($roleObj && is_array($roleObj->permissions)) ? array_values(array_unique($roleObj->permissions)) : [];
     }
+
 
     public function defaultLandingRoute(): string
     {
@@ -199,16 +207,20 @@ class User extends Authenticatable
 
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return in_array(strtolower($this->role ?? ''), ['admin', 'super admin'], true);
     }
 
     public function isManager(): bool
     {
-        return in_array($this->role, ['admin', 'manager'], true);
+        return in_array(strtolower($this->role ?? ''), ['admin', 'super admin', 'manager'], true);
     }
 
     public function accessibleCompanyIds(): array
     {
+        if ($this->isSuperAdmin()) {
+            return Company::pluck('id')->all();
+        }
+
         if (!empty($this->accessible_company_ids) && is_array($this->accessible_company_ids)) {
             $ids = array_map('intval', $this->accessible_company_ids);
             if ($this->company_id && !in_array((int)$this->company_id, $ids, true)) {
@@ -223,20 +235,21 @@ class User extends Authenticatable
     public function scopedEmployeesQuery()
     {
         $query = static::query()->where('status', 'active');
-        if ($this->isAdmin()) {
+        if ($this->isSuperAdmin()) {
             return $query;
         }
 
         $compIds = $this->accessibleCompanyIds();
 
-        // 1. If "View Employees" (employee.view) is granted to this role or staff member:
-        // They can see all employees of their assigned company / companies
-        if ($this->hasPermission('employee.view')) {
+        // 1. If Admin or "View Employees" (employee.view) is granted:
+        // They can see employees of their assigned company / companies
+        if ($this->isAdmin() || $this->hasPermission('employee.view')) {
             if (!empty($compIds)) {
                 $query->whereIn('company_id', $compIds);
             }
             return $query;
         }
+
 
         // 2. Manager, Supervisor, HR without global employee.view: scoped to their assigned department and company
         if ($this->isManager() || in_array(strtolower($this->role ?? ''), ['manager', 'supervisor', 'hr'], true)) {
@@ -321,6 +334,19 @@ class User extends Authenticatable
     {
         return trim($this->first_name.' '.$this->last_name) ?: $this->name;
     }
+
+    public function avatarUrl(): string
+    {
+        if (!empty($this->profile_photo)) {
+            return asset('storage/' . $this->profile_photo);
+        }
+        $face = $this->faceImages()->latest()->first();
+        if ($face && !empty($face->image_path)) {
+            return asset('storage/' . $face->image_path);
+        }
+        return '';
+    }
+
 
     public function initials(): string
     {

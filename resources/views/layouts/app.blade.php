@@ -114,13 +114,15 @@ $setting = \App\Models\Setting::current();
                 <a class="{{ $nav==='payroll'?'active':'' }}" href="{{ route('payroll.index') }}"><i class="fa-solid fa-money-bill-wave" style="width:18px"></i> Payroll</a>
             @endif
 
-            @if(!$u || $u->hasPermission('tracking.view') || $u->hasPermission('geofence.tracking'))
-                <details {{ $nav==='tracking'?'open':'' }}>
+            @if(!$u || $u->hasPermission('tracking.view') || $u->hasPermission('geofence.tracking') || $u->hasPermission('geofence.view'))
+                <details {{ in_array($nav ?? '', ['tracking', 'realtime', 'geofences']) || request()->is('tracking*') || request()->is('attendance/geofence-list*') ? 'open' : '' }}>
                     <summary><i class="fa-solid fa-location-dot" style="width:18px"></i> Live Tracking</summary>
-                    <a href="{{ route('tracking.realtime') }}">Realtime</a>
-                    <a class="{{ $nav==='tracking'?'active':'' }}" href="{{ route('tracking.timeline') }}">Timeline</a>
+                    <a class="{{ request()->routeIs('tracking.realtime') ? 'active' : '' }}" href="{{ route('tracking.realtime') }}">Realtime</a>
+                    <a class="{{ request()->routeIs('tracking.timeline') ? 'active' : '' }}" href="{{ route('tracking.timeline') }}">Timeline</a>
+                    <a class="{{ request()->routeIs('tracking.geofences') || request()->is('attendance/geofence-list*') ? 'active' : '' }}" href="{{ route('tracking.geofences') }}">Geo-fences</a>
                 </details>
             @endif
+
 
             @if(!$u || $u->hasPermission('tasks.view') || $u->hasPermission('tasks.create') || $u->hasPermission('tasks.manage'))
                 <details {{ $nav==='tasks'?'open':'' }}>

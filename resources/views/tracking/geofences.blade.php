@@ -1,0 +1,697 @@
+@extends('layouts.app')
+@section('content')
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<style>
+    .geofence-page-container {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .geofence-map-card {
+        height: 380px;
+        width: 100%;
+        border-radius: 14px;
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+        background: #f8fafc;
+        position: relative;
+    }
+    #geofenceOverviewMap {
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+    }
+    .geofence-table-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+    .geofence-row {
+        cursor: pointer;
+        transition: background 0.15s ease;
+    }
+    .geofence-row:hover {
+        background: #f0fdf4 !important;
+    }
+    .geofence-row.active-row {
+        background: #dcfce7 !important;
+    }
+    .table-action-btn {
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        color: #4b5563;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .table-action-btn:hover {
+        background: #f1f5f9;
+        color: #111827;
+        border-color: #cbd5e1;
+    }
+    .table-action-btn.delete-btn:hover {
+        background: #fee2e2;
+        color: #dc2626;
+        border-color: #fca5a5;
+    }
+
+    /* Modal Overlay & 3-Column Card matching Screenshot 1 */
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.55);
+        backdrop-filter: blur(4px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 16px;
+    }
+    .modal-card-screenshot1 {
+        background: #ffffff;
+        border-radius: 20px;
+        width: 980px;
+        max-width: 98%;
+        max-height: 92vh;
+        overflow-y: auto;
+        padding: 22px 26px 20px 26px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
+        border: 1px solid #e2e8f0;
+        animation: modalScale 0.2s ease-out;
+        display: flex;
+        flex-direction: column;
+    }
+    @keyframes modalScale {
+        from { opacity: 0; transform: scale(0.96); }
+        to { opacity: 1; transform: scale(1); }
+    }
+
+    /* 3-Column Layout */
+    .geofence-modal-grid {
+        display: grid;
+        grid-template-columns: 280px 240px 1fr;
+        gap: 16px;
+        align-items: stretch;
+    }
+    @media (max-width: 900px) {
+        .geofence-modal-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .modal-section-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 14px;
+        background: #ffffff;
+        display: flex;
+        flex-direction: column;
+    }
+    .modal-section-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 12px;
+    }
+
+    .category-scroll-pills {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        padding-bottom: 6px;
+        margin-bottom: 10px;
+        scrollbar-width: none;
+    }
+    .category-scroll-pills::-webkit-scrollbar {
+        display: none;
+    }
+    .cat-pill {
+        background: #f1f5f9;
+        color: #475569;
+        font-size: 11.5px;
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 16px;
+        cursor: pointer;
+        white-space: nowrap;
+        border: 0;
+        transition: all 0.15s ease;
+    }
+    .cat-pill.active {
+        background: #ea580c;
+        color: #ffffff;
+    }
+
+    .emp-item-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 10px;
+        border-radius: 8px;
+        transition: background 0.15s;
+    }
+    .emp-item-card:hover {
+        background: #f8fafc;
+    }
+    .emp-badge {
+        font-size: 10.5px;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 12px;
+    }
+    .emp-badge.incharge {
+        background: #e0f2fe;
+        color: #0284c7;
+    }
+    .emp-badge.staff {
+        background: #f1f5f9;
+        color: #64748b;
+    }
+</style>
+
+<div class="geofence-page-container">
+    <!-- Top Half: Map View showing configured Geofences matching Screenshot 3 -->
+    <div class="geofence-map-card">
+        <div id="geofenceOverviewMap"></div>
+        <div style="position: absolute; top: 12px; right: 12px; z-index: 1000; background: rgba(255,255,255,0.95); padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; border: 1px solid #d1d5db; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+            <i class="fa-solid fa-draw-polygon" style="color: #ea580c;"></i> {{ $geofences->count() }} Geofences Configured
+        </div>
+    </div>
+
+    <!-- Bottom Half: Manage Geo-fences Table matching Screenshot 3 -->
+    <div class="geofence-table-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <h2 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 800; color: #111827;">Manage Geo-fences</h2>
+                <div style="font-size: 13px; color: #6b7280;">Select a geofence to highlight it on the map. You can also edit or delete existing fences.</div>
+            </div>
+            <button type="button" class="btn" onclick="openAddGeofenceModal()" style="background: #111827; color: #ffffff; border: 0; border-radius: 8px; font-weight: 700; font-size: 13px; padding: 9px 16px; display: inline-flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-plus"></i> Add New Geo Fence
+            </button>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table class="table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; text-align: left; font-size: 12.5px; color: #475569;">
+                        <th style="padding: 10px 14px;">Address</th>
+                        <th style="padding: 10px 14px;">Latitude</th>
+                        <th style="padding: 10px 14px;">Longitude</th>
+                        <th style="padding: 10px 14px;">Radius (m)</th>
+                        <th style="padding: 10px 14px;">Category / Department</th>
+                        <th style="padding: 10px 14px;">Status</th>
+                        <th style="padding: 10px 14px; text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($geofences as $fence)
+                        @php
+                            $catNames = [];
+                            if (!empty($fence->assigned_categories) && is_array($fence->assigned_categories)) {
+                                $catNames = $categories->whereIn('id', $fence->assigned_categories)->pluck('name')->all();
+                            }
+                            if (empty($catNames) && !empty($fence->assigned_departments) && is_array($fence->assigned_departments)) {
+                                $catNames = $departments->whereIn('id', $fence->assigned_departments)->pluck('name')->all();
+                            }
+                            $catDisplay = !empty($catNames) ? implode(', ', $catNames) : ($fence->category ?: '-');
+                        @endphp
+                        <tr class="geofence-row" id="row-fence-{{ $fence->id }}" onclick="highlightGeofence({{ $fence->id }}, {{ $fence->latitude }}, {{ $fence->longitude }}, {{ $fence->radius }})">
+                            <td style="padding: 12px 14px; font-weight: 600; color: #1e293b; max-width: 380px;">
+                                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                                    <i class="fa-solid fa-location-dot" style="color: #ef4444; margin-top: 3px;"></i>
+                                    <div>
+                                        <div style="font-weight: 700; color: #0f172a;">{{ $fence->name }}</div>
+                                        <div style="font-size: 12px; color: #64748b; font-weight: normal;">{{ $fence->address ?: 'Address not specified (Current Location)' }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td style="padding: 12px 14px; font-family: monospace; font-size: 13px; color: #334155;">{{ round($fence->latitude, 6) }}</td>
+                            <td style="padding: 12px 14px; font-family: monospace; font-size: 13px; color: #334155;">{{ round($fence->longitude, 6) }}</td>
+                            <td style="padding: 12px 14px; font-weight: 700; color: #0f172a;">{{ $fence->radius }}</td>
+                            <td style="padding: 12px 14px; color: #475569; font-size: 12.5px;">{{ $catDisplay }}</td>
+                            <td style="padding: 12px 14px;">
+                                <span style="background: {{ $fence->status === 'active' ? '#dcfce7' : '#fee2e2' }}; color: {{ $fence->status === 'active' ? '#15803d' : '#b91c1c' }}; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 6px;">
+                                    {{ $fence->status }}
+                                </span>
+                            </td>
+                            <td style="padding: 12px 14px; text-align: right;" onclick="event.stopPropagation()">
+                                <div style="display: inline-flex; gap: 6px;">
+                                    <button type="button" class="table-action-btn" onclick="editGeofence({{ json_encode($fence) }})" title="Edit Geofence">
+                                        <i class="fa-solid fa-pencil" style="font-size: 12px;"></i>
+                                    </button>
+                                    <form method="POST" action="{{ route('tracking.geofences.destroy', $fence->id) }}" onsubmit="return confirm('Are you sure you want to delete this Geo-fence location?')" style="display:inline; margin:0;">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="table-action-btn delete-btn" title="Delete Geofence">
+                                            <i class="fa-solid fa-trash-can" style="font-size: 12px;"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="7" style="padding: 30px; text-align: center; color: #94a3b8;">
+                                <i class="fa-solid fa-draw-polygon" style="font-size: 36px; color: #cbd5e1; margin-bottom: 8px;"></i>
+                                <div>No Geo-fences added yet. Click <b>+ Add New Geo Fence</b> to configure one.</div>
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Configure New Geofence EXACTLY matching Screenshot 1 -->
+<div class="modal-overlay" id="geofenceModal">
+    <div class="modal-card-screenshot1">
+        <!-- Top Header row matching Screenshot 1 -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-crosshairs" style="color: #ea580c; font-size: 18px;"></i>
+                <h3 id="modalHeading" style="margin: 0; font-size: 17px; font-weight: 800; color: #0f172a;">Configure New Geofence</h3>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn light" onclick="closeGeofenceModal()" style="border-radius: 8px; font-size: 12px; padding: 5px 12px; font-weight: 600;">
+                    Minimize Form
+                </button>
+                <button type="button" class="btn light" onclick="closeGeofenceModal()" style="border-radius: 8px; font-size: 12px; padding: 5px 12px; font-weight: 600;">
+                    Close
+                </button>
+            </div>
+        </div>
+
+        <form id="geofenceForm" method="POST" action="{{ route('tracking.geofences.store') }}">
+            @csrf
+            <input type="hidden" name="_method" id="formMethod" value="POST">
+            <input type="hidden" name="company_id" id="fieldCompanyId" value="{{ $companies->first()?->id }}">
+
+            <!-- 3 Column Main Grid matching Screenshot 1 -->
+            <div class="geofence-modal-grid">
+                <!-- Column 1: Settings -->
+                <div class="modal-section-card" style="justify-content: space-between;">
+                    <div>
+                        <div class="modal-section-header">
+                            <i class="fa-solid fa-crosshairs" style="color: #ea580c;"></i>
+                            <span>Settings</span>
+                        </div>
+
+                        <!-- Want to add location? -->
+                        <div style="margin-bottom: 14px;">
+                            <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Want to add location?</label>
+                            <select id="locationModeSelect" onchange="handleLocationModeChange()" style="width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 10px; font-size: 12.5px; font-weight: 600; color: #111827;">
+                                <option value="current">Current Location</option>
+                                <option value="away">Away from location</option>
+                            </select>
+                        </div>
+
+                        <!-- Search Location Group (visible when Away is selected) -->
+                        <div id="searchLocationGroup" style="display: none; margin-bottom: 14px; position: relative;">
+                            <label style="display: block; font-size: 12px; font-weight: 700; color: #2563eb; margin-bottom: 4px;">Search Location / Landmark</label>
+                            <input type="text" id="locationSearchInput" placeholder="Type place name (e.g. Surat Textile Market)..." style="width: 100%; border: 1px solid #93c5fd; border-radius: 8px; padding: 7px 10px; font-size: 12px;" oninput="searchLocationQuery(this.value)">
+                            <div id="locationSuggestList" style="position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); max-height: 160px; overflow-y: auto; z-index: 1000; display: none;"></div>
+                        </div>
+
+                        <!-- Geofence Address -->
+                        <div style="margin-bottom: 14px;">
+                            <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Geofence Address</label>
+                            <textarea name="address" id="fieldAddress" rows="3" placeholder="Enter address or landmark..." style="width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 10px; font-size: 12.5px; resize: none;"></textarea>
+                        </div>
+
+                        <!-- Geofence Radius (meters) -->
+                        <div style="margin-bottom: 14px;">
+                            <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">
+                                <i class="fa-regular fa-circle-dot" style="color: #ea580c; border: 1px dashed #ea580c; border-radius: 50%; padding: 1px;"></i> Geofence Radius (meters)
+                            </label>
+                            <input type="number" name="radius" id="fieldRadius" value="100" min="5" max="5000" required style="width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 10px; font-size: 13px; font-weight: 600;">
+                        </div>
+
+                        <input type="hidden" name="latitude" id="fieldLatitude" value="21.148127">
+                        <input type="hidden" name="longitude" id="fieldLongitude" value="72.815560">
+                    </div>
+
+                    <!-- Bottom Lat/Lng Display matching Screenshot 1 -->
+                    <div style="font-size: 11px; font-weight: 700; color: #64748b; font-family: monospace; border-top: 1px solid #f1f5f9; padding-top: 10px;">
+                        LAT: <span id="dispLat">21.148127</span> | LONG: <span id="dispLng">72.815560</span>
+                    </div>
+                </div>
+
+                <!-- Column 2: Employee Categories (X selected) matching Screenshot 1 -->
+                <div class="modal-section-card">
+                    <div class="modal-section-header">
+                        <i class="fa-solid fa-id-badge" style="color: #0f172a;"></i>
+                        <span>Employee Categories (<span id="catSelectedCount">0</span> selected)</span>
+                    </div>
+
+                    <div style="flex: 1; max-height: 290px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px;">
+                        @foreach($categories as $cat)
+                            <label style="font-size: 12.5px; font-weight: 600; color: #334155; display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 4px 0;">
+                                <input type="checkbox" name="assigned_categories[]" value="{{ $cat->id }}" class="cat-checkbox" data-cat-id="{{ $cat->id }}" onchange="handleCategoryCheck({{ $cat->id }}, this.checked)">
+                                <span>{{ $cat->name }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+                </div>
+
+                <!-- Column 3: Select Employees (X selected) matching Screenshot 1 -->
+                <div class="modal-section-card">
+                    <div class="modal-section-header">
+                        <i class="fa-solid fa-crosshairs" style="color: #ea580c;"></i>
+                        <span>Select Employees (<span id="empSelectedCount">0</span> selected)</span>
+                    </div>
+
+                    <!-- Horizontal Category Filter Pills Carousel with arrows -->
+                    <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 8px;">
+                        <button type="button" onclick="scrollCatPills(-1)" style="border:0; background:none; color:#64748b; cursor:pointer; font-size:12px;">&lsaquo;</button>
+                        <div class="category-scroll-pills" id="catPillsContainer">
+                            <button type="button" class="cat-pill active" onclick="filterEmployeesByCat('all', this)">All</button>
+                            @foreach($categories as $cat)
+                                @php $empCount = $employees->where('category_id', $cat->id)->count(); @endphp
+                                @if($empCount > 0)
+                                    <button type="button" class="cat-pill" onclick="filterEmployeesByCat({{ $cat->id }}, this)">
+                                        {{ $cat->name }} ({{ $empCount }})
+                                    </button>
+                                @endif
+                            @endforeach
+                        </div>
+                        <button type="button" onclick="scrollCatPills(1)" style="border:0; background:none; color:#64748b; cursor:pointer; font-size:12px;">&rsaquo;</button>
+                    </div>
+
+                    <!-- Search Filter Row -->
+                    <div style="display: flex; gap: 6px; margin-bottom: 10px;">
+                        <div style="flex: 1; position: relative;">
+                            <input type="text" id="empSearchInput" placeholder="Filter employees..." oninput="searchEmployeesInList(this.value)" style="width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 6px 10px; font-size: 12px;">
+                        </div>
+                        <button type="button" class="btn light" onclick="selectAllEmployees(true)" style="padding: 5px 10px; font-size: 11px; font-weight: 700; border-radius: 8px;">All</button>
+                        <button type="button" class="btn light" onclick="selectAllEmployees(false)" style="padding: 5px 10px; font-size: 11px; font-weight: 700; border-radius: 8px;">Clear</button>
+                    </div>
+
+                    <!-- Scrollable Employee Cards List matching Screenshot 1 -->
+                    <div id="empListContainer" style="flex: 1; max-height: 230px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 4px;">
+                        @foreach($employees as $emp)
+                            @php
+                                $badgeClass = in_array(strtolower($emp->role ?? ''), ['admin', 'manager', 'supervisor']) ? 'incharge' : 'staff';
+                                $badgeText = $emp->role ? strtoupper($emp->role) : 'Staff';
+                            @endphp
+                            <div class="emp-item-card emp-card" data-cat-id="{{ $emp->category_id }}" data-emp-name="{{ strtolower($emp->displayName()) }}">
+                                <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; flex: 1;">
+                                    <input type="checkbox" name="assigned_employees[]" value="{{ $emp->id }}" class="emp-checkbox emp-for-cat-{{ $emp->category_id }}" onchange="updateEmpCount()">
+                                    <div>
+                                        <div style="font-size: 12px; font-weight: 700; color: #1e293b;">{{ $emp->displayName() }}</div>
+                                        <div style="font-size: 11px; color: #64748b;">{{ $emp->category?->name ?? 'Accounts' }}</div>
+                                    </div>
+                                </label>
+                                <span class="emp-badge {{ $badgeClass }}">{{ $badgeText }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Center Confirm Location Button matching Screenshot 1 -->
+            <div style="text-align: center; margin-top: 18px;">
+                <button type="submit" style="background: #1f2937; color: #ffffff; border: 0; border-radius: 24px; padding: 10px 32px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: background 0.15s;">
+                    Confirm Location
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@php
+    $geofencesJson = $geofences->map(function($g) {
+        return [
+            'id' => $g->id,
+            'name' => $g->name,
+            'company_id' => $g->company_id,
+            'address' => $g->address,
+            'latitude' => (float)$g->latitude,
+            'longitude' => (float)$g->longitude,
+            'radius' => (int)$g->radius,
+            'category' => $g->category,
+            'assigned_categories' => $g->assigned_categories ?: [],
+            'assigned_employees' => $g->assigned_employees ?: [],
+            'status' => $g->status,
+        ];
+    });
+@endphp
+
+<script>
+    const fencesData = @json($geofencesJson);
+    let overviewMap = null;
+    let overviewMarkers = {};
+    let overviewCircles = {};
+
+    document.addEventListener('DOMContentLoaded', function () {
+        initOverviewMap();
+    });
+
+    function initOverviewMap() {
+        const defaultLat = fencesData.length > 0 ? fencesData[0].latitude : 21.1882;
+        const defaultLng = fencesData.length > 0 ? fencesData[0].longitude : 72.8377;
+
+        overviewMap = L.map('geofenceOverviewMap', {
+            zoomControl: false
+        }).setView([defaultLat, defaultLng], 14);
+
+        L.control.zoom({ position: 'bottomright' }).addTo(overviewMap);
+
+        // Google Maps Street Layer
+        L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            maxZoom: 20,
+            subdomains: ['mt0','mt1','mt2','mt3'],
+            attribution: '&copy; Google Maps'
+        }).addTo(overviewMap);
+
+        // Render each geofence
+        if (fencesData.length > 0) {
+            const bounds = [];
+            fencesData.forEach(fence => {
+                const latlng = [fence.latitude, fence.longitude];
+                bounds.push(latlng);
+
+                const circle = L.circle(latlng, {
+                    color: '#ea580c',
+                    fillColor: '#f97316',
+                    fillOpacity: 0.28,
+                    weight: 2,
+                    radius: fence.radius
+                }).addTo(overviewMap);
+
+                const marker = L.marker(latlng).addTo(overviewMap);
+                marker.bindPopup(`
+                    <div style="font-family:inherit; min-width:180px;">
+                        <h4 style="margin:0 0 4px 0; font-size:14px; font-weight:800; color:#0f172a;">${fence.name}</h4>
+                        <div style="font-size:12px; color:#475569; margin-bottom:4px;">${fence.address || 'No address specified'}</div>
+                        <div style="font-size:11px; font-weight:700; color:#ea580c;">Radius: ${fence.radius} meters</div>
+                    </div>
+                `);
+
+                overviewMarkers[fence.id] = marker;
+                overviewCircles[fence.id] = circle;
+            });
+
+            overviewMap.fitBounds(bounds, { padding: [40, 40] });
+        }
+    }
+
+    function highlightGeofence(id, lat, lng, radius) {
+        document.querySelectorAll('.geofence-row').forEach(r => r.classList.remove('active-row'));
+        const row = document.getElementById('row-fence-' + id);
+        if (row) row.classList.add('active-row');
+
+        if (overviewMap && overviewMarkers[id]) {
+            overviewMap.flyTo([lat, lng], 16, { duration: 0.6 });
+            overviewMarkers[id].openPopup();
+        }
+    }
+
+    function openAddGeofenceModal() {
+        document.getElementById('modalHeading').textContent = 'Configure New Geofence';
+        document.getElementById('geofenceForm').action = "{{ route('tracking.geofences.store') }}";
+        document.getElementById('formMethod').value = 'POST';
+
+        document.getElementById('fieldAddress').value = '';
+        document.getElementById('fieldRadius').value = '100';
+        document.getElementById('locationModeSelect').value = 'current';
+        handleLocationModeChange();
+
+        document.querySelectorAll('.cat-checkbox').forEach(c => c.checked = false);
+        document.querySelectorAll('.emp-checkbox').forEach(c => c.checked = false);
+        updateCatCount();
+        updateEmpCount();
+
+        document.getElementById('geofenceModal').style.display = 'flex';
+    }
+
+    function editGeofence(fence) {
+        document.getElementById('modalHeading').textContent = 'Edit Geofence: ' + (fence.name || 'Geofence');
+        document.getElementById('geofenceForm').action = "/tracking/geofences/" + fence.id;
+        document.getElementById('formMethod').value = 'PUT';
+
+        document.getElementById('fieldAddress').value = fence.address || '';
+        document.getElementById('fieldRadius').value = fence.radius;
+        document.getElementById('fieldLatitude').value = fence.latitude;
+        document.getElementById('fieldLongitude').value = fence.longitude;
+        document.getElementById('dispLat').textContent = fence.latitude;
+        document.getElementById('dispLng').textContent = fence.longitude;
+
+        const assignedCats = fence.assigned_categories || [];
+        const assignedEmps = fence.assigned_employees || [];
+
+        document.querySelectorAll('.cat-checkbox').forEach(c => {
+            c.checked = assignedCats.includes(parseInt(c.value)) || assignedCats.includes(String(c.value));
+        });
+
+        document.querySelectorAll('.emp-checkbox').forEach(c => {
+            c.checked = assignedEmps.includes(parseInt(c.value)) || assignedEmps.includes(String(c.value));
+        });
+
+        updateCatCount();
+        updateEmpCount();
+
+        document.getElementById('geofenceModal').style.display = 'flex';
+    }
+
+    function closeGeofenceModal() {
+        document.getElementById('geofenceModal').style.display = 'none';
+    }
+
+    function handleLocationModeChange() {
+        const mode = document.getElementById('locationModeSelect').value;
+        const searchGroup = document.getElementById('searchLocationGroup');
+
+        if (mode === 'current') {
+            searchGroup.style.display = 'none';
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    const lat = pos.coords.latitude.toFixed(6);
+                    const lng = pos.coords.longitude.toFixed(6);
+                    document.getElementById('fieldLatitude').value = lat;
+                    document.getElementById('fieldLongitude').value = lng;
+                    document.getElementById('dispLat').textContent = lat;
+                    document.getElementById('dispLng').textContent = lng;
+                }, () => {
+                    // Default Surat coords if location blocked
+                    document.getElementById('fieldLatitude').value = '21.148127';
+                    document.getElementById('fieldLongitude').value = '72.815560';
+                    document.getElementById('dispLat').textContent = '21.148127';
+                    document.getElementById('dispLng').textContent = '72.815560';
+                });
+            }
+        } else {
+            searchGroup.style.display = 'block';
+        }
+    }
+
+    let suggestTimeout = null;
+    function searchLocationQuery(query) {
+        clearTimeout(suggestTimeout);
+        if (!query || query.length < 3) {
+            document.getElementById('locationSuggestList').style.display = 'none';
+            return;
+        }
+
+        suggestTimeout = setTimeout(() => {
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`)
+                .then(res => res.json())
+                .then(results => {
+                    const list = document.getElementById('locationSuggestList');
+                    list.innerHTML = '';
+                    if (results && results.length > 0) {
+                        results.forEach(r => {
+                            const item = document.createElement('div');
+                            item.style.padding = '8px 12px';
+                            item.style.fontSize = '12px';
+                            item.style.cursor = 'pointer';
+                            item.style.borderBottom = '1px solid #f1f5f9';
+                            item.innerHTML = `<i class="fa-solid fa-location-dot" style="color:#ef4444;margin-right:6px"></i> ${r.display_name}`;
+                            item.onclick = function () {
+                                const lat = parseFloat(r.lat).toFixed(6);
+                                const lon = parseFloat(r.lon).toFixed(6);
+                                document.getElementById('fieldLatitude').value = lat;
+                                document.getElementById('fieldLongitude').value = lon;
+                                document.getElementById('dispLat').textContent = lat;
+                                document.getElementById('dispLng').textContent = lon;
+                                document.getElementById('fieldAddress').value = r.display_name;
+                                list.style.display = 'none';
+                            };
+                            list.appendChild(item);
+                        });
+                        list.style.display = 'block';
+                    } else {
+                        list.style.display = 'none';
+                    }
+                })
+                .catch(() => {});
+        }, 300);
+    }
+
+    // Category selection automatically checks all employees of that category
+    function handleCategoryCheck(catId, isChecked) {
+        document.querySelectorAll('.emp-for-cat-' + catId).forEach(empBox => {
+            empBox.checked = isChecked;
+        });
+        updateCatCount();
+        updateEmpCount();
+    }
+
+    function updateCatCount() {
+        const count = document.querySelectorAll('.cat-checkbox:checked').length;
+        document.getElementById('catSelectedCount').textContent = count;
+    }
+
+    function updateEmpCount() {
+        const count = document.querySelectorAll('.emp-checkbox:checked').length;
+        document.getElementById('empSelectedCount').textContent = count;
+    }
+
+    function selectAllEmployees(val) {
+        document.querySelectorAll('.emp-checkbox').forEach(c => c.checked = val);
+        updateEmpCount();
+    }
+
+    function filterEmployeesByCat(catId, pillBtn) {
+        document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+        pillBtn.classList.add('active');
+
+        document.querySelectorAll('.emp-card').forEach(card => {
+            if (catId === 'all' || String(card.getAttribute('data-cat-id')) === String(catId)) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    function searchEmployeesInList(val) {
+        const query = val.toLowerCase().trim();
+        document.querySelectorAll('.emp-card').forEach(card => {
+            const name = card.getAttribute('data-emp-name') || '';
+            if (!query || name.includes(query)) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    function scrollCatPills(direction) {
+        const container = document.getElementById('catPillsContainer');
+        container.scrollBy({ left: direction * 120, behavior: 'smooth' });
+    }
+</script>
+@endsection

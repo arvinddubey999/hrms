@@ -125,10 +125,7 @@ $setting = \App\Models\Setting::current();
 
 
             @if(!$u || $u->hasPermission('tasks.view') || $u->hasPermission('tasks.create') || $u->hasPermission('tasks.manage'))
-                <details {{ $nav==='tasks'?'open':'' }}>
-                    <summary><i class="fa-solid fa-list-check" style="width:18px"></i> Works</summary>
-                    <a class="{{ $nav==='tasks'?'active':'' }}" href="{{ route('tasks.index') }}">Tasks</a>
-                </details>
+                <a class="{{ $nav==='tasks'?'active':'' }}" href="{{ route('tasks.index') }}"><i class="fa-solid fa-list-check" style="width:18px"></i> Task Management</a>
             @endif
 
             @if(!$u || $u->hasPermission('dashboard.reports'))

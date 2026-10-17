@@ -190,6 +190,7 @@ class SettingsController extends Controller
             'description' => 'nullable|string',
             'company_ids' => 'nullable|array',
             'department_ids' => 'nullable|array',
+            'category_ids' => 'nullable|array',
         ]);
 
         Holiday::create($data);
@@ -205,6 +206,7 @@ class SettingsController extends Controller
             'description' => 'nullable|string',
             'company_ids' => 'nullable|array',
             'department_ids' => 'nullable|array',
+            'category_ids' => 'nullable|array',
         ]);
 
         $holiday->update($data);

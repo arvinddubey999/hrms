@@ -23,7 +23,12 @@
 <!-- COMPREHENSIVE FILTER BAR (Matching User, Company, Department, Overdue, Future Dated requirement) -->
 <div class="card" style="padding:14px;margin-bottom:16px">
     <form method="get" class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
-        <input name="q" value="{{ $q }}" placeholder="Search by title, desc, client..." style="flex:1;min-width:200px">
+        <div style="position:relative;flex:1;min-width:240px">
+            <input type="text" name="q" id="taskSearchInput" value="{{ $q }}" placeholder="Search by title, desc, client..." style="width:100%;padding-right:85px" autocomplete="off">
+            <button type="submit" class="btn" style="position:absolute;right:3px;top:50%;transform:translateY(-50%);padding:6px 12px;font-size:12px;display:flex;align-items:center;gap:4px;border-radius:6px" title="Search">
+                <i class="fa-solid fa-magnifying-glass"></i> Search
+            </button>
+        </div>
 
         <select name="company_id" onchange="this.form.submit()" style="width:150px">
             <option value="">All Companies</option>
@@ -164,11 +169,27 @@
         <table style="width:100%;border-collapse:collapse;font-family:Inter,Segoe UI,-apple-system,sans-serif">
             <thead>
                 <tr style="background:#334155;color:#ffffff">
-                    <th style="padding:15px 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:center;width:50px">#</th>
+                    <th style="padding:15px 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:center;width:60px">#</th>
                     <th style="padding:15px 18px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:left">TASK NAME</th>
                     <th style="padding:15px 18px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:center">ASSIGNED TO</th>
                     <th style="padding:15px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:left">PRIORITY</th>
-                    <th style="padding:15px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:left">DEADLINE</th>
+                    <th style="padding:15px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:left">
+                        @php
+                            $nextSortDir = ($sortBy === 'deadline' && $sortDir === 'asc') ? 'desc' : 'asc';
+                        @endphp
+                        <a href="{{ route('tasks.index', array_merge(request()->query(), ['sort_by' => 'deadline', 'sort_dir' => $nextSortDir])) }}" style="color:#ffffff;text-decoration:none;display:inline-flex;align-items:center;gap:6px" title="Click to sort by deadline">
+                            DEADLINE
+                            @if($sortBy === 'deadline')
+                                @if($sortDir === 'asc')
+                                    <i class="fa-solid fa-arrow-up-short-wide" style="color:#38bdf8" title="Ascending (Closest deadline first)"></i>
+                                @else
+                                    <i class="fa-solid fa-arrow-down-wide-short" style="color:#38bdf8" title="Descending (Furthest deadline first)"></i>
+                                @endif
+                            @else
+                                <i class="fa-solid fa-sort" style="color:#94a3b8"></i>
+                            @endif
+                        </a>
+                    </th>
                     <th style="padding:15px 16px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:left">STATUS</th>
                     <th style="padding:15px 18px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;text-align:left">COMMENTS</th>
                 </tr>
@@ -176,7 +197,7 @@
             <tbody>
                 @forelse($items as $task)
                     @php
-                        $rowBg = $loop->even ? '#f8fafc' : '#ffffff';
+                        $rowBg = $task->is_pinned ? '#fff1f2' : ($loop->even ? '#f8fafc' : '#ffffff');
                         
                         // Assignee styling matching screenshot
                         $assigneeName = $task->assignee ? $task->assignee->displayName() : 'Unassigned';
@@ -234,9 +255,17 @@
                         onclick="openTaskDetailsDrawer({{ json_encode($task->load(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])) }})"
                         title="Click row to open details for {{ $task->title }}">
 
-                        <!-- # (Index) -->
-                        <td style="padding:15px 12px;text-align:center;font-size:13px;font-weight:600;color:#64748b;width:50px">
-                            {{ ($items->currentPage() - 1) * $items->perPage() + $loop->iteration }}
+                        <!-- # (Index & Pin) -->
+                        <td style="padding:15px 10px;text-align:center;font-size:13px;font-weight:600;color:#64748b;width:60px" onclick="event.stopPropagation()">
+                            <div style="display:flex;align-items:center;justify-content:center;gap:6px">
+                                <form method="post" action="{{ route('tasks.pin', $task) }}" style="margin:0;display:inline">
+                                    @csrf
+                                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:2px 4px;font-size:13px;color:{{ $task->is_pinned ? '#e11d48' : '#cbd5e1' }};transition:color 0.2s ease" title="{{ $task->is_pinned ? 'Unpin Task' : 'Pin Task to Top' }}">
+                                        <i class="fa-solid fa-thumbtack" style="{{ $task->is_pinned ? 'transform:rotate(-45deg);' : '' }}"></i>
+                                    </button>
+                                </form>
+                                <span>{{ ($items->currentPage() - 1) * $items->perPage() + $loop->iteration }}</span>
+                            </div>
                         </td>
 
                         <!-- TASK NAME -->
@@ -425,12 +454,45 @@
                 </div>
                 <div>
                     <label>Assigned To Primary Employee *</label>
-                    <select name="assigned_to" id="newTaskPrimaryEmpSelect" required>
-                        <option value="">Select Employee</option>
-                        @foreach($employees as $e)
-                            <option value="{{ $e->id }}" data-dept="{{ $e->department_id }}">{{ $e->displayName() }} ({{ $e->department ?: 'N/A' }})</option>
-                        @endforeach
-                    </select>
+                    <div class="custom-emp-picker" id="picker_primary" style="position:relative">
+                        <button type="button" class="picker-btn" onclick="toggleEmpPicker('picker_primary')" style="width:100%;text-align:left;background:#fff;border:1px solid #cbd5e1;padding:8px 12px;border-radius:8px;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+                            <span class="picker-label" id="picker_label_primary" style="color:#64748b">Select Primary Employee</span>
+                            <i class="fa-solid fa-chevron-down" style="font-size:11px;color:#94a3b8"></i>
+                        </button>
+                        <input type="hidden" name="assigned_to" id="input_primary" required>
+
+                        <!-- Dropdown Box matching Screenshot 5 -->
+                        <div class="picker-dropdown" id="dropdown_picker_primary" style="display:none;position:absolute;top:100%;left:0;right:0;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,0.18);z-index:9999;margin-top:4px;padding:14px;box-sizing:border-box">
+                            <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:8px">FILTER BY CATEGORY</div>
+                            <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:6px 12px;margin-bottom:12px;max-height:120px;overflow-y:auto;padding-right:4px">
+                                @foreach($categories as $cat)
+                                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#334155;cursor:pointer">
+                                        <input type="checkbox" class="cat-filter-chk" data-cat-id="{{ $cat->id }}" onchange="applyPickerFilters('picker_primary')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
+                                        <span>{{ $cat->name }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+
+                            <div style="border-top:1px solid #e2e8f0;padding-top:8px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+                                <a href="javascript:void(0)" onclick="selectAllPickerEmployees('picker_primary', true)" style="color:#2563eb;font-size:12px;font-weight:700;text-decoration:none">Select All Filtered Employees</a>
+                                <a href="javascript:void(0)" onclick="selectAllPickerEmployees('picker_primary', false)" style="color:#64748b;font-size:11px;text-decoration:none">Clear</a>
+                            </div>
+
+                            <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:6px">EMPLOYEES</div>
+                            <div class="picker-emp-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;margin-bottom:12px">
+                                @foreach($employees as $e)
+                                    <label class="picker-emp-item" data-cat-id="{{ $e->category_id }}" data-emp-id="{{ $e->id }}" data-name="{{ strtolower($e->displayName()) }}" style="display:flex;align-items:center;gap:8px;font-size:12px;color:#1e293b;cursor:pointer;padding:3px 0">
+                                        <input type="checkbox" class="emp-select-chk" value="{{ $e->id }}" data-name="{{ $e->displayName() }}" onchange="onEmpPickerChange('picker_primary', 'single')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
+                                        <span>{{ strtoupper($e->displayName()) }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+
+                            <div style="position:relative">
+                                <input type="text" class="picker-search-input" placeholder="Search employees" oninput="onPickerSearch('picker_primary', this.value)" style="width:100%;padding:7px 10px;font-size:12px;border-radius:6px;border:1.5px solid #3b82f6;outline:none" autocomplete="off">
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -484,22 +546,51 @@
             </div>
 
             <div style="margin-bottom:12px">
-                <label>Attach File / Document</label>
-                <input type="file" name="attachment_file">
+                <label>Attach Files (Upload Multiple)</label>
+                <input type="file" name="attachment_files[]" multiple>
             </div>
 
             <div style="margin-bottom:16px">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                    <label style="margin:0">Assign To Others (Multiple Selection)</label>
-                    <label style="font-size:12px;color:var(--accent);cursor:pointer;font-weight:bold">
-                        <input type="checkbox" onchange="toggleSelectAllOthers(this)"> Select All
-                    </label>
+                <label style="margin-bottom:4px;display:block">Assign To Others (Multiple Selection)</label>
+                <div class="custom-emp-picker" id="picker_others" style="position:relative">
+                    <button type="button" class="picker-btn" onclick="toggleEmpPicker('picker_others')" style="width:100%;text-align:left;background:#fff;border:1px solid #cbd5e1;padding:8px 12px;border-radius:8px;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+                        <span class="picker-label" id="picker_label_others" style="color:#64748b">Select Additional Assignees (Optional)</span>
+                        <i class="fa-solid fa-chevron-down" style="font-size:11px;color:#94a3b8"></i>
+                    </button>
+                    <div id="hidden_inputs_others"></div>
+
+                    <!-- Dropdown Box matching Screenshot 5 -->
+                    <div class="picker-dropdown" id="dropdown_picker_others" style="display:none;position:absolute;top:100%;left:0;right:0;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,0.18);z-index:9999;margin-top:4px;padding:14px;box-sizing:border-box">
+                        <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:8px">FILTER BY CATEGORY</div>
+                        <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:6px 12px;margin-bottom:12px;max-height:120px;overflow-y:auto;padding-right:4px">
+                            @foreach($categories as $cat)
+                                <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#334155;cursor:pointer">
+                                    <input type="checkbox" class="cat-filter-chk" data-cat-id="{{ $cat->id }}" onchange="applyPickerFilters('picker_others')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
+                                    <span>{{ $cat->name }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+
+                        <div style="border-top:1px solid #e2e8f0;padding-top:8px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+                            <a href="javascript:void(0)" onclick="selectAllPickerEmployees('picker_others', true)" style="color:#2563eb;font-size:12px;font-weight:700;text-decoration:none">Select All Filtered Employees</a>
+                            <a href="javascript:void(0)" onclick="selectAllPickerEmployees('picker_others', false)" style="color:#64748b;font-size:11px;text-decoration:none">Clear</a>
+                        </div>
+
+                        <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:6px">EMPLOYEES</div>
+                        <div class="picker-emp-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;margin-bottom:12px">
+                            @foreach($employees as $e)
+                                <label class="picker-emp-item" data-cat-id="{{ $e->category_id }}" data-emp-id="{{ $e->id }}" data-name="{{ strtolower($e->displayName()) }}" style="display:flex;align-items:center;gap:8px;font-size:12px;color:#1e293b;cursor:pointer;padding:3px 0">
+                                    <input type="checkbox" class="emp-select-chk" value="{{ $e->id }}" data-name="{{ $e->displayName() }}" onchange="onEmpPickerChange('picker_others', 'multiple', 'assignee_ids[]')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
+                                    <span>{{ strtoupper($e->displayName()) }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+
+                        <div style="position:relative">
+                            <input type="text" class="picker-search-input" placeholder="Search employees" oninput="onPickerSearch('picker_others', this.value)" style="width:100%;padding:7px 10px;font-size:12px;border-radius:6px;border:1.5px solid #3b82f6;outline:none" autocomplete="off">
+                        </div>
+                    </div>
                 </div>
-                <select name="assignee_ids[]" id="newTaskOthersEmpSelect" multiple style="height:90px;width:100%;border-radius:8px;border:1px solid #cbd5e1">
-                    @foreach($employees as $e)
-                        <option value="{{ $e->id }}" data-dept="{{ $e->department_id }}">{{ $e->displayName() }} ({{ $e->department ?: 'Staff' }})</option>
-                    @endforeach
-                </select>
             </div>
 
             <button class="btn" style="width:100%;background:#111;color:#fff;padding:12px"><i class="fa-solid fa-paper-plane"></i> Create Task & Send Push Notification</button>
@@ -552,26 +643,42 @@
                     </div>
                 </div>
 
-                <!-- Action Buttons: Re-assign, Send Reminder & Delete -->
-                <div style="display:flex;gap:8px;margin-bottom:14px">
-                    <button type="button" class="btn light" style="flex:1" onclick="openReassignModal()"><i class="fa-solid fa-right-left"></i> Re-assign Task</button>
+                <!-- Attached Files of the Task -->
+                <div style="background:#fff;padding:12px;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:14px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                        <strong style="font-size:13px;color:#1e293b"><i class="fa-solid fa-paperclip" style="color:var(--accent)"></i> Attached Files:</strong>
+                    </div>
+                    <div id="dtlAttachmentsList" style="display:flex;flex-direction:column;gap:6px">
+                        <span class="muted" style="font-size:12px">No files attached to this task.</span>
+                    </div>
+                </div>
+
+                <!-- Action Buttons: Re-assign, Re-Open, Send Reminder & Delete -->
+                <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+                    <button type="button" class="btn light" style="flex:1" onclick="openReassignModal()"><i class="fa-solid fa-right-left"></i> Re-assign</button>
+                    <button type="button" id="btnReopenTask" class="btn" style="flex:1;background:#0284c7;color:#fff;display:none" onclick="openReopenModal()"><i class="fa-solid fa-rotate-left"></i> Re-Open Task</button>
                     
                     <!-- Send Reminder Button -->
                     <form id="remindTaskForm" method="post" style="display:inline">
                         @csrf
-                        <button class="btn light" style="color:#d97706" title="Send Push Notification reminder to assigned employees"><i class="fa-solid fa-bell"></i> Send Reminder</button>
+                        <button class="btn light" style="color:#d97706" title="Send Push Notification reminder to assigned employees"><i class="fa-solid fa-bell"></i> Remind</button>
                     </form>
 
                     <form id="deleteTaskForm" method="post" style="display:inline" onsubmit="return confirm('Delete this task?')">
                         @csrf @method('delete')
-                        <button class="btn light" style="color:#dc2626"><i class="fa-solid fa-trash"></i> Delete</button>
+                        <button class="btn light" style="color:#dc2626"><i class="fa-solid fa-trash"></i></button>
                     </form>
                 </div>
             </div>
 
             <!-- Tab 2: Replies & Attachments -->
             <div id="drawerTabReports" style="display:none">
-                <strong style="display:block;margin-bottom:8px">Replies & Remarks Submission</strong>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                    <strong style="margin:0"><i class="fa-solid fa-comments" style="color:var(--accent)"></i> Replies & Remarks Submission</strong>
+                    <a id="dtlExportRepliesPdf" href="#" target="_blank" class="btn light" style="font-size:11px;padding:4px 10px;color:#dc2626;border-color:#fca5a5;display:inline-flex;align-items:center;gap:4px">
+                        <i class="fa-solid fa-file-pdf"></i> Export Replies PDF
+                    </a>
+                </div>
                 <div id="repliesContainer" style="max-height:240px;overflow-y:auto;margin-bottom:14px;display:flex;flex-direction:column;gap:8px"></div>
 
                 <!-- Post Reply Form -->
@@ -598,23 +705,84 @@
 
 <!-- Modal: Re-Assign Task -->
 <div id="reassignModal" class="modal-bg">
-    <div class="modal" style="max-width:440px;z-index:10000">
+    <div class="modal" style="max-width:460px;z-index:10000;padding:20px;border-radius:14px">
         <h3 style="margin-top:0"><i class="fa-solid fa-right-left" style="color:var(--accent)"></i> Re-Assign Task</h3>
-        <p class="muted" style="font-size:13px">Select one or multiple employees to re-assign this task to. A push notification will be sent immediately to the new assignee(s).</p>
+        <p class="muted" style="font-size:12.5px;margin-bottom:12px">Select one or multiple employees to re-assign this task to. A push notification will be sent immediately to the new assignee(s).</p>
         <form id="reassignForm" method="post">
             @csrf
             <label style="margin-bottom:4px;display:block;font-size:13px;font-weight:600">Select New Assignee(s) *</label>
-            <select name="new_assigned_to[]" multiple required style="height:120px;width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:6px;margin-bottom:4px">
-                @foreach($employees as $e)
-                    <option value="{{ $e->id }}">{{ $e->displayName() }} ({{ $e->department ?: 'Staff' }})</option>
-                @endforeach
-            </select>
-            <small class="muted" style="display:block;margin-bottom:12px"><i class="fa-solid fa-circle-info"></i> Hold Ctrl (or Cmd on Mac) to select multiple employees.</small>
+            <div class="custom-emp-picker" id="picker_reassign" style="position:relative;margin-bottom:12px">
+                <button type="button" class="picker-btn" onclick="toggleEmpPicker('picker_reassign')" style="width:100%;text-align:left;background:#fff;border:1px solid #cbd5e1;padding:8px 12px;border-radius:8px;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+                    <span class="picker-label" id="picker_label_reassign" style="color:#64748b">Select New Assignee(s)</span>
+                    <i class="fa-solid fa-chevron-down" style="font-size:11px;color:#94a3b8"></i>
+                </button>
+                <div id="hidden_inputs_reassign"></div>
+
+                <!-- Dropdown Box matching Screenshot 5 -->
+                <div class="picker-dropdown" id="dropdown_picker_reassign" style="display:none;position:absolute;bottom:100%;left:0;right:0;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,0.18);z-index:9999;margin-bottom:4px;padding:14px;box-sizing:border-box">
+                    <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:8px">FILTER BY CATEGORY</div>
+                    <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:6px 12px;margin-bottom:12px;max-height:120px;overflow-y:auto;padding-right:4px">
+                        @foreach($categories as $cat)
+                            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#334155;cursor:pointer">
+                                <input type="checkbox" class="cat-filter-chk" data-cat-id="{{ $cat->id }}" onchange="applyPickerFilters('picker_reassign')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
+                                <span>{{ $cat->name }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+
+                    <div style="border-top:1px solid #e2e8f0;padding-top:8px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+                        <a href="javascript:void(0)" onclick="selectAllPickerEmployees('picker_reassign', true)" style="color:#2563eb;font-size:12px;font-weight:700;text-decoration:none">Select All Filtered Employees</a>
+                        <a href="javascript:void(0)" onclick="selectAllPickerEmployees('picker_reassign', false)" style="color:#64748b;font-size:11px;text-decoration:none">Clear</a>
+                    </div>
+
+                    <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:6px">EMPLOYEES</div>
+                    <div class="picker-emp-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;margin-bottom:12px">
+                        @foreach($employees as $e)
+                            <label class="picker-emp-item" data-cat-id="{{ $e->category_id }}" data-emp-id="{{ $e->id }}" data-name="{{ strtolower($e->displayName()) }}" style="display:flex;align-items:center;gap:8px;font-size:12px;color:#1e293b;cursor:pointer;padding:3px 0">
+                                <input type="checkbox" class="emp-select-chk" value="{{ $e->id }}" data-name="{{ $e->displayName() }}" onchange="onEmpPickerChange('picker_reassign', 'multiple', 'new_assigned_to[]')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
+                                <span>{{ strtoupper($e->displayName()) }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+
+                    <div style="position:relative">
+                        <input type="text" class="picker-search-input" placeholder="Search employees" oninput="onPickerSearch('picker_reassign', this.value)" style="width:100%;padding:7px 10px;font-size:12px;border-radius:6px;border:1.5px solid #3b82f6;outline:none" autocomplete="off">
+                    </div>
+                </div>
+            </div>
+
             <label style="margin-bottom:4px;display:block;font-size:13px;font-weight:600">Reason / Remarks (Optional)</label>
             <textarea name="remarks" rows="2" placeholder="e.g. Belongs to Accounts Dept..." style="margin-bottom:14px;width:100%"></textarea>
             <div style="display:flex;justify-content:flex-end;gap:8px">
                 <button type="button" class="btn light" onclick="closeReassignModal()">Cancel</button>
                 <button class="btn">Re-Assign & Notify</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Re-Open Task -->
+<div id="reopenModal" class="modal-bg">
+    <div class="modal" style="max-width:440px;z-index:10000;padding:20px;border-radius:14px">
+        <h3 style="margin-top:0;color:#0284c7"><i class="fa-solid fa-rotate-left"></i> Re-Open Task</h3>
+        <p class="muted" style="font-size:12.5px;margin-bottom:12px">Set a new deadline for this task to resume work. Status will be changed back to In Progress.</p>
+        <form id="reopenForm" method="post">
+            @csrf
+            <div class="grid-2" style="margin-bottom:12px">
+                <div>
+                    <label style="font-size:12px;font-weight:600">New Due Date *</label>
+                    <input type="date" name="due_date" id="reopenDueDate" required value="{{ now()->addDay()->toDateString() }}">
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:600">New Due Time</label>
+                    <input type="time" name="due_time" id="reopenDueTime" value="12:00">
+                </div>
+            </div>
+            <label style="font-size:12px;font-weight:600">Re-Open Reason / Note (Optional)</label>
+            <textarea name="remarks" rows="2" placeholder="e.g. Client requested revision..." style="margin-bottom:14px;width:100%"></textarea>
+            <div style="display:flex;justify-content:flex-end;gap:8px">
+                <button type="button" class="btn light" onclick="closeReopenModal()">Cancel</button>
+                <button class="btn" style="background:#0284c7"><i class="fa-solid fa-rotate-left"></i> Re-Open Task</button>
             </div>
         </form>
     </div>
@@ -732,6 +900,52 @@ function openTaskDetailsDrawer(task, initialTab = 'details') {
     document.getElementById('remindTaskForm').action = "/tasks/" + task.id + "/remind";
     document.getElementById('deleteTaskForm').action = "/tasks/" + task.id;
 
+    // Render Attached Files of the Task
+    const attContainer = document.getElementById('dtlAttachmentsList');
+    if (attContainer) {
+        attContainer.innerHTML = '';
+        if (task.attachments && task.attachments.length > 0) {
+            task.attachments.forEach(att => {
+                const fName = att.file_name || att.file_path.split('/').pop();
+                attContainer.innerHTML += `
+                    <div style="display:flex;align-items:center;justify-content:space-between;background:#f8fafc;padding:6px 10px;border-radius:6px;border:1px solid #e2e8f0;margin-bottom:4px">
+                        <a href="/storage/${att.file_path}" target="_blank" style="color:#0284c7;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;text-decoration:none">
+                            <i class="fa-solid fa-paperclip"></i> ${fName}
+                        </a>
+                        <form method="post" action="/tasks/attachments/${att.id}" onsubmit="return confirm('Remove this attachment?')" style="margin:0;display:inline">
+                            <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="_method" value="delete">
+                            <button type="submit" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;padding:2px 4px" title="Delete attachment"><i class="fa-solid fa-trash"></i></button>
+                        </form>
+                    </div>
+                `;
+            });
+        } else if (task.attachment) {
+            const fName = task.attachment.split('/').pop();
+            attContainer.innerHTML = `
+                <div style="background:#f8fafc;padding:6px 10px;border-radius:6px;border:1px solid #e2e8f0">
+                    <a href="/storage/${task.attachment}" target="_blank" style="color:#0284c7;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;text-decoration:none">
+                        <i class="fa-solid fa-paperclip"></i> ${fName}
+                    </a>
+                </div>
+            `;
+        } else {
+            attContainer.innerHTML = '<span class="muted" style="font-size:12px">No files attached to this task.</span>';
+        }
+    }
+
+    // Control Re-Open Task button visibility
+    const btnReopen = document.getElementById('btnReopenTask');
+    if (btnReopen) {
+        btnReopen.style.display = (task.status === 'completed') ? 'inline-flex' : 'none';
+    }
+
+    // Update Export Replies PDF button link
+    const exportRepliesLink = document.getElementById('dtlExportRepliesPdf');
+    if (exportRepliesLink) {
+        exportRepliesLink.href = "/tasks/" + task.id + "/replies-pdf";
+    }
+
     // Load Replies & Histories
     document.getElementById('replyCount').innerText = task.replies ? task.replies.length : 0;
     document.getElementById('historyCount').innerText = task.histories ? task.histories.length : 0;
@@ -801,7 +1015,7 @@ function switchDrawerTab(tab) {
 
 function openReassignModal() {
     if (!currentActiveTask) return;
-    closeTaskDrawer(); // CLOSE RIGHT DRAWER FIRST TO PREVENT MODAL OVERLAP
+    closeTaskDrawer();
     document.getElementById('reassignForm').action = "/tasks/" + currentActiveTask.id + "/reassign";
     document.getElementById('reassignModal').classList.add('open');
 }
@@ -810,15 +1024,141 @@ function closeReassignModal() {
     document.getElementById('reassignModal').classList.remove('open');
 }
 
-function toggleSelectAllOthers(master) {
-    const select = document.getElementById('newTaskOthersEmpSelect');
-    for (let i = 0; i < select.options.length; i++) {
-        select.options[i].selected = master.checked;
+function openReopenModal() {
+    if (!currentActiveTask) return;
+    closeTaskDrawer();
+    document.getElementById('reopenForm').action = "/tasks/" + currentActiveTask.id + "/reopen";
+    if (currentActiveTask.due_date) {
+        document.getElementById('reopenDueDate').value = currentActiveTask.due_date.substring(0, 10);
+    }
+    if (currentActiveTask.due_time) {
+        document.getElementById('reopenDueTime').value = currentActiveTask.due_time;
+    }
+    document.getElementById('reopenModal').classList.add('open');
+}
+
+function closeReopenModal() {
+    document.getElementById('reopenModal').classList.remove('open');
+}
+
+function toggleEmpPicker(pickerId) {
+    const dropdown = document.getElementById('dropdown_' + pickerId);
+    if (!dropdown) return;
+    const isVisible = dropdown.style.display === 'block';
+    
+    // Close any other open dropdowns first
+    document.querySelectorAll('.picker-dropdown').forEach(d => {
+        if (d !== dropdown) d.style.display = 'none';
+    });
+    
+    dropdown.style.display = isVisible ? 'none' : 'block';
+}
+
+function applyPickerFilters(pickerId) {
+    const dropdown = document.getElementById('dropdown_' + pickerId);
+    if (!dropdown) return;
+
+    const checkedCatBoxes = dropdown.querySelectorAll('.cat-filter-chk:checked');
+    const checkedCatIds = Array.from(checkedCatBoxes).map(cb => cb.getAttribute('data-cat-id'));
+    const searchVal = dropdown.querySelector('.picker-search-input').value.toLowerCase().trim();
+
+    const empItems = dropdown.querySelectorAll('.picker-emp-item');
+    empItems.forEach(item => {
+        const itemCatId = item.getAttribute('data-cat-id');
+        const itemName = item.getAttribute('data-name');
+        
+        const matchesCat = checkedCatIds.length === 0 || checkedCatIds.includes(itemCatId);
+        const matchesSearch = !searchVal || itemName.includes(searchVal);
+
+        item.style.display = (matchesCat && matchesSearch) ? 'flex' : 'none';
+    });
+}
+
+function onPickerSearch(pickerId, val) {
+    applyPickerFilters(pickerId);
+}
+
+function selectAllPickerEmployees(pickerId, selectAll) {
+    const dropdown = document.getElementById('dropdown_' + pickerId);
+    if (!dropdown) return;
+
+    const visibleItems = dropdown.querySelectorAll('.picker-emp-item');
+    visibleItems.forEach(item => {
+        if (item.style.display !== 'none') {
+            const chk = item.querySelector('.emp-select-chk');
+            if (chk) chk.checked = selectAll;
+        }
+    });
+
+    if (pickerId === 'picker_primary') {
+        onEmpPickerChange('picker_primary', 'single');
+    } else if (pickerId === 'picker_others') {
+        onEmpPickerChange('picker_others', 'multiple', 'assignee_ids[]');
+    } else if (pickerId === 'picker_reassign') {
+        onEmpPickerChange('picker_reassign', 'multiple', 'new_assigned_to[]');
     }
 }
 
-function toggleTaskSelectAll(master) {
-    document.querySelectorAll('.task-checkbox').forEach(cb => cb.checked = master.checked);
+function onEmpPickerChange(pickerId, mode, inputName = '') {
+    const dropdown = document.getElementById('dropdown_' + pickerId);
+    const labelSpan = document.getElementById('picker_label_' + pickerId);
+    if (!dropdown || !labelSpan) return;
+
+    if (mode === 'single') {
+        const checked = dropdown.querySelectorAll('.emp-select-chk:checked');
+        if (checked.length > 1) {
+            checked.forEach((c, idx) => {
+                if (idx < checked.length - 1) c.checked = false;
+            });
+        }
+        const lastChecked = dropdown.querySelector('.emp-select-chk:checked');
+        const hiddenInput = document.getElementById('input_primary');
+        if (lastChecked) {
+            labelSpan.innerText = lastChecked.getAttribute('data-name');
+            labelSpan.style.color = '#1e293b';
+            labelSpan.style.fontWeight = '700';
+            if (hiddenInput) hiddenInput.value = lastChecked.value;
+        } else {
+            labelSpan.innerText = 'Select Primary Employee';
+            labelSpan.style.color = '#64748b';
+            labelSpan.style.fontWeight = 'normal';
+            if (hiddenInput) hiddenInput.value = '';
+        }
+    } else {
+        const checked = dropdown.querySelectorAll('.emp-select-chk:checked');
+        const container = document.getElementById(pickerId === 'picker_others' ? 'hidden_inputs_others' : 'hidden_inputs_reassign');
+        if (container) {
+            container.innerHTML = '';
+            checked.forEach(c => {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = inputName;
+                hidden.value = c.value;
+                container.appendChild(hidden);
+            });
+        }
+
+        if (checked.length === 0) {
+            labelSpan.innerText = pickerId === 'picker_others' ? 'Select Additional Assignees (Optional)' : 'Select New Assignee(s)';
+            labelSpan.style.color = '#64748b';
+            labelSpan.style.fontWeight = 'normal';
+        } else if (checked.length === 1) {
+            labelSpan.innerText = checked[0].getAttribute('data-name');
+            labelSpan.style.color = '#1e293b';
+            labelSpan.style.fontWeight = '700';
+        } else {
+            labelSpan.innerText = checked.length + ' employees selected';
+            labelSpan.style.color = '#2563eb';
+            labelSpan.style.fontWeight = '700';
+        }
+    }
 }
+
+// Close pickers when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.custom-emp-picker')) {
+        document.querySelectorAll('.picker-dropdown').forEach(d => d.style.display = 'none');
+    }
+});
 </script>
 @endsection

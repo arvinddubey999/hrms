@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\FaceImageController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\PayrollController;
@@ -73,6 +74,14 @@ Route::middleware('api.token')->group(function () {
     Route::post('/tracking/timeline', [LocationController::class, 'storeTimeline']);
     Route::get('/tracking/timeline', [LocationController::class, 'getTimeline']);
 
+    // Face Images & Recognition API routes
+    Route::get('/face-images', [FaceImageController::class, 'index']);
+    Route::post('/face-images/upload', [FaceImageController::class, 'upload']);
+    Route::post('/face-images', [FaceImageController::class, 'upload']);
+    Route::delete('/face-images/{id}', [FaceImageController::class, 'destroy']);
+    Route::post('/face-images/delete', [FaceImageController::class, 'deleteMultiple']);
+    Route::get('/face-images/registered-staff', [FaceImageController::class, 'registeredStaff']);
+
     Route::get('/masters', function () {
         return response()->json([
             'companies' => Company::orderBy('name')->get(['id', 'name']),
@@ -85,4 +94,13 @@ Route::middleware('api.token')->group(function () {
 Route::post('/tracking/store', [LocationController::class, 'storeTimeline']);
 Route::post('/tracking/timeline', [LocationController::class, 'storeTimeline']);
 Route::get('/tracking/timeline', [LocationController::class, 'getTimeline']);
+
+// Face Images & Recognition API routes (Accessible directly with user_id / employee_code or Bearer token)
+Route::post('/face-images/upload', [FaceImageController::class, 'upload']);
+Route::post('/face-images', [FaceImageController::class, 'upload']);
+Route::get('/face-images', [FaceImageController::class, 'index']);
+Route::delete('/face-images/{id}', [FaceImageController::class, 'destroy']);
+Route::post('/face-images/delete', [FaceImageController::class, 'deleteMultiple']);
+Route::get('/face-images/registered-staff', [FaceImageController::class, 'registeredStaff']);
+
 

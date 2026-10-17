@@ -64,45 +64,76 @@
         border-color: #fca5a5;
     }
 
-    /* Modal Overlay & 3-Column Card matching Screenshot 1 */
+    /* Modal Overlay & 3-Column Card matching Screenshot 2 */
     .modal-overlay {
         position: fixed;
         inset: 0;
-        background: rgba(15, 23, 42, 0.55);
+        background: rgba(15, 23, 42, 0.45);
         backdrop-filter: blur(4px);
         display: none;
         align-items: center;
         justify-content: center;
         z-index: 9999;
         padding: 16px;
+        box-sizing: border-box;
     }
-    .modal-card-screenshot1 {
+    .modal-card-clean {
         background: #ffffff;
-        border-radius: 20px;
-        width: 980px;
-        max-width: 98%;
-        max-height: 92vh;
+        border-radius: 16px;
+        width: 950px;
+        max-width: 95vw;
+        max-height: 90vh;
+        overflow-x: hidden !important;
         overflow-y: auto;
-        padding: 22px 26px 20px 26px;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
-        border: 1px solid #e2e8f0;
+        padding: 18px 24px 20px 24px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+        border: 1px solid #e5e7eb;
         animation: modalScale 0.2s ease-out;
         display: flex;
         flex-direction: column;
+        box-sizing: border-box;
     }
     @keyframes modalScale {
-        from { opacity: 0; transform: scale(0.96); }
+        from { opacity: 0; transform: scale(0.97); }
         to { opacity: 1; transform: scale(1); }
     }
 
-    /* 3-Column Layout */
+    /* Force reset all inputs and labels inside this modal to override global app.css */
+    .modal-card-clean * {
+        box-sizing: border-box;
+    }
+    .modal-card-clean label {
+        display: flex !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        cursor: pointer;
+    }
+    .modal-card-clean input[type="checkbox"] {
+        width: 16px !important;
+        min-width: 16px !important;
+        max-width: 16px !important;
+        height: 16px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        accent-color: #ea580c;
+        cursor: pointer;
+        flex-shrink: 0 !important;
+        display: inline-block !important;
+        vertical-align: middle;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 4px;
+    }
+
+    /* 3-Column Layout matching Screenshot 2 */
     .geofence-modal-grid {
         display: grid;
-        grid-template-columns: 280px 240px 1fr;
-        gap: 16px;
+        grid-template-columns: 280px 230px 1fr;
+        gap: 14px;
         align-items: stretch;
+        width: 100%;
+        box-sizing: border-box;
     }
-    @media (max-width: 900px) {
+    @media (max-width: 920px) {
         .geofence-modal-grid {
             grid-template-columns: 1fr;
         }
@@ -110,29 +141,51 @@
 
     .modal-section-card {
         border: 1px solid #e2e8f0;
-        border-radius: 14px;
-        padding: 14px;
+        border-radius: 12px;
+        padding: 14px 14px 12px 14px;
         background: #ffffff;
         display: flex;
         flex-direction: column;
+        height: 385px;
+        box-sizing: border-box;
+        overflow: hidden;
     }
     .modal-section-header {
         display: flex;
         align-items: center;
         gap: 8px;
-        font-size: 13px;
+        font-size: 13.5px;
         font-weight: 700;
         color: #0f172a;
         margin-bottom: 12px;
+        flex-shrink: 0;
     }
 
+    /* Clean subtle custom scrollbars */
+    .clean-scrollbar::-webkit-scrollbar {
+        width: 5px;
+        height: 5px;
+    }
+    .clean-scrollbar::-webkit-scrollbar-track {
+        background: #f8fafc;
+        border-radius: 4px;
+    }
+    .clean-scrollbar::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+    .clean-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+
+    /* Category scroll pills carousel */
     .category-scroll-pills {
         display: flex;
         gap: 6px;
         overflow-x: auto;
-        padding-bottom: 6px;
-        margin-bottom: 10px;
+        padding-bottom: 4px;
         scrollbar-width: none;
+        flex: 1;
     }
     .category-scroll-pills::-webkit-scrollbar {
         display: none;
@@ -141,35 +194,91 @@
         background: #f1f5f9;
         color: #475569;
         font-size: 11.5px;
-        font-weight: 700;
+        font-weight: 600;
         padding: 4px 12px;
         border-radius: 16px;
         cursor: pointer;
         white-space: nowrap;
         border: 0;
         transition: all 0.15s ease;
+        flex-shrink: 0;
     }
     .cat-pill.active {
         background: #ea580c;
         color: #ffffff;
+        font-weight: 700;
     }
 
-    .emp-item-card {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 8px 10px;
-        border-radius: 8px;
-        transition: background 0.15s;
+    /* Column 2 Category items */
+    .cat-row-label {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        padding: 6px 8px !important;
+        cursor: pointer;
+        border-radius: 6px;
+        transition: background 0.12s;
+        user-select: none;
     }
-    .emp-item-card:hover {
+    .cat-row-label:hover {
         background: #f8fafc;
     }
-    .emp-badge {
-        font-size: 10.5px;
+    .cat-name-text {
+        font-size: 13px;
+        font-weight: 500;
+        color: #334155;
+    }
+
+    /* Column 3 Employee rows */
+    .emp-row-card {
+        display: flex;
+        align-items: center;
+        padding: 7px 8px;
+        border-radius: 6px;
+        transition: background 0.12s;
+        min-width: 0;
+    }
+    .emp-row-card:hover {
+        background: #f8fafc;
+    }
+    .emp-row-label {
+        display: flex !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        cursor: pointer;
+        user-select: none;
+    }
+    .emp-row-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .emp-row-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+    .emp-name-text {
+        font-size: 12.5px;
         font-weight: 700;
-        padding: 2px 8px;
-        border-radius: 12px;
+        color: #1e293b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .emp-badge {
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        flex-shrink: 0;
     }
     .emp-badge.incharge {
         background: #e0f2fe;
@@ -178,6 +287,67 @@
     .emp-badge.staff {
         background: #f1f5f9;
         color: #64748b;
+    }
+    .emp-sub-dept {
+        font-size: 11px;
+        color: #64748b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Inputs in settings column */
+    .modal-form-select {
+        width: 100% !important;
+        border: 1px solid #d1d5db !important;
+        border-radius: 8px !important;
+        padding: 7px 10px !important;
+        font-size: 12.5px !important;
+        font-weight: 500 !important;
+        color: #111827 !important;
+        background: #ffffff !important;
+        outline: none;
+        height: 36px !important;
+    }
+    .modal-form-textarea {
+        width: 100% !important;
+        border: 1px solid #d1d5db !important;
+        border-radius: 8px !important;
+        padding: 8px 10px !important;
+        font-size: 12.5px !important;
+        color: #111827 !important;
+        background: #ffffff !important;
+        resize: none !important;
+        height: 70px !important;
+        outline: none;
+    }
+    .modal-form-input {
+        width: 100% !important;
+        border: 1px solid #d1d5db !important;
+        border-radius: 8px !important;
+        padding: 7px 10px !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        color: #111827 !important;
+        background: #ffffff !important;
+        outline: none;
+        height: 36px !important;
+    }
+    .modal-btn-confirm {
+        background: #1e293b;
+        color: #ffffff;
+        border: 0;
+        border-radius: 24px;
+        padding: 9px 34px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+        transition: background 0.15s, transform 0.15s;
+    }
+    .modal-btn-confirm:hover {
+        background: #0f172a;
+        transform: translateY(-1px);
     }
 </style>
 
@@ -275,107 +445,113 @@
     </div>
 </div>
 
-<!-- Modal: Configure New Geofence EXACTLY matching Screenshot 1 -->
+<!-- Modal: Configure New Geofence EXACTLY matching Screenshot 2 -->
 <div class="modal-overlay" id="geofenceModal">
-    <div class="modal-card-screenshot1">
-        <!-- Top Header row matching Screenshot 1 -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <i class="fa-solid fa-crosshairs" style="color: #ea580c; font-size: 18px;"></i>
-                <h3 id="modalHeading" style="margin: 0; font-size: 17px; font-weight: 800; color: #0f172a;">Configure New Geofence</h3>
+    <div class="modal-card-clean" id="geofenceModalCard">
+        <!-- Top Header row matching Screenshot 2 -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-shrink: 0;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="background: #ffedd5; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <i class="fa-solid fa-crosshairs" style="color: #ea580c; font-size: 16px;"></i>
+                </div>
+                <h3 id="modalHeading" style="margin: 0; font-size: 16.5px; font-weight: 800; color: #1e293b;">Configure New Geofence</h3>
             </div>
-            <div style="display: flex; gap: 8px;">
-                <button type="button" class="btn light" onclick="closeGeofenceModal()" style="border-radius: 8px; font-size: 12px; padding: 5px 12px; font-weight: 600;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <button type="button" class="btn light" onclick="closeGeofenceModal()" style="border-radius: 8px; font-size: 12px; padding: 5px 12px; font-weight: 600; border: 1px solid #e2e8f0; background: #fff; color: #334155;">
                     Minimize Form
                 </button>
-                <button type="button" class="btn light" onclick="closeGeofenceModal()" style="border-radius: 8px; font-size: 12px; padding: 5px 12px; font-weight: 600;">
+                <span style="color: #cbd5e1; font-size: 13px; margin: 0 2px;">|</span>
+                <button type="button" onclick="closeGeofenceModal()" style="border: 0; background: transparent; font-size: 12px; font-weight: 600; color: #334155; cursor: pointer; padding: 5px 8px;">
                     Close
                 </button>
             </div>
         </div>
 
-        <form id="geofenceForm" method="POST" action="{{ route('tracking.geofences.store') }}">
+        <form id="geofenceForm" method="POST" action="{{ route('tracking.geofences.store') }}" style="display: flex; flex-direction: column; margin: 0;">
             @csrf
             <input type="hidden" name="_method" id="formMethod" value="POST">
             <input type="hidden" name="company_id" id="fieldCompanyId" value="{{ $companies->first()?->id }}">
 
-            <!-- 3 Column Main Grid matching Screenshot 1 -->
+            <!-- 3 Column Main Grid matching Screenshot 2 -->
             <div class="geofence-modal-grid">
                 <!-- Column 1: Settings -->
-                <div class="modal-section-card" style="justify-content: space-between;">
-                    <div>
-                        <div class="modal-section-header">
-                            <i class="fa-solid fa-crosshairs" style="color: #ea580c;"></i>
-                            <span>Settings</span>
-                        </div>
-
-                        <!-- Want to add location? -->
-                        <div style="margin-bottom: 14px;">
-                            <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Want to add location?</label>
-                            <select id="locationModeSelect" onchange="handleLocationModeChange()" style="width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 10px; font-size: 12.5px; font-weight: 600; color: #111827;">
-                                <option value="current">Current Location</option>
-                                <option value="away">Away from location</option>
-                            </select>
-                        </div>
-
-                        <!-- Search Location Group (visible when Away is selected) -->
-                        <div id="searchLocationGroup" style="display: none; margin-bottom: 14px; position: relative;">
-                            <label style="display: block; font-size: 12px; font-weight: 700; color: #2563eb; margin-bottom: 4px;">Search Location / Landmark</label>
-                            <input type="text" id="locationSearchInput" placeholder="Type place name (e.g. Surat Textile Market)..." style="width: 100%; border: 1px solid #93c5fd; border-radius: 8px; padding: 7px 10px; font-size: 12px;" oninput="searchLocationQuery(this.value)">
-                            <div id="locationSuggestList" style="position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); max-height: 160px; overflow-y: auto; z-index: 1000; display: none;"></div>
-                        </div>
-
-                        <!-- Geofence Address -->
-                        <div style="margin-bottom: 14px;">
-                            <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Geofence Address</label>
-                            <textarea name="address" id="fieldAddress" rows="3" placeholder="Enter address or landmark..." style="width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 10px; font-size: 12.5px; resize: none;"></textarea>
-                        </div>
-
-                        <!-- Geofence Radius (meters) -->
-                        <div style="margin-bottom: 14px;">
-                            <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">
-                                <i class="fa-regular fa-circle-dot" style="color: #ea580c; border: 1px dashed #ea580c; border-radius: 50%; padding: 1px;"></i> Geofence Radius (meters)
-                            </label>
-                            <input type="number" name="radius" id="fieldRadius" value="100" min="5" max="5000" required style="width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 10px; font-size: 13px; font-weight: 600;">
-                        </div>
-
-                        <input type="hidden" name="latitude" id="fieldLatitude" value="21.148127">
-                        <input type="hidden" name="longitude" id="fieldLongitude" value="72.815560">
+                <div class="modal-section-card">
+                    <div class="modal-section-header">
+                        <i class="fa-solid fa-crosshairs" style="color: #ea580c; font-size: 14px;"></i>
+                        <span>Settings</span>
                     </div>
 
-                    <!-- Bottom Lat/Lng Display matching Screenshot 1 -->
-                    <div style="font-size: 11px; font-weight: 700; color: #64748b; font-family: monospace; border-top: 1px solid #f1f5f9; padding-top: 10px;">
-                        LAT: <span id="dispLat">21.148127</span> | LONG: <span id="dispLng">72.815560</span>
+                    <div class="clean-scrollbar" style="flex: 1; overflow-y: auto; padding-right: 2px; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <!-- Want to add location? -->
+                            <div style="margin-bottom: 12px;">
+                                <div style="font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Want to add location?</div>
+                                <select id="locationModeSelect" class="modal-form-select" onchange="handleLocationModeChange()">
+                                    <option value="current">Current Location</option>
+                                    <option value="away">Away from location</option>
+                                </select>
+                            </div>
+
+                            <!-- Search Location Group (visible when Away is selected) -->
+                            <div id="searchLocationGroup" style="display: none; margin-bottom: 12px; position: relative;">
+                                <div style="font-size: 12px; font-weight: 600; color: #2563eb; margin-bottom: 5px;">Search Location / Landmark</div>
+                                <input type="text" id="locationSearchInput" class="modal-form-input" placeholder="Type place name (e.g. Surat)..." oninput="searchLocationQuery(this.value)">
+                                <div id="locationSuggestList" style="position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); max-height: 160px; overflow-y: auto; z-index: 1000; display: none;"></div>
+                            </div>
+
+                            <!-- Geofence Address -->
+                            <div style="margin-bottom: 12px;">
+                                <div style="font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Geofence Address</div>
+                                <textarea name="address" id="fieldAddress" class="modal-form-textarea" placeholder="Enter address or landmark..."></textarea>
+                            </div>
+
+                            <!-- Geofence Radius (meters) -->
+                            <div style="margin-bottom: 10px;">
+                                <div style="font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px; display: flex; align-items: center; gap: 6px;">
+                                    <i class="fa-regular fa-circle-dot" style="color: #ea580c; border: 1px dashed #ea580c; border-radius: 50%; padding: 1px; font-size: 11px;"></i>
+                                    <span>Geofence Radius (meters)</span>
+                                </div>
+                                <input type="number" name="radius" id="fieldRadius" class="modal-form-input" value="100" min="5" max="5000" required>
+                            </div>
+
+                            <input type="hidden" name="latitude" id="fieldLatitude" value="21.148127">
+                            <input type="hidden" name="longitude" id="fieldLongitude" value="72.815560">
+                        </div>
+
+                        <!-- Bottom Lat/Lng Display matching Screenshot 2 -->
+                        <div style="font-size: 11px; font-weight: 700; color: #334155; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, monospace; border-top: 1px solid #f1f5f9; padding-top: 8px; margin-top: 6px;">
+                            LAT: <span id="dispLat">21.148127</span> | LONG: <span id="dispLng">72.815560</span>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Column 2: Employee Categories (X selected) matching Screenshot 1 -->
+                <!-- Column 2: Employee Categories (X selected) matching Screenshot 2 -->
                 <div class="modal-section-card">
                     <div class="modal-section-header">
-                        <i class="fa-solid fa-id-badge" style="color: #0f172a;"></i>
+                        <i class="fa-solid fa-id-badge" style="color: #0f172a; font-size: 14px;"></i>
                         <span>Employee Categories (<span id="catSelectedCount">0</span> selected)</span>
                     </div>
 
-                    <div style="flex: 1; max-height: 290px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px;">
+                    <div class="clean-scrollbar" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; padding-right: 4px;">
                         @foreach($categories as $cat)
-                            <label style="font-size: 12.5px; font-weight: 600; color: #334155; display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 4px 0;">
+                            <label class="cat-row-label">
                                 <input type="checkbox" name="assigned_categories[]" value="{{ $cat->id }}" class="cat-checkbox" data-cat-id="{{ $cat->id }}" onchange="handleCategoryCheck({{ $cat->id }}, this.checked)">
-                                <span>{{ $cat->name }}</span>
+                                <span class="cat-name-text">{{ $cat->name }}</span>
                             </label>
                         @endforeach
                     </div>
                 </div>
 
-                <!-- Column 3: Select Employees (X selected) matching Screenshot 1 -->
+                <!-- Column 3: Select Employees (X selected) matching Screenshot 2 -->
                 <div class="modal-section-card">
                     <div class="modal-section-header">
-                        <i class="fa-solid fa-crosshairs" style="color: #ea580c;"></i>
+                        <i class="fa-solid fa-crosshairs" style="color: #ea580c; font-size: 14px;"></i>
                         <span>Select Employees (<span id="empSelectedCount">0</span> selected)</span>
                     </div>
 
-                    <!-- Horizontal Category Filter Pills Carousel with arrows -->
-                    <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 8px;">
-                        <button type="button" onclick="scrollCatPills(-1)" style="border:0; background:none; color:#64748b; cursor:pointer; font-size:12px;">&lsaquo;</button>
+                    <!-- Category Filter Carousel with arrows matching Screenshot 2 -->
+                    <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
+                        <button type="button" onclick="scrollCatPills(-1)" style="border:0; background:none; color:#64748b; cursor:pointer; font-size:12px; padding:2px 4px;">&#9664;</button>
                         <div class="category-scroll-pills" id="catPillsContainer">
                             <button type="button" class="cat-pill active" onclick="filterEmployeesByCat('all', this)">All</button>
                             @foreach($categories as $cat)
@@ -387,43 +563,50 @@
                                 @endif
                             @endforeach
                         </div>
-                        <button type="button" onclick="scrollCatPills(1)" style="border:0; background:none; color:#64748b; cursor:pointer; font-size:12px;">&rsaquo;</button>
+                        <button type="button" onclick="scrollCatPills(1)" style="border:0; background:none; color:#64748b; cursor:pointer; font-size:12px; padding:2px 4px;">&#9654;</button>
                     </div>
 
-                    <!-- Search Filter Row -->
-                    <div style="display: flex; gap: 6px; margin-bottom: 10px;">
-                        <div style="flex: 1; position: relative;">
-                            <input type="text" id="empSearchInput" placeholder="Filter employees..." oninput="searchEmployeesInList(this.value)" style="width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 6px 10px; font-size: 12px;">
+                    <!-- Pill Slider Bar matching Screenshot 2 -->
+                    <div style="display: flex; justify-content: center; margin: 2px 0 8px 0;">
+                        <div style="width: 44px; height: 4px; background: #94a3b8; border-radius: 4px;"></div>
+                    </div>
+
+                    <!-- Search Filter + All + Clear row matching Screenshot 2 -->
+                    <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 8px;">
+                        <div style="flex: 1;">
+                            <input type="text" id="empSearchInput" placeholder="Filter employees..." oninput="searchEmployeesInList(this.value)" style="width: 100% !important; border: 1px solid #d1d5db !important; border-radius: 8px !important; padding: 6px 10px !important; font-size: 12px !important; height: 32px !important; outline: none; background: #fff !important;">
                         </div>
-                        <button type="button" class="btn light" onclick="selectAllEmployees(true)" style="padding: 5px 10px; font-size: 11px; font-weight: 700; border-radius: 8px;">All</button>
-                        <button type="button" class="btn light" onclick="selectAllEmployees(false)" style="padding: 5px 10px; font-size: 11px; font-weight: 700; border-radius: 8px;">Clear</button>
+                        <button type="button" class="btn light" onclick="selectAllEmployees(true)" style="padding: 0 12px; height: 32px; font-size: 11.5px; font-weight: 600; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; color: #334155; cursor: pointer;">All</button>
+                        <button type="button" class="btn light" onclick="selectAllEmployees(false)" style="padding: 0 12px; height: 32px; font-size: 11.5px; font-weight: 600; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; color: #334155; cursor: pointer;">Clear</button>
                     </div>
 
-                    <!-- Scrollable Employee Cards List matching Screenshot 1 -->
-                    <div id="empListContainer" style="flex: 1; max-height: 230px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 4px;">
+                    <!-- Scrollable Employee Rows matching Screenshot 2 -->
+                    <div id="empListContainer" class="clean-scrollbar" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; padding-right: 4px;">
                         @foreach($employees as $emp)
                             @php
-                                $badgeClass = in_array(strtolower($emp->role ?? ''), ['admin', 'manager', 'supervisor']) ? 'incharge' : 'staff';
+                                $badgeClass = in_array(strtolower($emp->role ?? ''), ['admin', 'manager', 'supervisor', 'floor incharge']) ? 'incharge' : 'staff';
                                 $badgeText = $emp->role ? strtoupper($emp->role) : 'Staff';
                             @endphp
-                            <div class="emp-item-card emp-card" data-cat-id="{{ $emp->category_id }}" data-emp-name="{{ strtolower($emp->displayName()) }}">
-                                <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; flex: 1;">
+                            <div class="emp-row-card emp-card" data-cat-id="{{ $emp->category_id }}" data-emp-name="{{ strtolower($emp->displayName()) }}">
+                                <label class="emp-row-label">
                                     <input type="checkbox" name="assigned_employees[]" value="{{ $emp->id }}" class="emp-checkbox emp-for-cat-{{ $emp->category_id }}" onchange="updateEmpCount()">
-                                    <div>
-                                        <div style="font-size: 12px; font-weight: 700; color: #1e293b;">{{ $emp->displayName() }}</div>
-                                        <div style="font-size: 11px; color: #64748b;">{{ $emp->category?->name ?? 'Accounts' }}</div>
+                                    <div class="emp-row-info">
+                                        <div class="emp-row-head">
+                                            <span class="emp-name-text">{{ $emp->displayName() }}</span>
+                                            <span class="emp-badge {{ $badgeClass }}">{{ $badgeText }}</span>
+                                        </div>
+                                        <div class="emp-sub-dept">{{ $emp->category?->name ?? 'Staff' }}</div>
                                     </div>
                                 </label>
-                                <span class="emp-badge {{ $badgeClass }}">{{ $badgeText }}</span>
                             </div>
                         @endforeach
                     </div>
                 </div>
             </div>
 
-            <!-- Bottom Center Confirm Location Button matching Screenshot 1 -->
-            <div style="text-align: center; margin-top: 18px;">
-                <button type="submit" style="background: #1f2937; color: #ffffff; border: 0; border-radius: 24px; padding: 10px 32px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: background 0.15s;">
+            <!-- Bottom Center Confirm Location Button matching Screenshot 2 -->
+            <div style="text-align: center; margin-top: 16px; flex-shrink: 0;">
+                <button type="submit" class="modal-btn-confirm">
                     Confirm Location
                 </button>
             </div>

@@ -99,7 +99,7 @@
 </style>
 
 <!-- 1. COMPANY DETAILS (ACCORDION) -->
-<div class="accordion-item active">
+<div class="accordion-item">
     <div class="accordion-header" onclick="toggleAccordion(this)">
         <span><i class="fa-solid fa-building" style="color:var(--accent);margin-right:8px"></i> Company Details & Company Master</span>
         <i class="fa-solid fa-chevron-down chevron"></i>
@@ -464,97 +464,157 @@
     </div>
 </div>
 
-<!-- 6. HOLIDAY LISTING (ACCORDION) -->
+<!-- 6. HOLIDAY LISTING (ACCORDION) MATCHING SCREENSHOT 1 -->
 <div class="accordion-item">
     <div class="accordion-header" onclick="toggleAccordion(this)">
-        <span><i class="fa-solid fa-umbrella-beach" style="color:var(--accent);margin-right:8px"></i> Holiday Listing & Applicable Rules</span>
+        <span><i class="fa-regular fa-calendar-check" style="color:var(--accent);margin-right:8px"></i> Holiday Listing</span>
         <i class="fa-solid fa-chevron-down chevron"></i>
     </div>
     <div class="accordion-body">
-        <form method="post" action="{{ route('settings.holidays.store') }}" style="margin-bottom:18px;background:#f8fafc;padding:16px;border-radius:12px;border:1px solid #e2e8f0">
+        <!-- 2-Column Holiday Cards Grid matching Screenshot 1 -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(360px, 1fr));gap:14px;max-height:420px;overflow-y:auto;padding-right:4px">
+            @forelse($holidays as $hol)
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;transition:box-shadow 0.15s ease">
+                    <div style="display:flex;align-items:center;gap:12px;min-width:0">
+                        <div style="color:#475569;font-size:22px;flex-shrink:0">
+                            <i class="fa-regular fa-calendar"></i>
+                        </div>
+                        <div style="min-width:0">
+                            <div style="font-weight:700;font-size:14px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                {{ $hol->name }}
+                            </div>
+                            <div style="font-size:12px;color:#64748b;margin-top:2px">
+                                {{ $hol->date->format('d M Y') }} ({{ $hol->date->format('l') }})
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+                        <button type="button" class="btn light" onclick="openEditHolidayModal({{ json_encode($hol) }})" style="padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer" title="Edit Holiday">
+                            <i class="fa-solid fa-pencil" style="font-size:13px;color:#475569"></i>
+                        </button>
+                        <form method="post" action="{{ route('settings.holidays.destroy', $hol) }}" style="display:inline;margin:0" onsubmit="return confirm('Delete this holiday?')">
+                            @csrf @method('delete')
+                            <button type="submit" class="btn light" style="padding:6px 10px;border-radius:8px;border:1px solid #fecdd3;background:#fff;cursor:pointer" title="Delete Holiday">
+                                <i class="fa-solid fa-trash-can" style="font-size:13px;color:#991b1b"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            @empty
+                <div style="grid-column:1/-1;text-align:center;padding:30px;color:#94a3b8">
+                    No holidays configured yet. Click <b>Add New Holiday</b> below to create one.
+                </div>
+            @endforelse
+        </div>
+
+        <div style="margin-top:16px">
+            <button type="button" class="btn" onclick="openAddHolidayModal()" style="background:#1e293b;color:#fff;border-radius:10px;padding:9px 20px;font-size:13px;font-weight:700;box-shadow:0 2px 5px rgba(0,0,0,0.15)">
+                Add New Holiday
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Add / Edit Holiday matching Screenshots 2 & 3 -->
+<div id="holidayModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);backdrop-filter:blur(3px);z-index:9999;align-items:center;justify-content:center;padding:16px;box-sizing:border-box">
+    <div style="background:#fff;width:520px;max-width:96vw;max-height:92vh;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,0.2);display:flex;flex-direction:column;overflow:hidden">
+        <!-- Modal Header -->
+        <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+            <h3 id="holidayModalTitle" style="margin:0;font-size:16px;font-weight:700;color:#111827">Add Holiday</h3>
+            <button type="button" onclick="closeHolidayModal()" style="border:0;background:none;font-size:20px;cursor:pointer;color:#64748b;line-height:1">&times;</button>
+        </div>
+
+        <!-- Modal Form Body -->
+        <form id="holidayForm" method="post" action="{{ route('settings.holidays.store') }}" style="padding:18px 20px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px;margin:0">
             @csrf
-            <strong style="display:block;margin-bottom:10px;color:var(--accent)">+ Add New Holiday / Leave</strong>
-            <div class="grid-3" style="margin-bottom:12px">
-                <div><label>Holiday Name *</label><input name="name" placeholder="e.g. Mahavir Jayanti / Diwali" required></div>
-                <div><label>Date *</label><input type="date" name="date" required></div>
-                <div><label>Description</label><input name="description" placeholder="Public or Festival Holiday"></div>
+            <input type="hidden" name="_method" id="holiday_form_method" value="post">
+            <input type="hidden" name="date" id="holiday_date" value="{{ now()->toDateString() }}">
+
+            <!-- 1. Holiday Name -->
+            <div>
+                <label style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:6px">Holiday Name</label>
+                <input name="name" id="holiday_name" placeholder="Enter holiday name" required style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;outline:none;box-sizing:border-box">
             </div>
 
-            <div class="grid-2" style="margin-bottom:12px;background:#fff;padding:12px;border-radius:8px;border:1px solid #cbd5e1">
-                <div>
-                    <label style="font-weight:600;margin-bottom:6px">Select Applicable Companies (Blank = All):</label>
-                    <div style="max-height:120px;overflow-y:auto">
-                        @forelse($companies as $comp)
-                            <label style="font-weight:normal;display:block;margin-bottom:4px">
-                                <input type="checkbox" name="company_ids[]" value="{{ $comp->id }}" checked> {{ $comp->name }}
-                            </label>
-                        @empty
-                            <span class="muted">No companies in master.</span>
-                        @endforelse
+            <!-- 2. Holiday Date (Interactive Calendar matching Screenshots 2 & 3) -->
+            <div>
+                <label style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:6px">Holiday Date</label>
+                <div style="border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;background:#fff">
+                    <!-- Calendar Header (Month Year Nav) -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                        <button type="button" onclick="navigateHolidayCal(-1)" style="border:0;background:none;font-size:16px;color:#64748b;cursor:pointer;padding:4px 8px">&larr;</button>
+                        <strong id="holidayCalTitle" style="font-size:13.5px;color:#1e293b;font-weight:700">October 2026</strong>
+                        <button type="button" onclick="navigateHolidayCal(1)" style="border:0;background:none;font-size:16px;color:#64748b;cursor:pointer;padding:4px 8px">&rarr;</button>
                     </div>
-                </div>
-                <div>
-                    <label style="font-weight:600;margin-bottom:6px">Select Applicable Departments (Blank = All):</label>
-                    <div style="max-height:120px;overflow-y:auto">
-                        @forelse($departments as $dept)
-                            <label style="font-weight:normal;display:block;margin-bottom:4px">
-                                <input type="checkbox" name="department_ids[]" value="{{ $dept->id }}" checked> {{ $dept->name }}
-                            </label>
-                        @empty
-                            <span class="muted">No departments in master.</span>
-                        @endforelse
+                    <!-- Weekdays -->
+                    <div style="display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:11.5px;font-weight:600;color:#64748b;margin-bottom:6px">
+                        <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
+                    </div>
+                    <!-- Days Grid -->
+                    <div id="holidayDaysGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center">
+                        <!-- Populated dynamically via JS -->
                     </div>
                 </div>
             </div>
 
-            <button class="btn"><i class="fa-solid fa-floppy-disk"></i> Save Holiday</button>
+            <!-- 3. Select Categories matching Screenshots 2 & 3 -->
+            <div>
+                <label style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:6px">Select Categories</label>
+                <div style="border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;max-height:130px;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
+                    @forelse($categories as $cat)
+                        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#334155;cursor:pointer;margin:0">
+                            <input type="checkbox" name="category_ids[]" value="{{ $cat->id }}" class="hol-cat-chk" style="width:15px;height:15px;margin:0;accent-color:#1e293b">
+                            <span>{{ $cat->name }}</span>
+                        </label>
+                    @empty
+                        <span class="muted" style="font-size:11.5px">No categories configured.</span>
+                    @endforelse
+                </div>
+            </div>
+
+            <!-- 4. Additional Fields (Applicable Companies & Departments) Preserved as requested -->
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px">
+                <div style="font-size:12px;font-weight:700;color:#475569"><i class="fa-solid fa-sliders"></i> Applicable Rules (Optional)</div>
+                <div class="grid-2" style="gap:10px">
+                    <div>
+                        <label style="font-size:11.5px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">Applicable Companies (Blank = All)</label>
+                        <div style="max-height:85px;overflow-y:auto;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:6px 8px;display:flex;flex-direction:column;gap:4px">
+                            @foreach($companies as $comp)
+                                <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#334155;cursor:pointer;margin:0">
+                                    <input type="checkbox" name="company_ids[]" value="{{ $comp->id }}" class="hol-comp-chk" style="width:13px;height:13px;margin:0">
+                                    <span>{{ $comp->name }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                    </div>
+                    <div>
+                        <label style="font-size:11.5px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">Applicable Departments (Blank = All)</label>
+                        <div style="max-height:85px;overflow-y:auto;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:6px 8px;display:flex;flex-direction:column;gap:4px">
+                            @foreach($departments as $dept)
+                                <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#334155;cursor:pointer;margin:0">
+                                    <input type="checkbox" name="department_ids[]" value="{{ $dept->id }}" class="hol-dept-chk" style="width:13px;height:13px;margin:0">
+                                    <span>{{ $dept->name }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size:11.5px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">Description</label>
+                    <input name="description" id="holiday_description" placeholder="Public or Festival Holiday" style="width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;font-size:12px;background:#fff;box-sizing:border-box">
+                </div>
+            </div>
+
+            <!-- Footer Actions -->
+            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:6px;padding-top:10px;border-top:1px solid #e5e7eb">
+                <button type="button" onclick="closeHolidayModal()" style="border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:8px;padding:7px 18px;font-size:12.5px;font-weight:600;cursor:pointer">
+                    Cancel
+                </button>
+                <button type="submit" id="holidaySubmitBtn" style="background:#1e293b;color:#fff;border:0;border-radius:8px;padding:7px 22px;font-size:12.5px;font-weight:700;cursor:pointer">
+                    Save Holiday
+                </button>
+            </div>
         </form>
-
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Holiday Name</th>
-                    <th>Applicable Companies</th>
-                    <th>Applicable Departments</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($holidays as $hol)
-                    <tr>
-                        <td><b>{{ $hol->date->format('d M Y') }}</b></td>
-                        <td>{{ $hol->name }}</td>
-                        <td>
-                            @if(empty($hol->company_ids))
-                                <span class="chip">All Companies</span>
-                            @else
-                                @foreach($hol->company_ids as $cId)
-                                    <span class="chip" style="background:#e0f2fe;color:#0369a1">{{ \App\Models\Company::find($cId)?->name ?? 'Company #'.$cId }}</span>
-                                @endforeach
-                            @endif
-                        </td>
-                        <td>
-                            @if(empty($hol->department_ids))
-                                <span class="chip">All Departments</span>
-                            @else
-                                @foreach($hol->department_ids as $dId)
-                                    <span class="chip" style="background:#fef3c7;color:#92400e">{{ \App\Models\Department::find($dId)?->name ?? 'Dept #'.$dId }}</span>
-                                @endforeach
-                            @endif
-                        </td>
-                        <td>
-                            <form method="post" action="{{ route('settings.holidays.destroy', $hol) }}" style="display:inline" onsubmit="return confirm('Delete holiday?')">
-                                @csrf @method('delete')
-                                <button class="btn light" style="font-size:11px;padding:3px 6px;color:#dc2626"><i class="fa-solid fa-trash"></i> Delete</button>
-                            </form>
-                        </td>
-                    </tr>
-                @empty
-                    <tr><td colspan="5" class="muted" style="text-align:center">No holidays configured yet.</td></tr>
-                @endforelse
-            </tbody>
-        </table>
     </div>
 </div>
 
@@ -1014,6 +1074,143 @@ function openEditDeptModal(dept) {
 }
 function closeEditDeptModal() {
     document.getElementById('editDeptModal').style.display = 'none';
+}
+
+/* Holiday Modal & Interactive Calendar matching Screenshots 2 & 3 */
+let holidayCalYear = new Date().getFullYear();
+let holidayCalMonth = new Date().getMonth(); // 0-indexed
+let selectedHolidayDateStr = new Date().toISOString().substring(0, 10);
+const monthNamesList = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function renderHolidayCalendar() {
+    const titleEl = document.getElementById('holidayCalTitle');
+    const gridEl = document.getElementById('holidayDaysGrid');
+    if (!titleEl || !gridEl) return;
+
+    titleEl.textContent = monthNamesList[holidayCalMonth] + ' ' + holidayCalYear;
+    gridEl.innerHTML = '';
+
+    const firstDayIndex = new Date(holidayCalYear, holidayCalMonth, 1).getDay(); // 0 = Sunday
+    const daysInMonth = new Date(holidayCalYear, holidayCalMonth + 1, 0).getDate();
+
+    // Leading blanks
+    for (let i = 0; i < firstDayIndex; i++) {
+        const blank = document.createElement('div');
+        gridEl.appendChild(blank);
+    }
+
+    // Days 1..N
+    for (let day = 1; day <= daysInMonth; day++) {
+        const mStr = String(holidayCalMonth + 1).padStart(2, '0');
+        const dStr = String(day).padStart(2, '0');
+        const thisDateStr = `${holidayCalYear}-${mStr}-${dStr}`;
+        const isSelected = (thisDateStr === selectedHolidayDateStr);
+
+        const dayBtn = document.createElement('div');
+        dayBtn.style.padding = '6px 2px';
+        dayBtn.style.fontSize = '12px';
+        dayBtn.style.cursor = 'pointer';
+        dayBtn.style.borderRadius = '6px';
+        dayBtn.style.fontWeight = isSelected ? '800' : '500';
+        dayBtn.style.color = isSelected ? '#ffffff' : '#1e293b';
+        dayBtn.style.background = isSelected ? '#1f2937' : 'transparent';
+        dayBtn.style.transition = 'all 0.15s ease';
+        dayBtn.textContent = day;
+
+        if (!isSelected) {
+            dayBtn.onmouseover = function() { this.style.background = '#f1f5f9'; };
+            dayBtn.onmouseout = function() { this.style.background = 'transparent'; };
+        }
+
+        dayBtn.onclick = function() {
+            selectedHolidayDateStr = thisDateStr;
+            document.getElementById('holiday_date').value = thisDateStr;
+            renderHolidayCalendar();
+        };
+
+        gridEl.appendChild(dayBtn);
+    }
+}
+
+function navigateHolidayCal(direction) {
+    holidayCalMonth += direction;
+    if (holidayCalMonth < 0) {
+        holidayCalMonth = 11;
+        holidayCalYear--;
+    } else if (holidayCalMonth > 11) {
+        holidayCalMonth = 0;
+        holidayCalYear++;
+    }
+    renderHolidayCalendar();
+}
+
+function openAddHolidayModal() {
+    document.getElementById('holidayModalTitle').textContent = 'Add Holiday';
+    document.getElementById('holidaySubmitBtn').textContent = 'Save Holiday';
+    document.getElementById('holidayForm').action = "{{ route('settings.holidays.store') }}";
+    document.getElementById('holiday_form_method').value = 'post';
+
+    document.getElementById('holiday_name').value = '';
+    document.getElementById('holiday_description').value = '';
+
+    const today = new Date();
+    holidayCalYear = today.getFullYear();
+    holidayCalMonth = today.getMonth();
+    selectedHolidayDateStr = today.toISOString().substring(0, 10);
+    document.getElementById('holiday_date').value = selectedHolidayDateStr;
+
+    document.querySelectorAll('.hol-cat-chk').forEach(c => c.checked = false);
+    document.querySelectorAll('.hol-comp-chk').forEach(c => c.checked = true);
+    document.querySelectorAll('.hol-dept-chk').forEach(c => c.checked = true);
+
+    renderHolidayCalendar();
+    document.getElementById('holidayModal').style.display = 'flex';
+}
+
+function openEditHolidayModal(hol) {
+    document.getElementById('holidayModalTitle').textContent = 'Edit Holiday';
+    document.getElementById('holidaySubmitBtn').textContent = 'Update Holiday';
+    document.getElementById('holidayForm').action = "/settings/holidays/" + hol.id;
+    document.getElementById('holiday_form_method').value = 'put';
+
+    document.getElementById('holiday_name').value = hol.name || '';
+    document.getElementById('holiday_description').value = hol.description || '';
+
+    // Date setup
+    const dateStr = (hol.date || '').substring(0, 10);
+    selectedHolidayDateStr = dateStr;
+    document.getElementById('holiday_date').value = dateStr;
+
+    if (dateStr) {
+        const parts = dateStr.split('-');
+        holidayCalYear = parseInt(parts[0], 10);
+        holidayCalMonth = parseInt(parts[1], 10) - 1;
+    }
+
+    // Check categories
+    const catIds = Array.isArray(hol.category_ids) ? hol.category_ids : [];
+    document.querySelectorAll('.hol-cat-chk').forEach(c => {
+        c.checked = catIds.includes(parseInt(c.value)) || catIds.includes(String(c.value));
+    });
+
+    // Check companies
+    const compIds = Array.isArray(hol.company_ids) ? hol.company_ids : [];
+    document.querySelectorAll('.hol-comp-chk').forEach(c => {
+        c.checked = compIds.length === 0 || compIds.includes(parseInt(c.value)) || compIds.includes(String(c.value));
+    });
+
+    // Check departments
+    const deptIds = Array.isArray(hol.department_ids) ? hol.department_ids : [];
+    document.querySelectorAll('.hol-dept-chk').forEach(c => {
+        c.checked = deptIds.length === 0 || deptIds.includes(parseInt(c.value)) || deptIds.includes(String(c.value));
+    });
+
+    renderHolidayCalendar();
+    document.getElementById('holidayModal').style.display = 'flex';
+}
+
+function closeHolidayModal() {
+    document.getElementById('holidayModal').style.display = 'none';
 }
 </script>
 @endsection

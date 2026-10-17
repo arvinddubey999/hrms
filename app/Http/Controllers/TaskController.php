@@ -6,7 +6,9 @@ use App\Models\Category;
 use App\Models\Company;
 use App\Models\Department;
 use App\Models\Task;
+use App\Models\TaskAttachment;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -29,9 +31,11 @@ class TaskController extends Controller
         $userId = $request->get('user_id');
         $dateFilter = $request->get('date_filter'); // overdue, today, future
         $viewMode = $request->get('view_mode'); // 'user_wise' or null
+        $sortBy = $request->get('sort_by', 'deadline');
+        $sortDir = strtolower($request->get('sort_dir', 'asc')) === 'desc' ? 'desc' : 'asc';
 
         $query = $this->getFilteredTasksQuery($request);
-        $items = $query->paginate(20);
+        $items = $query->paginate(20)->withQueryString();
 
         // In user_wise mode, group tasks by assignee
         $userWiseGroups = null;
@@ -79,6 +83,8 @@ class TaskController extends Controller
             'userId' => $userId,
             'dateFilter' => $dateFilter,
             'viewMode' => $viewMode,
+            'sortBy' => $sortBy,
+            'sortDir' => $sortDir,
             'userWiseGroups' => $userWiseGroups,
             'employees' => $companyEmployees,
             'departments' => Department::orderBy('name')->get(),
@@ -107,17 +113,24 @@ class TaskController extends Controller
             'assigned_to' => 'nullable|exists:users,id',
             'others' => 'nullable|array',
             'assignee_ids' => 'nullable|array',
-            'attachment_file' => 'nullable|file|max:10240',
+            'attachment_file' => 'nullable|file|max:15360',
+            'attachment_files' => 'nullable|array',
+            'attachment_files.*' => 'nullable|file|max:15360',
         ]);
 
         $others = $data['others'] ?? [];
         $assigneeIds = $data['assignee_ids'] ?? [];
-        unset($data['others'], $data['assignee_ids'], $data['attachment_file']);
+        unset($data['others'], $data['assignee_ids'], $data['attachment_file'], $data['attachment_files']);
 
         $data['created_by'] = $request->user()->id;
         $data['repeat_type'] = $data['repeat_type'] ?? 'none';
 
-        if ($request->hasFile('attachment_file')) {
+        if ($request->hasFile('attachment_files')) {
+            $first = $request->file('attachment_files')[0] ?? null;
+            if ($first) {
+                $data['attachment'] = $first->store('task_attachments', 'public');
+            }
+        } elseif ($request->hasFile('attachment_file')) {
             $data['attachment'] = $request->file('attachment_file')->store('task_attachments', 'public');
         }
 
@@ -133,8 +146,17 @@ class TaskController extends Controller
             $task->assignees()->sync([$task->assigned_to]);
         }
 
-        // Store attachment in task_attachments table if uploaded
-        if (!empty($data['attachment'])) {
+        // Store attachments in task_attachments table if uploaded
+        if ($request->hasFile('attachment_files')) {
+            foreach ($request->file('attachment_files') as $file) {
+                $p = $file->store('task_attachments', 'public');
+                $task->attachments()->create([
+                    'user_id' => $request->user()->id,
+                    'file_path' => $p,
+                    'file_name' => $file->getClientOriginalName(),
+                ]);
+            }
+        } elseif ($request->hasFile('attachment_file')) {
             $task->attachments()->create([
                 'user_id' => $request->user()->id,
                 'file_path' => $data['attachment'],
@@ -328,7 +350,107 @@ class TaskController extends Controller
 
         $task->logHistory('status_updated', "Status updated from '{$oldLabel}' to '{$newLabel}' by " . $u->displayName(), $u->id);
 
+        // Repeat Task Option: When task is closed (completed) and repeat_type is active, spawn next recurrence
+        if ($data['status'] === 'completed' && !empty($task->repeat_type) && $task->repeat_type !== 'none') {
+            $baseDate = $task->due_date ? Carbon::parse($task->due_date) : now('Asia/Kolkata');
+            $nextDate = match($task->repeat_type) {
+                'daily' => $baseDate->copy()->addDay(),
+                'weekly' => $baseDate->copy()->addWeek(),
+                'monthly' => $baseDate->copy()->addMonth(),
+                'quarterly' => $baseDate->copy()->addMonths(3),
+                'half_yearly' => $baseDate->copy()->addMonths(6),
+                'yearly' => $baseDate->copy()->addYear(),
+                default => null,
+            };
+
+            if ($nextDate) {
+                $newTask = Task::create([
+                    'title' => $task->title,
+                    'description' => $task->description,
+                    'client' => $task->client,
+                    'status' => 'pending',
+                    'priority' => $task->priority,
+                    'is_pinned' => false,
+                    'due_date' => $nextDate->toDateString(),
+                    'due_time' => $task->due_time,
+                    'repeat_type' => $task->repeat_type,
+                    'department_id' => $task->department_id,
+                    'assigned_to' => $task->assigned_to,
+                    'created_by' => $task->created_by,
+                ]);
+
+                if ($task->assignees()->exists()) {
+                    $newTask->assignees()->sync($task->assignees->pluck('id'));
+                }
+                if ($task->others()->exists()) {
+                    $newTask->others()->sync($task->others->pluck('id'));
+                }
+
+                $newTask->logHistory('created', "Auto-created next recurring task ({$task->repeat_type}) for due date " . $nextDate->format('d M Y') . " because Task #{$task->id} was completed.", $u->id);
+
+                return back()->with('ok', "Task status updated to '{$newLabel}'. Next recurring task for {$nextDate->format('d M Y')} has been automatically created!");
+            }
+        }
+
         return back()->with('ok', "Task status updated to '{$newLabel}' successfully.");
+    }
+
+    public function togglePin(Request $request, Task $task)
+    {
+        $task->update(['is_pinned' => !$task->is_pinned]);
+        $state = $task->is_pinned ? 'pinned to top' : 'unpinned';
+        $task->logHistory('pinned', "Task {$state} by " . $request->user()->displayName(), $request->user()->id);
+        return back()->with('ok', "Task {$state} successfully.");
+    }
+
+    public function reopen(Request $request, Task $task)
+    {
+        $u = $request->user();
+        $data = $request->validate([
+            'due_date' => 'nullable|date',
+            'due_time' => 'nullable|string',
+            'remarks' => 'nullable|string',
+        ]);
+
+        $updateData = ['status' => 'in_progress'];
+        if (!empty($data['due_date'])) {
+            $updateData['due_date'] = $data['due_date'];
+        }
+        if (!empty($data['due_time'])) {
+            $updateData['due_time'] = $data['due_time'];
+        }
+
+        $task->update($updateData);
+
+        $msg = "Task re-opened by " . $u->displayName();
+        if (!empty($data['due_date'])) {
+            $msg .= " with new deadline " . Carbon::parse($data['due_date'])->format('d M Y');
+            if (!empty($data['due_time'])) {
+                $msg .= " " . $data['due_time'];
+            }
+        }
+        if (!empty($data['remarks'])) {
+            $msg .= ". Note: " . $data['remarks'];
+        }
+
+        $task->logHistory('reopened', $msg, $u->id);
+
+        return back()->with('ok', 'Task re-opened successfully with updated deadline.');
+    }
+
+    public function exportRepliesPdf(Task $task)
+    {
+        $task->load(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments.user', 'histories.user']);
+        return view('tasks.replies-pdf', compact('task'));
+    }
+
+    public function deleteAttachment(TaskAttachment $attachment)
+    {
+        if ($attachment->file_path) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($attachment->file_path);
+        }
+        $attachment->delete();
+        return back()->with('ok', 'Attachment removed successfully.');
     }
 
     public function remind(Request $request, Task $task)
@@ -458,7 +580,10 @@ class TaskController extends Controller
         $userId = $request->get('user_id');
         $dateFilter = $request->get('date_filter'); // overdue, today, future
 
-        return Task::query()
+        $sortBy = $request->get('sort_by', 'deadline');
+        $sortDir = strtolower($request->get('sort_dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+
+        $query = Task::query()
             ->with(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])
             ->when(!$u || !$u->isAdmin(), function ($q) use ($u) {
                 if (!$u) return;
@@ -482,6 +607,19 @@ class TaskController extends Controller
                     ->orWhere('description', 'like', "%{$q}%")
                     ->orWhere('client', 'like', "%{$q}%");
             }))
-            ->latest();
+            ->orderByDesc('is_pinned');
+
+        if ($sortBy === 'deadline') {
+            if ($sortDir === 'desc') {
+                $query->orderByRaw('due_date IS NULL, due_date DESC, id DESC');
+            } else {
+                // ASC: nearest upcoming deadline first, tasks 2 months away are not on top
+                $query->orderByRaw('due_date IS NULL, due_date ASC, id DESC');
+            }
+        } else {
+            $query->latest();
+        }
+
+        return $query;
     }
 }

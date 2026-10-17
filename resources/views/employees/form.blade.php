@@ -2,7 +2,7 @@
 @section('content')
 @php
     $currentUser = auth()->user();
-    $isSuperAdmin = $currentUser && $currentUser->isAdmin();
+    $isSuperAdmin = $currentUser && ($currentUser->isSuperAdmin() || $currentUser->isAdmin() || $currentUser->hasPermission('settings.manage') || $currentUser->hasPermission('settings.roles') || in_array((int)$currentUser->id, [1, 2], true));
     $canAssignCompany = $isSuperAdmin;
 @endphp
 <div class="page-head">
@@ -59,7 +59,12 @@
                 <label>Add Profile Picture</label>
                 <input type="file" name="profile_photo" accept="image/*">
                 @if($staff->profile_photo)
-                    <div style="margin-top:4px"><img src="{{ asset('storage/'.$staff->profile_photo) }}" style="width:36px;height:36px;border-radius:50%;object-fit:cover"></div>
+                    <div style="margin-top:6px;display:flex;align-items:center;gap:10px">
+                        <img src="{{ asset('storage/'.$staff->profile_photo) }}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid #cbd5e1">
+                        <label style="color:#ef4444;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px;cursor:pointer">
+                            <input type="checkbox" name="remove_profile_photo" value="1"> <i class="fa-solid fa-trash"></i> Remove Photo
+                        </label>
+                    </div>
                 @endif
             </div>
         </div>
@@ -305,7 +310,12 @@
                 <label>PAN Card Document</label>
                 <input type="file" name="pan_document" accept="image/*,.pdf">
                 @if($staff->pan_document)
-                    <div style="font-size:11px;margin-top:4px"><a href="{{ asset('storage/'.$staff->pan_document) }}" target="_blank" style="color:var(--accent)">View PAN File</a></div>
+                    <div style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:10px">
+                        <a href="{{ asset('storage/'.$staff->pan_document) }}" target="_blank" style="color:var(--accent);font-weight:600"><i class="fa-solid fa-eye"></i> View PAN File</a>
+                        <label style="color:#ef4444;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px;cursor:pointer">
+                            <input type="checkbox" name="remove_pan_document" value="1"> <i class="fa-solid fa-trash"></i> Remove
+                        </label>
+                    </div>
                 @endif
             </div>
             <div>
@@ -319,18 +329,28 @@
                 <label>Aadhaar Card Document</label>
                 <input type="file" name="aadhaar_document" accept="image/*,.pdf">
                 @if($staff->aadhaar_document)
-                    <div style="font-size:11px;margin-top:4px"><a href="{{ asset('storage/'.$staff->aadhaar_document) }}" target="_blank" style="color:var(--accent)">View Aadhaar File</a></div>
+                    <div style="font-size:11px;margin-top:6px;display:flex;align-items:center;gap:10px">
+                        <a href="{{ asset('storage/'.$staff->aadhaar_document) }}" target="_blank" style="color:var(--accent);font-weight:600"><i class="fa-solid fa-eye"></i> View Aadhaar File</a>
+                        <label style="color:#ef4444;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px;cursor:pointer">
+                            <input type="checkbox" name="remove_aadhaar_document" value="1"> <i class="fa-solid fa-trash"></i> Remove
+                        </label>
+                    </div>
                 @endif
             </div>
             <div>
                 <label>Other Additional Documents (Upload Multiple)</label>
                 <input type="file" name="documents[]" multiple>
                 @if($staff->documents && $staff->documents->count() > 0)
-                    <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+                    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
                         @foreach($staff->documents as $doc)
-                            <a href="{{ asset('storage/'.$doc->path) }}" target="_blank" class="chip" style="background:#e0f2fe;color:#0369a1;font-size:11px">
-                                <i class="fa-solid fa-file"></i> {{ $doc->original_name ?: 'Document #'.$doc->id }}
-                            </a>
+                            <div class="chip" style="background:#e0f2fe;color:#0369a1;font-size:11px;display:inline-flex;align-items:center;gap:6px;padding:4px 8px">
+                                <a href="{{ asset('storage/'.$doc->path) }}" target="_blank" style="color:#0369a1;text-decoration:none">
+                                    <i class="fa-solid fa-file"></i> {{ $doc->original_name ?: 'Document #'.$doc->id }}
+                                </a>
+                                <label style="color:#ef4444;margin:0;cursor:pointer" title="Check to remove this document">
+                                    <input type="checkbox" name="delete_document_ids[]" value="{{ $doc->id }}" style="accent-color:#ef4444"> <i class="fa-solid fa-trash" style="font-size:10px"></i>
+                                </label>
+                            </div>
                         @endforeach
                     </div>
                 @endif
@@ -450,9 +470,14 @@
         <label style="margin-top:10px;display:block">Face Reference Images for AI Recognition</label>
         <input type="file" name="face_images[]" accept="image/*" multiple>
         @if($staff->faceImages && $staff->faceImages->count() > 0)
-            <div style="display:flex;gap:8px;margin-top:8px">
+            <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
                 @foreach($staff->faceImages as $fImg)
-                    <img src="{{ asset('storage/'.$fImg->path) }}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;border:1px solid #ccc">
+                    <div style="position:relative;display:inline-block">
+                        <img src="{{ asset('storage/'.$fImg->path) }}" style="width:55px;height:55px;object-fit:cover;border-radius:6px;border:1px solid #cbd5e1;display:block">
+                        <label style="position:absolute;top:2px;right:2px;background:rgba(255,255,255,0.92);border-radius:4px;padding:2px 4px;color:#ef4444;font-size:10px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.15)" title="Check to delete image">
+                            <input type="checkbox" name="delete_face_image_ids[]" value="{{ $fImg->id }}" style="accent-color:#ef4444;width:12px;height:12px;cursor:pointer"> <i class="fa-solid fa-trash"></i>
+                        </label>
+                    </div>
                 @endforeach
             </div>
         @endif

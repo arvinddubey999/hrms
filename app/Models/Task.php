@@ -13,6 +13,7 @@ class Task extends Model
 
     protected $casts = [
         'due_date' => 'date',
+        'is_pinned' => 'boolean',
     ];
 
     public function department(): BelongsTo

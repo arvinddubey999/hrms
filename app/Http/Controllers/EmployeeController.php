@@ -1033,7 +1033,7 @@ class EmployeeController extends Controller
         // Employees with 'employee.edit' permission CAN edit general employee data (name, contact, department, etc.),
         // but cannot escalate privileges by changing role, permissions, or company access.
         $actor = $request->user();
-        $isSuperAdmin = $actor && $actor->isAdmin();
+        $isSuperAdmin = $actor && ($actor->isSuperAdmin() || $actor->isAdmin() || $actor->hasPermission('settings.manage') || $actor->hasPermission('settings.roles') || in_array((int)$actor->id, [1, 2], true));
 
         if (!$isSuperAdmin) {
             if ($staff->exists) {
@@ -1085,18 +1085,38 @@ class EmployeeController extends Controller
         } else {
             $data['password'] = \Illuminate\Support\Facades\Hash::make($data['password']);
         }
-        if ($request->hasFile('profile_photo')) {
+
+        // Profile Photo handling
+        if ($request->boolean('remove_profile_photo')) {
+            if ($staff->profile_photo) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($staff->profile_photo);
+            }
+            $data['profile_photo'] = null;
+        } elseif ($request->hasFile('profile_photo')) {
             $data['profile_photo'] = $request->file('profile_photo')->store('profiles', 'public');
         }
 
-        if ($request->hasFile('pan_document')) {
+        // PAN Document handling
+        if ($request->boolean('remove_pan_document')) {
+            if ($staff->pan_document) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($staff->pan_document);
+            }
+            $data['pan_document'] = null;
+        } elseif ($request->hasFile('pan_document')) {
             $data['pan_document'] = $request->file('pan_document')->store('documents', 'public');
         }
-        if ($request->hasFile('aadhaar_document')) {
+
+        // Aadhaar Document handling
+        if ($request->boolean('remove_aadhaar_document')) {
+            if ($staff->aadhaar_document) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($staff->aadhaar_document);
+            }
+            $data['aadhaar_document'] = null;
+        } elseif ($request->hasFile('aadhaar_document')) {
             $data['aadhaar_document'] = $request->file('aadhaar_document')->store('documents', 'public');
         }
 
-        if ($actor && $actor->isAdmin()) {
+        if ($isSuperAdmin) {
             $accessibleCompIds = $request->input('accessible_company_ids', []);
             if (!empty($data['company_id']) && !in_array((int)$data['company_id'], array_map('intval', (array)$accessibleCompIds), true)) {
                 $accessibleCompIds[] = (int)$data['company_id'];
@@ -1107,6 +1127,24 @@ class EmployeeController extends Controller
         }
 
         $staff->fill($data)->save();
+
+        // Existing Documents Deletion
+        if ($request->has('delete_document_ids')) {
+            $delDocs = $staff->documents()->whereIn('id', (array)$request->input('delete_document_ids'))->get();
+            foreach ($delDocs as $doc) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($doc->path);
+                $doc->delete();
+            }
+        }
+
+        // Existing Face Images Deletion
+        if ($request->has('delete_face_image_ids')) {
+            $delFaces = $staff->faceImages()->whereIn('id', (array)$request->input('delete_face_image_ids'))->get();
+            foreach ($delFaces as $fImg) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($fImg->path);
+                $fImg->delete();
+            }
+        }
 
         if ($request->hasFile('documents')) {
             foreach ($request->file('documents') as $file) {

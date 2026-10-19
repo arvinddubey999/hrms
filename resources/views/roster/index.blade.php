@@ -10,13 +10,18 @@
 
 <div class="card" style="margin-bottom:14px;padding:12px 18px">
     <form method="get" class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
-        @if($companies->count() > 0)
+        @if($companies->count() > 1 || (auth()->user() && auth()->user()->isSuperAdmin()))
         <select name="company_id" onchange="this.form.submit()" style="width:160px">
             <option value="">All Companies</option>
             @foreach($companies as $comp)
                 <option value="{{ $comp->id }}" {{ $companyId==$comp->id?'selected':'' }}>{{ $comp->name }}</option>
             @endforeach
         </select>
+        @elseif($companies->count() === 1)
+        <input type="hidden" name="company_id" value="{{ $companies->first()->id }}">
+        <div style="background:#e0f2fe;color:#0369a1;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px">
+            <i class="fa-solid fa-building"></i> {{ $companies->first()->name }}
+        </div>
         @endif
 
         <select name="department_id" onchange="this.form.submit()" style="width:160px">

@@ -66,7 +66,7 @@ class User extends Authenticatable
     public function isSuperAdmin(): bool
     {
         $role = strtolower(trim($this->role ?? ''));
-        if (in_array($role, ['super admin', 'superadmin', 'super_admin', 'admin'], true) || in_array((int)$this->id, [1, 2], true)) {
+        if (in_array($role, ['super admin', 'superadmin', 'super_admin'], true) || in_array((int)$this->id, [1, 2], true)) {
             return true;
         }
         return false;

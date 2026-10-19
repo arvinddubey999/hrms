@@ -23,13 +23,14 @@ class TaskController extends Controller
         }
 
         // By default cursor / active view should be on 'pending' unless explicitly requested
-        $status = $request->has('status') ? $request->get('status') : 'pending';
+        // When date_filter is overdue, default to 'all' so all overdue tasks (pending + in_progress) display
+        $dateFilter = $request->get('date_filter'); // overdue, today, future
+        $status = $request->has('status') ? $request->get('status') : ($dateFilter === 'overdue' ? 'all' : 'pending');
         $priority = $request->get('priority');
         $q = $request->get('q');
         $departmentId = $request->get('department_id');
         $companyId = $request->get('company_id');
         $userId = $request->get('user_id');
-        $dateFilter = $request->get('date_filter'); // overdue, today, future
         $viewMode = $request->get('view_mode'); // 'user_wise' or null
         $sortBy = $request->get('sort_by', 'deadline');
         $sortDir = strtolower($request->get('sort_dir', 'asc')) === 'desc' ? 'desc' : 'asc';
@@ -67,7 +68,7 @@ class TaskController extends Controller
         // Ensure all active employees of the company are included for task creation
         $compIds = $u->accessibleCompanyIds();
         $companyEmployeesQuery = User::where('status', 'active');
-        if (!$u->isAdmin() && !empty($compIds)) {
+        if (!$u->isSuperAdmin() && !empty($compIds)) {
             $companyEmployeesQuery->whereIn('company_id', $compIds);
         }
         $companyEmployees = $companyEmployeesQuery->orderBy('first_name')->get();
@@ -88,7 +89,7 @@ class TaskController extends Controller
             'userWiseGroups' => $userWiseGroups,
             'employees' => $companyEmployees,
             'departments' => Department::orderBy('name')->get(),
-            'companies' => (!$u->isAdmin() && !empty($u->accessibleCompanyIds())) ? Company::whereIn('id', $u->accessibleCompanyIds())->orderBy('name')->get() : Company::orderBy('name')->get(),
+            'companies' => (!$u->isSuperAdmin() && !empty($u->accessibleCompanyIds())) ? Company::whereIn('id', $u->accessibleCompanyIds())->orderBy('name')->get() : Company::orderBy('name')->get(),
             'categories' => Category::orderBy('name')->get(),
             'allTasksForCalendar' => (clone $baseCountQuery)->with(['assignee'])->select(['id', 'title', 'due_date', 'due_time', 'priority', 'status', 'assigned_to'])->get(),
         ]);
@@ -135,15 +136,21 @@ class TaskController extends Controller
         }
 
         $task = Task::query()->create($data);
-        $task->others()->sync($others);
 
-        if (!empty($assigneeIds)) {
-            $task->assignees()->sync($assigneeIds);
+        // Consolidate primary assigned_to, assignee_ids, and others so all assignees are saved without conflict
+        $allAssignedIds = array_filter(array_unique(array_merge(
+            !empty($task->assigned_to) ? [(int)$task->assigned_to] : [],
+            array_map('intval', (array)$assigneeIds),
+            array_map('intval', (array)$others)
+        )));
+
+        if (!empty($allAssignedIds)) {
+            $task->assignees()->sync($allAssignedIds);
             if (empty($task->assigned_to)) {
-                $task->update(['assigned_to' => $assigneeIds[0]]);
+                $task->update(['assigned_to' => $allAssignedIds[0]]);
             }
         } elseif (!empty($task->assigned_to)) {
-            $task->assignees()->sync([$task->assigned_to]);
+            $task->assignees()->sync([(int)$task->assigned_to]);
         }
 
         // Store attachments in task_attachments table if uploaded
@@ -168,17 +175,22 @@ class TaskController extends Controller
         $task->logHistory('created', 'Task created and assigned', $request->user()->id);
 
         // Notify assigned employees via FCM Push & Email
-        $notifyUsers = User::whereIn('id', array_filter(array_merge([$task->assigned_to], $assigneeIds)))->get();
+        $targetUserIds = array_filter(array_unique(array_merge([$task->assigned_to], $allAssignedIds)));
+        $notifyUsers = User::whereIn('id', $targetUserIds)->get();
         foreach ($notifyUsers as $user) {
+            // 1. FCM Push Notification
             \App\Services\FirebaseNotificationService::sendTaskNotification(
                 $user,
                 'New Task Assigned: ' . $task->title,
                 'You have been assigned a new task due on ' . ($task->due_date ? $task->due_date->format('d M Y') : 'N/A'),
                 $task->id
             );
+
+            // 2. Email Notification
+            \App\Services\MailService::sendTaskAssignedMail($user, $task, $request->user());
         }
 
-        return back()->with('ok', 'Task created successfully and notifications dispatched.');
+        return back()->with('ok', 'Task created successfully and notifications dispatched via Push & Email.');
     }
 
     public function show(Task $task)
@@ -227,10 +239,15 @@ class TaskController extends Controller
 
         $oldStatus = $task->status;
         $task->update($data);
-        $task->others()->sync($others);
 
-        if (!empty($assigneeIds)) {
-            $task->assignees()->sync($assigneeIds);
+        $allAssignedIds = array_filter(array_unique(array_merge(
+            !empty($task->assigned_to) ? [(int)$task->assigned_to] : [],
+            array_map('intval', (array)$assigneeIds),
+            array_map('intval', (array)$others)
+        )));
+
+        if (!empty($allAssignedIds)) {
+            $task->assignees()->sync($allAssignedIds);
         }
 
         if ($oldStatus !== $task->status) {
@@ -455,27 +472,32 @@ class TaskController extends Controller
 
     public function remind(Request $request, Task $task)
     {
-        $assignees = $task->assignees;
-        if ($task->assignee) {
-            $assignees->push($task->assignee);
-        }
-        $assignees = $assignees->unique('id');
+        $assigneeUserIds = array_filter(array_unique(array_merge(
+            !empty($task->assigned_to) ? [(int)$task->assigned_to] : [],
+            $task->assignees()->pluck('users.id')->toArray(),
+            $task->others()->pluck('users.id')->toArray()
+        )));
+        $assignees = User::whereIn('id', $assigneeUserIds)->get();
 
         $senderName = $request->user()->displayName();
         $msg = "Reminder from {$senderName}: Please update progress on task '{$task->title}'";
 
         foreach ($assignees as $user) {
+            // 1. FCM Push Notification
             \App\Services\FirebaseNotificationService::sendTaskNotification(
                 $user,
                 'Task Reminder: ' . $task->title,
                 $msg,
                 $task->id
             );
+
+            // 2. Email Reminder
+            \App\Services\MailService::sendTaskReminderMail($user, $task, $request->user());
         }
 
-        $task->logHistory('reminded', "Reminder notification sent by {$senderName}", $request->user()->id);
+        $task->logHistory('reminded', "Reminder notification and email sent by {$senderName}", $request->user()->id);
 
-        return back()->with('ok', 'Reminder notification sent to assigned team members.');
+        return back()->with('ok', 'Reminder notification and email sent to assigned team members.');
     }
 
     public function uploadAttachment(Request $request, Task $task)
@@ -498,11 +520,21 @@ class TaskController extends Controller
         return back()->with('ok', 'Attachment uploaded.');
     }
 
-    public function destroy(Task $task)
+    public function destroy(Request $request, Task $task)
     {
+        $u = $request->user();
+        if (!$u) {
+            return redirect()->route('login');
+        }
+
+        // Only the creator who created this task (or Super Admin) can delete it
+        if ((int)$task->created_by !== (int)$u->id && !$u->isSuperAdmin()) {
+            return back()->with('error', 'Only the creator who created this task can delete it. Other employees cannot delete the task.');
+        }
+
         $task->delete();
 
-        return redirect()->route('tasks.index')->with('ok', 'Task deleted.');
+        return redirect()->route('tasks.index')->with('ok', 'Task deleted successfully.');
     }
 
     public function exportExcel(Request $request)
@@ -571,14 +603,14 @@ class TaskController extends Controller
     {
         $u = $request->user();
 
-        // By default, status is 'pending' unless explicitly requested
-        $status = $request->has('status') ? $request->get('status') : 'pending';
+        $dateFilter = $request->get('date_filter'); // overdue, today, future
+        // When filtering by overdue without explicit status, default to 'all' so all overdue tasks show
+        $status = $request->has('status') ? $request->get('status') : ($dateFilter === 'overdue' ? 'all' : 'pending');
         $priority = $request->get('priority');
         $q = $request->get('q');
         $departmentId = $request->get('department_id');
         $companyId = $request->get('company_id');
         $userId = $request->get('user_id');
-        $dateFilter = $request->get('date_filter'); // overdue, today, future
 
         $sortBy = $request->get('sort_by', 'deadline');
         $sortDir = strtolower($request->get('sort_dir', 'asc')) === 'desc' ? 'desc' : 'asc';

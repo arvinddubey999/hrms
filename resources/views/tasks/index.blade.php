@@ -22,9 +22,9 @@
 
 <!-- COMPREHENSIVE FILTER BAR (Matching User, Company, Department, Overdue, Future Dated requirement) -->
 <div class="card" style="padding:14px;margin-bottom:16px">
-    <form method="get" class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
+    <form method="get" id="taskFilterForm" class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
         <div style="position:relative;flex:1;min-width:240px">
-            <input type="text" name="q" id="taskSearchInput" value="{{ $q }}" placeholder="Search by title, desc, client..." style="width:100%;padding-right:85px" autocomplete="off">
+            <input type="text" name="q" id="taskSearchInput" value="{{ $q }}" oninput="debounceTaskSearch(this)" placeholder="Search by title, desc, client..." style="width:100%;padding-right:85px" autocomplete="off">
             <button type="submit" class="btn" style="position:absolute;right:3px;top:50%;transform:translateY(-50%);padding:6px 12px;font-size:12px;display:flex;align-items:center;gap:4px;border-radius:6px" title="Search">
                 <i class="fa-solid fa-magnifying-glass"></i> Search
             </button>
@@ -71,11 +71,11 @@
 
 <!-- STATUS BADGE TABS -->
 <div class="tabs" style="margin-bottom:14px;flex-wrap:wrap">
-    <a class="{{ $status==='all' && !$viewMode ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'all', 'view_mode'=>null])) }}">All ({{ $counts['all'] }})</a>
-    <a class="{{ $status==='pending' && !$viewMode ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'pending', 'view_mode'=>null])) }}">Pending ({{ $counts['pending'] }})</a>
-    <a class="{{ $status==='in_progress' && !$viewMode ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'in_progress', 'view_mode'=>null])) }}">In Progress ({{ $counts['in_progress'] }})</a>
-    <a class="{{ $status==='completed' && !$viewMode ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'completed', 'view_mode'=>null])) }}">Completed ({{ $counts['completed'] }})</a>
-    <a class="{{ $dateFilter==='overdue' && !$viewMode ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['date_filter'=>'overdue', 'view_mode'=>null])) }}" style="color:#dc2626">Overdue ({{ $counts['overdue'] }})</a>
+    <a class="{{ $status==='all' && !$viewMode && $dateFilter!=='overdue' ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'all', 'date_filter'=>null, 'view_mode'=>null])) }}">All ({{ $counts['all'] }})</a>
+    <a class="{{ $status==='pending' && !$viewMode && $dateFilter!=='overdue' ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'pending', 'date_filter'=>null, 'view_mode'=>null])) }}">Pending ({{ $counts['pending'] }})</a>
+    <a class="{{ $status==='in_progress' && !$viewMode && $dateFilter!=='overdue' ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'in_progress', 'date_filter'=>null, 'view_mode'=>null])) }}">In Progress ({{ $counts['in_progress'] }})</a>
+    <a class="{{ $status==='completed' && !$viewMode && $dateFilter!=='overdue' ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'completed', 'date_filter'=>null, 'view_mode'=>null])) }}">Completed ({{ $counts['completed'] }})</a>
+    <a class="{{ $dateFilter==='overdue' && !$viewMode ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['date_filter'=>'overdue', 'status'=>'all', 'view_mode'=>null])) }}" style="color:#dc2626">Overdue ({{ $counts['overdue'] }})</a>
     <a class="{{ $viewMode==='user_wise' ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['view_mode'=>'user_wise'])) }}" style="color:#4f46e5;font-weight:700"><i class="fa-solid fa-users"></i> User Wise</a>
 </div>
 
@@ -445,7 +445,7 @@
             <div class="grid-2" style="margin-bottom:12px">
                 <div>
                     <label>Department *</label>
-                    <select name="department_id" id="newTaskDeptSelect" onchange="filterEmployeesByDept(this.value)">
+                    <select name="department_id" id="newTaskDeptSelect" onchange="filterEmployeesByDept(this.value)" required>
                         <option value="">Select Department</option>
                         @foreach($departments as $dept)
                             <option value="{{ $dept->id }}">{{ $dept->name }}</option>
@@ -454,45 +454,12 @@
                 </div>
                 <div>
                     <label>Assigned To Primary Employee *</label>
-                    <div class="custom-emp-picker" id="picker_primary" style="position:relative">
-                        <button type="button" class="picker-btn" onclick="toggleEmpPicker('picker_primary')" style="width:100%;text-align:left;background:#fff;border:1px solid #cbd5e1;padding:8px 12px;border-radius:8px;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;cursor:pointer">
-                            <span class="picker-label" id="picker_label_primary" style="color:#64748b">Select Primary Employee</span>
-                            <i class="fa-solid fa-chevron-down" style="font-size:11px;color:#94a3b8"></i>
-                        </button>
-                        <input type="hidden" name="assigned_to" id="input_primary" required>
-
-                        <!-- Dropdown Box matching Screenshot 5 -->
-                        <div class="picker-dropdown" id="dropdown_picker_primary" style="display:none;position:absolute;top:100%;left:0;right:0;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,0.18);z-index:9999;margin-top:4px;padding:14px;box-sizing:border-box">
-                            <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:8px">FILTER BY CATEGORY</div>
-                            <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:6px 12px;margin-bottom:12px;max-height:120px;overflow-y:auto;padding-right:4px">
-                                @foreach($categories as $cat)
-                                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#334155;cursor:pointer">
-                                        <input type="checkbox" class="cat-filter-chk" data-cat-id="{{ $cat->id }}" onchange="applyPickerFilters('picker_primary')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
-                                        <span>{{ $cat->name }}</span>
-                                    </label>
-                                @endforeach
-                            </div>
-
-                            <div style="border-top:1px solid #e2e8f0;padding-top:8px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-                                <a href="javascript:void(0)" onclick="selectAllPickerEmployees('picker_primary', true)" style="color:#2563eb;font-size:12px;font-weight:700;text-decoration:none">Select All Filtered Employees</a>
-                                <a href="javascript:void(0)" onclick="selectAllPickerEmployees('picker_primary', false)" style="color:#64748b;font-size:11px;text-decoration:none">Clear</a>
-                            </div>
-
-                            <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:6px">EMPLOYEES</div>
-                            <div class="picker-emp-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;margin-bottom:12px">
-                                @foreach($employees as $e)
-                                    <label class="picker-emp-item" data-cat-id="{{ $e->category_id }}" data-emp-id="{{ $e->id }}" data-name="{{ strtolower($e->displayName()) }}" style="display:flex;align-items:center;gap:8px;font-size:12px;color:#1e293b;cursor:pointer;padding:3px 0">
-                                        <input type="checkbox" class="emp-select-chk" value="{{ $e->id }}" data-name="{{ $e->displayName() }}" onchange="onEmpPickerChange('picker_primary', 'single')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
-                                        <span>{{ strtoupper($e->displayName()) }}</span>
-                                    </label>
-                                @endforeach
-                            </div>
-
-                            <div style="position:relative">
-                                <input type="text" class="picker-search-input" placeholder="Search employees" oninput="onPickerSearch('picker_primary', this.value)" style="width:100%;padding:7px 10px;font-size:12px;border-radius:6px;border:1.5px solid #3b82f6;outline:none" autocomplete="off">
-                            </div>
-                        </div>
-                    </div>
+                    <select name="assigned_to" id="newTaskAssigneeSelect" required style="width:100%;background:#fff;border:1px solid #cbd5e1;padding:8px 12px;border-radius:8px;font-size:12.5px;color:#1e293b">
+                        <option value="">Select Primary Employee</option>
+                        @foreach($employees as $e)
+                            <option value="{{ $e->id }}" data-dept-id="{{ $e->department_id }}">{{ strtoupper($e->displayName()) }} ({{ $e->department ?: 'No Dept' }})</option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
 
@@ -559,14 +526,14 @@
                     </button>
                     <div id="hidden_inputs_others"></div>
 
-                    <!-- Dropdown Box matching Screenshot 5 -->
+                    <!-- Dropdown Box matching Screenshot 2 & 3 with FILTER BY DEPARTMENT -->
                     <div class="picker-dropdown" id="dropdown_picker_others" style="display:none;position:absolute;top:100%;left:0;right:0;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,0.18);z-index:9999;margin-top:4px;padding:14px;box-sizing:border-box">
-                        <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:8px">FILTER BY CATEGORY</div>
+                        <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:8px">FILTER BY DEPARTMENT</div>
                         <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:6px 12px;margin-bottom:12px;max-height:120px;overflow-y:auto;padding-right:4px">
-                            @foreach($categories as $cat)
+                            @foreach($departments as $dept)
                                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#334155;cursor:pointer">
-                                    <input type="checkbox" class="cat-filter-chk" data-cat-id="{{ $cat->id }}" onchange="applyPickerFilters('picker_others')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
-                                    <span>{{ $cat->name }}</span>
+                                    <input type="checkbox" class="dept-filter-chk" data-dept-id="{{ $dept->id }}" onchange="applyPickerFilters('picker_others')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
+                                    <span>{{ $dept->name }}</span>
                                 </label>
                             @endforeach
                         </div>
@@ -579,7 +546,7 @@
                         <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:6px">EMPLOYEES</div>
                         <div class="picker-emp-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;margin-bottom:12px">
                             @foreach($employees as $e)
-                                <label class="picker-emp-item" data-cat-id="{{ $e->category_id }}" data-emp-id="{{ $e->id }}" data-name="{{ strtolower($e->displayName()) }}" style="display:flex;align-items:center;gap:8px;font-size:12px;color:#1e293b;cursor:pointer;padding:3px 0">
+                                <label class="picker-emp-item" data-dept-id="{{ $e->department_id }}" data-emp-id="{{ $e->id }}" data-name="{{ strtolower($e->displayName()) }}" style="display:flex;align-items:center;gap:8px;font-size:12px;color:#1e293b;cursor:pointer;padding:3px 0">
                                     <input type="checkbox" class="emp-select-chk" value="{{ $e->id }}" data-name="{{ $e->displayName() }}" onchange="onEmpPickerChange('picker_others', 'multiple', 'assignee_ids[]')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
                                     <span>{{ strtoupper($e->displayName()) }}</span>
                                 </label>
@@ -900,6 +867,18 @@ function openTaskDetailsDrawer(task, initialTab = 'details') {
     document.getElementById('remindTaskForm').action = "/tasks/" + task.id + "/remind";
     document.getElementById('deleteTaskForm').action = "/tasks/" + task.id;
 
+    // Delete permission: only creator or super admin can see delete button
+    const currentUserId = {{ (int)auth()->id() }};
+    const isSuperAdmin = {{ (auth()->user() && auth()->user()->isSuperAdmin()) ? 'true' : 'false' }};
+    const deleteBtnForm = document.getElementById('deleteTaskForm');
+    if (deleteBtnForm) {
+        if (isSuperAdmin || (task.created_by && task.created_by == currentUserId)) {
+            deleteBtnForm.style.display = 'inline';
+        } else {
+            deleteBtnForm.style.display = 'none';
+        }
+    }
+
     // Render Attached Files of the Task
     const attContainer = document.getElementById('dtlAttachmentsList');
     if (attContainer) {
@@ -1041,6 +1020,33 @@ function closeReopenModal() {
     document.getElementById('reopenModal').classList.remove('open');
 }
 
+// Debounced Task Search as user types
+let taskSearchTimer = null;
+function debounceTaskSearch(input) {
+    clearTimeout(taskSearchTimer);
+    taskSearchTimer = setTimeout(() => {
+        const form = document.getElementById('taskFilterForm');
+        if (form) form.submit();
+    }, 450);
+}
+
+// Dynamically filter primary employee dropdown based on selected Department
+function filterEmployeesByDept(deptId) {
+    const select = document.getElementById('newTaskAssigneeSelect');
+    if (!select) return;
+    const options = select.querySelectorAll('option');
+    options.forEach((opt, idx) => {
+        if (idx === 0) return; // keep default placeholder
+        const optDept = opt.getAttribute('data-dept-id');
+        if (!deptId || optDept === deptId) {
+            opt.style.display = '';
+        } else {
+            opt.style.display = 'none';
+        }
+    });
+    select.value = '';
+}
+
 function toggleEmpPicker(pickerId) {
     const dropdown = document.getElementById('dropdown_' + pickerId);
     if (!dropdown) return;
@@ -1058,19 +1064,20 @@ function applyPickerFilters(pickerId) {
     const dropdown = document.getElementById('dropdown_' + pickerId);
     if (!dropdown) return;
 
-    const checkedCatBoxes = dropdown.querySelectorAll('.cat-filter-chk:checked');
-    const checkedCatIds = Array.from(checkedCatBoxes).map(cb => cb.getAttribute('data-cat-id'));
-    const searchVal = dropdown.querySelector('.picker-search-input').value.toLowerCase().trim();
+    const checkedDeptBoxes = dropdown.querySelectorAll('.dept-filter-chk:checked');
+    const checkedDeptIds = Array.from(checkedDeptBoxes).map(cb => cb.getAttribute('data-dept-id'));
+    const searchInput = dropdown.querySelector('.picker-search-input');
+    const searchVal = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
     const empItems = dropdown.querySelectorAll('.picker-emp-item');
     empItems.forEach(item => {
-        const itemCatId = item.getAttribute('data-cat-id');
+        const itemDeptId = item.getAttribute('data-dept-id');
         const itemName = item.getAttribute('data-name');
         
-        const matchesCat = checkedCatIds.length === 0 || checkedCatIds.includes(itemCatId);
+        const matchesDept = checkedDeptIds.length === 0 || checkedDeptIds.includes(itemDeptId);
         const matchesSearch = !searchVal || itemName.includes(searchVal);
 
-        item.style.display = (matchesCat && matchesSearch) ? 'flex' : 'none';
+        item.style.display = (matchesDept && matchesSearch) ? 'flex' : 'none';
     });
 }
 

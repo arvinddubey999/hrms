@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Company;
+use App\Models\Department;
 use App\Models\User;
 use App\Services\AttendanceService;
 use Carbon\Carbon;
@@ -9,6 +11,43 @@ use Illuminate\Http\Request;
 
 class RosterController extends Controller
 {
+    protected function getScopedRosterQuery(Request $request, ?User $user)
+    {
+        $employeeId = $request->get('employee_id');
+        $departmentId = $request->get('department_id');
+        $companyId = $request->get('company_id');
+
+        $isSuper = $user && $user->isSuperAdmin();
+        $accessible = $user ? $user->accessibleCompanyIds() : [];
+
+        $query = User::query()->where('status', 'active');
+
+        // Scoping by user's assigned companies
+        if (!$isSuper) {
+            if (!empty($accessible)) {
+                $query->whereIn('company_id', $accessible);
+            } else {
+                $query->where('company_id', $user ? $user->company_id : 0);
+            }
+        }
+
+        // Apply selected company filter
+        if ($companyId) {
+            if ($isSuper || in_array((int)$companyId, $accessible, true)) {
+                $query->where('company_id', $companyId);
+            }
+        }
+
+        if ($employeeId) {
+            $query->where('id', $employeeId);
+        }
+        if ($departmentId) {
+            $query->where('department_id', $departmentId);
+        }
+
+        return $query;
+    }
+
     public function index(Request $request, AttendanceService $attendance)
     {
         $month = (int) $request->get('m', now()->month);
@@ -24,25 +63,37 @@ class RosterController extends Controller
             return back()->with('error', 'You do not have permission to view Monthly Roster.');
         }
 
-        $query = User::query()->where('status', 'active');
+        $isSuper = $user && $user->isSuperAdmin();
+        $accessible = $user ? $user->accessibleCompanyIds() : [];
 
-        if ($user && !$user->isAdmin()) {
-            $accessible = $user->accessibleCompanyIds();
-            if (!empty($accessible)) {
-                $query->whereIn('company_id', $accessible);
-            }
-        } elseif ($companyId) {
-            $query->where('company_id', $companyId);
+        // Companies dropdown list: ONLY accessible companies for non-superadmin!
+        $companiesQuery = Company::orderBy('name');
+        if (!$isSuper) {
+            $companiesQuery->whereIn('id', !empty($accessible) ? $accessible : [0]);
+        }
+        $companies = $companiesQuery->get();
+
+        // If only 1 company is assigned and no company_id in request, default to that company
+        if (!$isSuper && $companies->count() === 1 && empty($companyId)) {
+            $companyId = $companies->first()->id;
+            $request->merge(['company_id' => $companyId]);
         }
 
-        if ($employeeId) {
-            $query->where('id', $employeeId);
+        $query = $this->getScopedRosterQuery($request, $user);
+        $employees = $query->orderBy('first_name')->get();
+
+        // Employees dropdown list for filters: also scoped!
+        $allEmployeesQuery = User::where('status', 'active');
+        if (!$isSuper) {
+            $allEmployeesQuery->whereIn('company_id', !empty($accessible) ? $accessible : [0]);
+        }
+        if ($companyId) {
+            $allEmployeesQuery->where('company_id', $companyId);
         }
         if ($departmentId) {
-            $query->where('department_id', $departmentId);
+            $allEmployeesQuery->where('department_id', $departmentId);
         }
-
-        $employees = $query->orderBy('first_name')->get();
+        $allEmployees = $allEmployeesQuery->orderBy('first_name')->get();
 
         if ($fromDate && $toDate) {
             $startDate = Carbon::parse($fromDate);
@@ -77,9 +128,9 @@ class RosterController extends Controller
             'employeeId' => $employeeId,
             'departmentId' => $departmentId,
             'companyId' => $companyId,
-            'allEmployees' => User::where('status', 'active')->orderBy('first_name')->get(),
-            'departments' => \App\Models\Department::orderBy('name')->get(),
-            'companies' => \App\Models\Company::orderBy('name')->get(),
+            'allEmployees' => $allEmployees,
+            'departments' => Department::orderBy('name')->get(),
+            'companies' => $companies,
         ]);
     }
 
@@ -91,10 +142,7 @@ class RosterController extends Controller
         $toDate = $request->get('to_date');
 
         $user = auth()->user();
-        $query = User::query()->where('status', 'active');
-        if ($user && $user->company_id && !$user->isAdmin()) {
-            $query->where('company_id', $user->company_id);
-        }
+        $query = $this->getScopedRosterQuery($request, $user);
         $employees = $query->orderBy('first_name')->get();
 
         if ($fromDate && $toDate) {
@@ -170,7 +218,9 @@ class RosterController extends Controller
     {
         $month = (int) $request->get('m', now()->month);
         $year = (int) $request->get('y', now()->year);
-        $employees = User::query()->where('status', 'active')->orderBy('first_name')->get();
+        $user = auth()->user();
+        $query = $this->getScopedRosterQuery($request, $user);
+        $employees = $query->orderBy('first_name')->get();
         $days = Carbon::create($year, $month, 1)->daysInMonth;
 
         return view('roster.pdf', compact('employees', 'month', 'year', 'days', 'attendance'));

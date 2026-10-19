@@ -4,10 +4,12 @@
     <h1><a href="{{ route('tasks.index') }}" style="color:inherit;text-decoration:none">←</a> Task Details</h1>
     <div class="row">
         <a class="btn light" href="{{ route('tasks.index') }}"><i class="fa-solid fa-arrow-left"></i> Back to Tasks</a>
+        @if(auth()->id() == $task->created_by || (auth()->user() && auth()->user()->isSuperAdmin()))
         <form method="post" action="{{ route('tasks.destroy', $task) }}" onsubmit="return confirm('Are you sure you want to delete this task?')">
             @csrf @method('delete')
             <button class="btn red"><i class="fa-solid fa-trash"></i> Delete Task</button>
         </form>
+        @endif
     </div>
 </div>
 

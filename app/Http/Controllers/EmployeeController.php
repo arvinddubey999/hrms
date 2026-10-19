@@ -57,7 +57,7 @@ class EmployeeController extends Controller
             $query->where('department_id', $departmentId);
         }
         $authUser = auth()->user();
-        if ($authUser && !$authUser->isAdmin()) {
+        if ($authUser && !$authUser->isSuperAdmin()) {
             $scopedUserIds = $authUser->scopedEmployeesQuery()->pluck('id');
             $query->whereIn('id', $scopedUserIds);
         } elseif ($companyId) {
@@ -81,7 +81,7 @@ class EmployeeController extends Controller
         $employees = $query->paginate(15)->withQueryString();
 
         // Calculate scoped stats for active employees
-        if ($authUser && !$authUser->isAdmin()) {
+        if ($authUser && !$authUser->isSuperAdmin()) {
             $scopedActiveQuery = $authUser->scopedEmployeesQuery();
             if ($companyId) {
                 $scopedActiveQuery->where('company_id', $companyId);
@@ -131,13 +131,13 @@ class EmployeeController extends Controller
             'employee' => $employeeCount,
             'archived' => $archivedCount,
             'pending_tasks' => \App\Models\Task::query()->where('status', 'pending')
-                ->when($authUser && !$authUser->isAdmin(), fn($tq) => $tq->whereIn('assigned_to', $activeEmployees->pluck('id')))
+                ->when($authUser && !$authUser->isSuperAdmin(), fn($tq) => $tq->whereIn('assigned_to', $activeEmployees->pluck('id')))
                 ->count(),
             'in_progress_tasks' => \App\Models\Task::query()->where('status', 'in_progress')
-                ->when($authUser && !$authUser->isAdmin(), fn($tq) => $tq->whereIn('assigned_to', $activeEmployees->pluck('id')))
+                ->when($authUser && !$authUser->isSuperAdmin(), fn($tq) => $tq->whereIn('assigned_to', $activeEmployees->pluck('id')))
                 ->count(),
             'completed_tasks' => \App\Models\Task::query()->where('status', 'completed')
-                ->when($authUser && !$authUser->isAdmin(), fn($tq) => $tq->whereIn('assigned_to', $activeEmployees->pluck('id')))
+                ->when($authUser && !$authUser->isSuperAdmin(), fn($tq) => $tq->whereIn('assigned_to', $activeEmployees->pluck('id')))
                 ->count(),
         ];
 
@@ -185,7 +185,7 @@ class EmployeeController extends Controller
             'date' => $date,
             'categories' => Category::orderBy('name')->get(),
             'departments' => Department::orderBy('name')->get(),
-            'companies' => ($authUser && !$authUser->isAdmin() && !empty($authUser->accessibleCompanyIds()))
+            'companies' => ($authUser && !$authUser->isSuperAdmin() && !empty($authUser->accessibleCompanyIds()))
                 ? Company::whereIn('id', $authUser->accessibleCompanyIds())->orderBy('name')->get()
                 : Company::orderBy('name')->get(),
             'shifts' => Shift::orderBy('name')->get(),

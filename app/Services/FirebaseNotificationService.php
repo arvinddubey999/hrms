@@ -88,19 +88,15 @@ class FirebaseNotificationService
     public static function sendTaskNotification(User $employee, string $title, string $message, ?int $taskId = null): void
     {
         try {
-            if (empty($employee->fcm_token)) {
-                Log::info("FCM task notification skipped for user {$employee->id}: No fcm_token");
-                return;
-            }
-
-            self::sendFcmV1Message([
-                'token' => $employee->fcm_token,
+            $basePayload = [
                 'notification' => [
                     'title' => $title,
                     'body' => $message,
                 ],
                 'data' => [
                     'task_id' => (string) ($taskId ?? ''),
+                    'user_id' => (string) $employee->id,
+                    'user_name' => $employee->displayName(),
                     'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
                     'type' => 'task',
                 ],
@@ -111,7 +107,20 @@ class FirebaseNotificationService
                         'channel_id' => 'task_channel',
                     ],
                 ],
-            ]);
+            ];
+
+            // 1. Direct device token if available
+            if (!empty($employee->fcm_token)) {
+                self::sendFcmV1Message(array_merge(['token' => $employee->fcm_token], $basePayload));
+            }
+
+            // 2. Dedicated user topic so employee's phone receives it reliably
+            self::sendFcmV1Message(array_merge(['topic' => 'user_' . $employee->id], $basePayload));
+
+            // 3. Broadcast to general 'tasks' topic
+            self::sendFcmV1Message(array_merge(['topic' => 'tasks'], $basePayload));
+
+            Log::info("Task push notification dispatched for User #{$employee->id} (Task #{$taskId})");
         } catch (\Throwable $e) {
             Log::error('Task Push Notification Error: ' . $e->getMessage());
         }

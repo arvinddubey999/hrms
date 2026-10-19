@@ -29,11 +29,14 @@ class ReportController extends Controller
         $companiesQuery = Company::orderBy('name');
         $employeesQuery = User::where('status', 'active')->orderBy('first_name');
 
-        if ($u && !$u->isAdmin()) {
+        if ($u && !$u->isSuperAdmin()) {
             $compIds = $u->accessibleCompanyIds();
             if (!empty($compIds)) {
                 $companiesQuery->whereIn('id', $compIds);
                 $employeesQuery->whereIn('company_id', $compIds);
+            } else {
+                $companiesQuery->where('id', 0);
+                $employeesQuery->where('company_id', 0);
             }
         }
 
@@ -75,10 +78,12 @@ class ReportController extends Controller
         // Employee & Category Filtering
         $query = User::query()->where('status', 'active')->with(['company', 'category', 'shift']);
 
-        if ($u && !$u->isAdmin()) {
+        if ($u && !$u->isSuperAdmin()) {
             $compIds = $u->accessibleCompanyIds();
             if (!empty($compIds)) {
                 $query->whereIn('company_id', $compIds);
+            } else {
+                $query->where('company_id', 0);
             }
         }
         

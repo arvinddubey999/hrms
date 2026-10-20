@@ -829,6 +829,8 @@ function toggleTaskView(view) {
         document.getElementById('btnViewList').className = 'btn light';
         document.getElementById('btnViewList').style.background = 'transparent';
     }
+}
+
 function openNewTaskDrawer() {
     document.getElementById('drawerHeaderTitle').innerText = "New Task";
     document.getElementById('newTaskForm').style.display = 'block';

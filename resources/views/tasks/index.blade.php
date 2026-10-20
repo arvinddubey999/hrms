@@ -65,6 +65,16 @@
             <option value="future" {{ $dateFilter==='future'?'selected':'' }}>🔮 Future Dated</option>
         </select>
 
+        @if($viewMode)
+            <input type="hidden" name="view_mode" value="{{ $viewMode }}">
+        @endif
+        @if($sortBy)
+            <input type="hidden" name="sort_by" value="{{ $sortBy }}">
+        @endif
+        @if($sortDir)
+            <input type="hidden" name="sort_dir" value="{{ $sortDir }}">
+        @endif
+
         <a class="btn light" href="{{ route('tasks.index') }}" style="font-size:12px">Clear Filters</a>
     </form>
 </div>
@@ -76,7 +86,7 @@
     <a class="{{ $status==='in_progress' && !$viewMode && $dateFilter!=='overdue' ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'in_progress', 'date_filter'=>null, 'view_mode'=>null])) }}">In Progress ({{ $counts['in_progress'] }})</a>
     <a class="{{ $status==='completed' && !$viewMode && $dateFilter!=='overdue' ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'completed', 'date_filter'=>null, 'view_mode'=>null])) }}">Completed ({{ $counts['completed'] }})</a>
     <a class="{{ $dateFilter==='overdue' && !$viewMode ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['date_filter'=>'overdue', 'status'=>'all', 'view_mode'=>null])) }}" style="color:#dc2626">Overdue ({{ $counts['overdue'] }})</a>
-    <a class="{{ $viewMode==='user_wise' ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['view_mode'=>'user_wise'])) }}" style="color:#4f46e5;font-weight:700"><i class="fa-solid fa-users"></i> User Wise</a>
+    <a class="{{ $viewMode==='user_wise' ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['view_mode'=>'user_wise', 'sort_by'=>'deadline', 'sort_dir'=>'asc'])) }}" style="color:#4f46e5;font-weight:700"><i class="fa-solid fa-users"></i> User Wise</a>
 </div>
 
 @if($viewMode === 'user_wise' && $userWiseGroups)
@@ -118,7 +128,23 @@
                                 <th style="padding:10px 14px;text-align:left">Task Title</th>
                                 <th style="padding:10px 14px;text-align:left">Assigned By</th>
                                 <th style="padding:10px 14px;text-align:left">Priority</th>
-                                <th style="padding:10px 14px;text-align:left">Deadline</th>
+                                <th style="padding:10px 14px;text-align:left">
+                                    @php
+                                        $nextSortDir = ($sortBy === 'deadline' && $sortDir === 'asc') ? 'desc' : 'asc';
+                                    @endphp
+                                    <a href="{{ route('tasks.index', array_merge(request()->query(), ['view_mode'=>'user_wise', 'sort_by' => 'deadline', 'sort_dir' => $nextSortDir])) }}" style="color:#475569;text-decoration:none;display:inline-flex;align-items:center;gap:4px" title="Click to sort by deadline">
+                                        Deadline
+                                        @if($sortBy === 'deadline')
+                                            @if($sortDir === 'asc')
+                                                <i class="fa-solid fa-arrow-up-short-wide" style="color:#4f46e5" title="Closest deadline first"></i>
+                                            @else
+                                                <i class="fa-solid fa-arrow-down-wide-short" style="color:#4f46e5" title="Furthest deadline first"></i>
+                                            @endif
+                                        @else
+                                            <i class="fa-solid fa-sort" style="color:#94a3b8"></i>
+                                        @endif
+                                    </a>
+                                </th>
                                 <th style="padding:10px 14px;text-align:left">Status (Update)</th>
                                 <th style="padding:10px 14px;text-align:left">Comments</th>
                             </tr>
@@ -135,7 +161,21 @@
                                     <td style="padding:10px 14px">
                                         <span class="chip" style="font-size:10px;text-transform:uppercase;font-weight:700;{{ $gTask->priority==='high' ? 'background:#fee2e2;color:#991b1b' : ($gTask->priority==='medium' ? 'background:#fef3c7;color:#92400e' : 'background:#dcfce7;color:#166534') }}">{{ $gTask->priority }}</span>
                                     </td>
-                                    <td style="padding:10px 14px;color:#334155">{{ $gTask->due_date ? $gTask->due_date->format('d M Y') : '-' }}</td>
+                                    <td style="padding:10px 14px;white-space:nowrap">
+                                        @if($gTask->due_date)
+                                            @php $isOverdue = $gTask->status !== 'completed' && $gTask->due_date->isPast() && !$gTask->due_date->isToday(); @endphp
+                                            <div style="font-size:13px;color:{{ $isOverdue ? '#dc2626' : '#334155' }};font-weight:{{ $isOverdue ? '700' : '500' }}">
+                                                {{ $gTask->due_date->format('d M Y') }}
+                                            </div>
+                                            @if(!empty($gTask->due_time))
+                                                <small style="color:#64748b;font-size:11px;display:flex;align-items:center;gap:3px;margin-top:2px">
+                                                    <i class="fa-regular fa-clock" style="font-size:10px"></i> {{ date('h:i A', strtotime($gTask->due_time)) }}
+                                                </small>
+                                            @endif
+                                        @else
+                                            <span style="color:#94a3b8;font-size:13px">-</span>
+                                        @endif
+                                    </td>
                                     <td style="padding:10px 14px;white-space:nowrap" onclick="event.stopPropagation()">
                                         <form method="post" action="{{ route('tasks.status', $gTask) }}" style="margin:0;display:inline-flex;align-items:center;gap:6px">
                                             @csrf
@@ -317,10 +357,12 @@
                             @if($task->due_date)
                                 @php $isOverdue = $task->status !== 'completed' && $task->due_date->isPast() && !$task->due_date->isToday(); @endphp
                                 <div style="font-size:13px;color:{{ $isOverdue ? '#dc2626' : '#334155' }};font-weight:{{ $isOverdue ? '700' : '500' }}">
-                                    {{ $task->due_date->format('F j, Y') }}
+                                    {{ $task->due_date->format('d M Y') }}
                                 </div>
-                                @if($task->due_time)
-                                    <small style="color:#94a3b8;font-size:11px">{{ $task->due_time }}</small>
+                                @if(!empty($task->due_time))
+                                    <small style="color:#64748b;font-size:11px;display:flex;align-items:center;gap:3px;margin-top:2px">
+                                        <i class="fa-regular fa-clock" style="font-size:10px"></i> {{ date('h:i A', strtotime($task->due_time)) }}
+                                    </small>
                                 @endif
                             @else
                                 <span style="color:#94a3b8;font-size:13px">-</span>
@@ -444,9 +486,9 @@
 
             <div class="grid-2" style="margin-bottom:12px">
                 <div>
-                    <label>Department *</label>
-                    <select name="department_id" id="newTaskDeptSelect" onchange="filterEmployeesByDept(this.value)" required>
-                        <option value="">Select Department</option>
+                    <label>Department (Optional)</label>
+                    <select name="department_id" id="newTaskDeptSelect" onchange="filterEmployeesByDept(this.value)">
+                        <option value="">Select Department (Optional)</option>
                         @foreach($departments as $dept)
                             <option value="{{ $dept->id }}">{{ $dept->name }}</option>
                         @endforeach
@@ -787,28 +829,16 @@ function toggleTaskView(view) {
         document.getElementById('btnViewList').className = 'btn light';
         document.getElementById('btnViewList').style.background = 'transparent';
     }
-}
-
-function filterEmployeesByDept(deptId) {
-    // Keep primarySelect intact with ALL company employees as requested ("Assigned To Primary Employee column me all emloyee us company ke aane chahiye")
-    const othersSelect = document.getElementById('newTaskOthersEmpSelect');
-    if (othersSelect) {
-        othersSelect.innerHTML = '';
-        const filtered = deptId 
-            ? allEmployeesList.filter(e => e.department_id == deptId)
-            : allEmployeesList;
-
-        filtered.forEach(e => {
-            const nameText = (e.first_name || e.name || '') + ' ' + (e.last_name || '') + ' (' + (e.department || 'Staff') + ')';
-            othersSelect.add(new Option(nameText, e.id));
-        });
-    }
-}
-
 function openNewTaskDrawer() {
     document.getElementById('drawerHeaderTitle').innerText = "New Task";
     document.getElementById('newTaskForm').style.display = 'block';
     document.getElementById('viewTaskDetails').style.display = 'none';
+
+    // Reset department filter and show all company employees in primary assignee dropdown
+    const deptSelect = document.getElementById('newTaskDeptSelect');
+    if (deptSelect) deptSelect.value = '';
+    filterEmployeesByDept('');
+
     document.getElementById('taskDrawerOverlay').style.display = 'block';
     document.getElementById('taskDrawer').style.right = '0';
 }
@@ -1030,7 +1060,7 @@ function debounceTaskSearch(input) {
     }, 450);
 }
 
-// Dynamically filter primary employee dropdown based on selected Department
+// Dynamically filter primary employee dropdown based on selected Department (if chosen)
 function filterEmployeesByDept(deptId) {
     const select = document.getElementById('newTaskAssigneeSelect');
     if (!select) return;
@@ -1044,7 +1074,12 @@ function filterEmployeesByDept(deptId) {
             opt.style.display = 'none';
         }
     });
-    select.value = '';
+    if (deptId && select.value) {
+        const selectedOpt = select.querySelector(`option[value="${select.value}"]`);
+        if (selectedOpt && selectedOpt.style.display === 'none') {
+            select.value = '';
+        }
+    }
 }
 
 function toggleEmpPicker(pickerId) {

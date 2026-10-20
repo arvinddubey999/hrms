@@ -38,12 +38,36 @@ class TaskController extends Controller
         $query = $this->getFilteredTasksQuery($request);
         $items = $query->paginate(20)->withQueryString();
 
-        // In user_wise mode, group tasks by assignee
+        // In user_wise mode, group tasks by assignee and sort tasks by closest deadline first
         $userWiseGroups = null;
         if ($viewMode === 'user_wise') {
             $allMatchingTasks = (clone $query)->get();
             $userWiseGroups = $allMatchingTasks->groupBy(function ($task) {
                 return $task->assignee ? $task->assignee->displayName() : 'Unassigned';
+            })->map(function ($grpTasks) use ($sortDir) {
+                if ($sortDir === 'desc') {
+                    return $grpTasks->sort(function ($a, $b) {
+                        $ad = $a->due_date ? $a->due_date->format('Y-m-d') : '0000-00-00';
+                        $bd = $b->due_date ? $b->due_date->format('Y-m-d') : '0000-00-00';
+                        if ($ad === $bd) {
+                            $at = $a->due_time ?: '00:00:00';
+                            $bt = $b->due_time ?: '00:00:00';
+                            return $bt <=> $at;
+                        }
+                        return $bd <=> $ad;
+                    })->values();
+                } else {
+                    return $grpTasks->sort(function ($a, $b) {
+                        $ad = $a->due_date ? $a->due_date->format('Y-m-d') : '9999-99-99';
+                        $bd = $b->due_date ? $b->due_date->format('Y-m-d') : '9999-99-99';
+                        if ($ad === $bd) {
+                            $at = $a->due_time ?: '23:59:59';
+                            $bt = $b->due_time ?: '23:59:59';
+                            return $at <=> $bt;
+                        }
+                        return $ad <=> $bd;
+                    })->values();
+                }
             });
         }
 
@@ -643,10 +667,10 @@ class TaskController extends Controller
 
         if ($sortBy === 'deadline') {
             if ($sortDir === 'desc') {
-                $query->orderByRaw('due_date IS NULL, due_date DESC, id DESC');
+                $query->orderByRaw('due_date IS NULL, due_date DESC, due_time DESC, id DESC');
             } else {
-                // ASC: nearest upcoming deadline first, tasks 2 months away are not on top
-                $query->orderByRaw('due_date IS NULL, due_date ASC, id DESC');
+                // ASC: nearest upcoming deadline first (e.g. 16 Oct, then 20 Oct, then 10 Dec)
+                $query->orderByRaw('due_date IS NULL, due_date ASC, due_time ASC, id ASC');
             }
         } else {
             $query->latest();

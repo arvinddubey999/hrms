@@ -119,7 +119,7 @@ class TaskController extends Controller
             'employees' => $companyEmployees,
             'departments' => Department::orderBy('name')->get(),
             'companies' => (!$u->isSuperAdmin() && !empty($u->accessibleCompanyIds())) ? Company::whereIn('id', $u->accessibleCompanyIds())->orderBy('name')->get() : Company::orderBy('name')->get(),
-            'categories' => TaskCategory::orderBy('name')->get(),
+            'categories' => \Illuminate\Support\Facades\Schema::hasTable('task_categories') ? TaskCategory::orderBy('name')->get() : collect(),
             'allTasksForCalendar' => (clone $baseCountQuery)->with(['assignee'])->select(['id', 'title', 'due_date', 'due_time', 'priority', 'status', 'assigned_to'])->get(),
         ]);
     }
@@ -130,98 +130,126 @@ class TaskController extends Controller
         if (!$u || (!$u->hasPermission('tasks.create') && !$u->hasPermission('tasks.manage'))) {
             return back()->with('error', 'You do not have permission to create & assign tasks.');
         }
-        $data = $request->validate([
-            'title' => 'required|string',
-            'description' => 'nullable|string',
-            'client' => 'nullable|string',
-            'status' => 'required|in:pending,in_progress,completed',
-            'priority' => 'required|in:low,medium,high',
-            'due_date' => 'nullable|date',
-            'due_time' => 'nullable',
-            'repeat_type' => 'nullable|in:none,daily,weekly,monthly,quarterly,half_yearly,yearly',
-            'department_id' => 'nullable|exists:departments,id',
-            'category_id' => 'nullable|exists:task_categories,id',
-            'assigned_to' => 'nullable|exists:users,id',
-            'others' => 'nullable|array',
-            'assignee_ids' => 'nullable|array',
-            'attachment_file' => 'nullable|file|max:15360',
-            'attachment_files' => 'nullable|array',
-            'attachment_files.*' => 'nullable|file|max:15360',
-        ]);
 
-        $rawOthers = $request->input('assignee_ids') ?? $request->input('others') ?? [];
-        $others = is_array($rawOthers) ? $rawOthers : [$rawOthers];
-        $assigneeIds = is_array($data['assignee_ids'] ?? []) ? $data['assignee_ids'] : [];
-        unset($data['others'], $data['assignee_ids'], $data['attachment_file'], $data['attachment_files']);
+        try {
+            $hasTaskCategoriesTable = \Illuminate\Support\Facades\Schema::hasTable('task_categories');
+            $rules = [
+                'title' => 'required|string',
+                'description' => 'nullable|string',
+                'client' => 'nullable|string',
+                'status' => 'required|in:pending,in_progress,completed',
+                'priority' => 'required|in:low,medium,high',
+                'due_date' => 'nullable|date',
+                'due_time' => 'nullable',
+                'repeat_type' => 'nullable|in:none,daily,weekly,monthly,quarterly,half_yearly,yearly',
+                'department_id' => 'nullable|exists:departments,id',
+                'category_id' => $hasTaskCategoriesTable ? 'nullable|exists:task_categories,id' : 'nullable',
+                'assigned_to' => 'nullable|exists:users,id',
+                'others' => 'nullable|array',
+                'assignee_ids' => 'nullable|array',
+                'attachment_file' => 'nullable|file|max:15360',
+                'attachment_files' => 'nullable|array',
+                'attachment_files.*' => 'nullable|file|max:15360',
+            ];
 
-        $data['created_by'] = $request->user()->id;
-        $data['repeat_type'] = $data['repeat_type'] ?? 'none';
+            $data = $request->validate($rules);
 
-        if ($request->hasFile('attachment_files')) {
-            $first = $request->file('attachment_files')[0] ?? null;
-            if ($first) {
-                $data['attachment'] = $first->store('task_attachments', 'public');
+            $rawOthers = $request->input('assignee_ids') ?? $request->input('others') ?? [];
+            $others = is_array($rawOthers) ? $rawOthers : [$rawOthers];
+            $assigneeIds = (isset($data['assignee_ids']) && is_array($data['assignee_ids'])) ? $data['assignee_ids'] : [];
+            unset($data['others'], $data['assignee_ids'], $data['attachment_file'], $data['attachment_files']);
+
+            $data['created_by'] = $request->user()->id;
+            $data['repeat_type'] = $data['repeat_type'] ?? 'none';
+
+            // Sanitize empty strings to NULL for database columns
+            if (empty($data['due_date'])) $data['due_date'] = null;
+            if (empty($data['due_time'])) $data['due_time'] = null;
+            if (empty($data['department_id'])) $data['department_id'] = null;
+            if (empty($data['category_id'])) $data['category_id'] = null;
+            if (empty($data['assigned_to'])) $data['assigned_to'] = null;
+            if (empty($data['client'])) $data['client'] = null;
+            if (empty($data['description'])) $data['description'] = null;
+
+            // Safety check if category_id column hasn't been migrated yet on live
+            if (!\Illuminate\Support\Facades\Schema::hasColumn('tasks', 'category_id')) {
+                unset($data['category_id']);
             }
-        } elseif ($request->hasFile('attachment_file')) {
-            $data['attachment'] = $request->file('attachment_file')->store('task_attachments', 'public');
-        }
 
-        $task = Task::query()->create($data);
-
-        // Consolidate primary assigned_to, assignee_ids, and others so all assignees are saved without conflict
-        $allAssignedIds = array_filter(array_unique(array_merge(
-            !empty($task->assigned_to) ? [(int)$task->assigned_to] : [],
-            array_map('intval', (array)$assigneeIds),
-            array_map('intval', (array)$others)
-        )));
-
-        if (!empty($allAssignedIds)) {
-            $task->assignees()->sync($allAssignedIds);
-            if (empty($task->assigned_to)) {
-                $task->update(['assigned_to' => $allAssignedIds[0]]);
+            if ($request->hasFile('attachment_files')) {
+                $first = $request->file('attachment_files')[0] ?? null;
+                if ($first) {
+                    $data['attachment'] = $first->store('task_attachments', 'public');
+                }
+            } elseif ($request->hasFile('attachment_file')) {
+                $data['attachment'] = $request->file('attachment_file')->store('task_attachments', 'public');
             }
-        } elseif (!empty($task->assigned_to)) {
-            $task->assignees()->sync([(int)$task->assigned_to]);
-        }
 
-        // Store attachments in task_attachments table if uploaded
-        if ($request->hasFile('attachment_files')) {
-            foreach ($request->file('attachment_files') as $file) {
-                $p = $file->store('task_attachments', 'public');
+            $task = Task::query()->create($data);
+
+            // Consolidate primary assigned_to, assignee_ids, and others so all assignees are saved without conflict
+            $allAssignedIds = array_filter(array_unique(array_merge(
+                !empty($task->assigned_to) ? [(int)$task->assigned_to] : [],
+                array_map('intval', (array)$assigneeIds),
+                array_map('intval', (array)$others)
+            )));
+
+            if (!empty($allAssignedIds)) {
+                $task->assignees()->sync($allAssignedIds);
+                if (empty($task->assigned_to)) {
+                    $task->update(['assigned_to' => $allAssignedIds[0]]);
+                }
+            } elseif (!empty($task->assigned_to)) {
+                $task->assignees()->sync([(int)$task->assigned_to]);
+            }
+
+            // Store attachments in task_attachments table if uploaded
+            if ($request->hasFile('attachment_files')) {
+                foreach ($request->file('attachment_files') as $file) {
+                    $p = $file->store('task_attachments', 'public');
+                    $task->attachments()->create([
+                        'user_id' => $request->user()->id,
+                        'file_path' => $p,
+                        'file_name' => $file->getClientOriginalName(),
+                    ]);
+                }
+            } elseif ($request->hasFile('attachment_file')) {
                 $task->attachments()->create([
                     'user_id' => $request->user()->id,
-                    'file_path' => $p,
-                    'file_name' => $file->getClientOriginalName(),
+                    'file_path' => $data['attachment'],
+                    'file_name' => $request->file('attachment_file')->getClientOriginalName(),
                 ]);
             }
-        } elseif ($request->hasFile('attachment_file')) {
-            $task->attachments()->create([
-                'user_id' => $request->user()->id,
-                'file_path' => $data['attachment'],
-                'file_name' => $request->file('attachment_file')->getClientOriginalName(),
+
+            // Log Immutable History
+            $task->logHistory('created', 'Task created and assigned', $request->user()->id);
+
+            // Notify assigned employees via FCM Push & Email
+            $targetUserIds = array_filter(array_unique(array_merge([$task->assigned_to], $allAssignedIds)));
+            $notifyUsers = User::whereIn('id', $targetUserIds)->get();
+            foreach ($notifyUsers as $user) {
+                // 1. FCM Push Notification
+                \App\Services\FirebaseNotificationService::sendTaskNotification(
+                    $user,
+                    'New Task Assigned: ' . $task->title,
+                    'You have been assigned a new task due on ' . ($task->due_date ? $task->due_date->format('d M Y') : 'N/A'),
+                    $task->id
+                );
+
+                // 2. Email Notification
+                \App\Services\MailService::sendTaskAssignedMail($user, $task, $request->user());
+            }
+
+            return back()->with('ok', 'Task created successfully and notifications dispatched via Push & Email.');
+        } catch (\Illuminate\Validation\ValidationException $ve) {
+            throw $ve;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Task Store Error: ' . $e->getMessage(), [
+                'exception' => $e,
+                'request' => $request->except(['attachment_file', 'attachment_files']),
             ]);
+            return back()->with('error', 'Failed to create task: ' . $e->getMessage())->withInput();
         }
-
-        // Log Immutable History
-        $task->logHistory('created', 'Task created and assigned', $request->user()->id);
-
-        // Notify assigned employees via FCM Push & Email
-        $targetUserIds = array_filter(array_unique(array_merge([$task->assigned_to], $allAssignedIds)));
-        $notifyUsers = User::whereIn('id', $targetUserIds)->get();
-        foreach ($notifyUsers as $user) {
-            // 1. FCM Push Notification
-            \App\Services\FirebaseNotificationService::sendTaskNotification(
-                $user,
-                'New Task Assigned: ' . $task->title,
-                'You have been assigned a new task due on ' . ($task->due_date ? $task->due_date->format('d M Y') : 'N/A'),
-                $task->id
-            );
-
-            // 2. Email Notification
-            \App\Services\MailService::sendTaskAssignedMail($user, $task, $request->user());
-        }
-
-        return back()->with('ok', 'Task created successfully and notifications dispatched via Push & Email.');
     }
 
     public function show(Task $task)
@@ -255,6 +283,7 @@ class TaskController extends Controller
 
     public function update(Request $request, Task $task)
     {
+        $hasTaskCategoriesTable = \Illuminate\Support\Facades\Schema::hasTable('task_categories');
         $data = $request->validate([
             'title' => 'required|string',
             'description' => 'nullable|string',
@@ -265,7 +294,7 @@ class TaskController extends Controller
             'due_time' => 'nullable',
             'repeat_type' => 'nullable|in:none,daily,weekly,monthly,quarterly,half_yearly,yearly',
             'department_id' => 'nullable|exists:departments,id',
-            'category_id' => 'nullable|exists:task_categories,id',
+            'category_id' => $hasTaskCategoriesTable ? 'nullable|exists:task_categories,id' : 'nullable',
             'assigned_to' => 'nullable|exists:users,id',
             'others' => 'nullable|array',
             'assignee_ids' => 'nullable|array',
@@ -273,8 +302,20 @@ class TaskController extends Controller
 
         $rawOthers = $request->input('assignee_ids') ?? $request->input('others') ?? [];
         $others = is_array($rawOthers) ? $rawOthers : [$rawOthers];
-        $assigneeIds = is_array($data['assignee_ids'] ?? []) ? $data['assignee_ids'] : [];
+        $assigneeIds = (isset($data['assignee_ids']) && is_array($data['assignee_ids'])) ? $data['assignee_ids'] : [];
         unset($data['others'], $data['assignee_ids']);
+
+        if (empty($data['due_date'])) $data['due_date'] = null;
+        if (empty($data['due_time'])) $data['due_time'] = null;
+        if (empty($data['department_id'])) $data['department_id'] = null;
+        if (empty($data['category_id'])) $data['category_id'] = null;
+        if (empty($data['assigned_to'])) $data['assigned_to'] = null;
+        if (empty($data['client'])) $data['client'] = null;
+        if (empty($data['description'])) $data['description'] = null;
+
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('tasks', 'category_id')) {
+            unset($data['category_id']);
+        }
 
         $oldStatus = $task->status;
         $task->update($data);
@@ -384,6 +425,14 @@ class TaskController extends Controller
 
     public function storeCategory(Request $request)
     {
+        if (!\Illuminate\Support\Facades\Schema::hasTable('task_categories')) {
+            $msg = 'Task categories table does not exist. Please run database migrations first.';
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['ok' => false, 'message' => $msg], 400);
+            }
+            return back()->with('error', $msg);
+        }
+
         $data = $request->validate([
             'name' => 'required|string|max:100|unique:task_categories,name',
         ]);

@@ -1370,6 +1370,7 @@ function openNewCategoryModal() {
     const m = document.getElementById('newCategoryModal');
     if (m) {
         m.classList.add('open');
+        m.style.display = 'flex';
         document.getElementById('catModalName').value = '';
         document.getElementById('catModalDesc').value = '';
         setTimeout(() => document.getElementById('catModalName').focus(), 100);
@@ -1378,7 +1379,10 @@ function openNewCategoryModal() {
 
 function closeNewCategoryModal() {
     const m = document.getElementById('newCategoryModal');
-    if (m) m.classList.remove('open');
+    if (m) {
+        m.classList.remove('open');
+        m.style.display = 'none';
+    }
 }
 
 async function submitNewCategory(e) {
@@ -1409,15 +1413,17 @@ async function submitNewCategory(e) {
 
         const res = await resp.json();
         if (res.ok && res.category) {
-            // Dynamically add to taskCategorySelect
+            // Dynamically add to taskCategorySelect in New Task Drawer and select it
             const catSelect = document.getElementById('taskCategorySelect');
             if (catSelect) {
-                const opt = new Option(res.category.name, res.category.id, true, true);
-                catSelect.add(opt);
+                let existingOpt = Array.from(catSelect.options).find(o => String(o.value) === String(res.category.id));
+                if (!existingOpt) {
+                    const opt = new Option(res.category.name, res.category.id, true, true);
+                    catSelect.add(opt);
+                }
                 catSelect.value = res.category.id;
             }
             closeNewCategoryModal();
-            alert("Category '" + res.category.name + "' created and selected!");
         } else {
             alert(res.message || 'Error creating category');
         }
@@ -1431,9 +1437,9 @@ async function submitNewCategory(e) {
 }
 </script>
 
-<!-- Modal: Add New Task Category -->
-<div id="newCategoryModal" class="modal-bg" style="align-items:center;justify-content:center">
-    <div class="modal" style="background:#fff;max-width:420px;width:90%;padding:22px;border-radius:14px;box-shadow:0 15px 35px rgba(0,0,0,0.25);margin:auto;z-index:10010">
+<!-- Modal: Add New Task Category (high z-index to appear on top of New Task Drawer) -->
+<div id="newCategoryModal" class="modal-bg" onclick="if(event.target===this) closeNewCategoryModal()" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,23,42,0.6);backdrop-filter:blur(3px);z-index:100050!important;align-items:center;justify-content:center">
+    <div class="modal" style="background:#fff;max-width:440px;width:92%;padding:22px;border-radius:14px;box-shadow:0 25px 60px rgba(0,0,0,0.35);margin:auto;position:relative;z-index:100051" onclick="event.stopPropagation()">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
             <h3 style="margin:0;font-size:16px"><i class="fa-solid fa-tags" style="color:var(--accent)"></i> Add New Task Category</h3>
             <button type="button" onclick="closeNewCategoryModal()" style="border:0;background:none;font-size:22px;cursor:pointer;color:#64748b">&times;</button>

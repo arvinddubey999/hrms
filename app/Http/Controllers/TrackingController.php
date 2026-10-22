@@ -198,7 +198,14 @@ class TrackingController extends Controller
         if ($authUser && !$authUser->isSuperAdmin()) {
             $accessible = $authUser->accessibleCompanyIds();
             if (!empty($accessible)) {
-                $compQuery->whereIn('company_id', $accessible);
+                $compQuery->where(function($q) use ($accessible) {
+                    $q->whereIn('company_id', $accessible)
+                      ->orWhereNull('company_id');
+                    foreach ($accessible as $cid) {
+                        $q->orWhereJsonContains('assigned_companies', (string)$cid)
+                          ->orWhereJsonContains('assigned_companies', (int)$cid);
+                    }
+                });
             }
         }
         $geofences = $compQuery->orderByDesc('id')->get();
@@ -206,7 +213,7 @@ class TrackingController extends Controller
         $companies = \App\Models\Company::orderBy('name')->get();
         $departments = \App\Models\Department::orderBy('name')->get();
         $categories = \App\Models\Category::orderBy('name')->get();
-        $employees = User::where('status', 'active')->with(['category', 'department'])->orderBy('first_name')->get();
+        $employees = User::where('status', 'active')->with(['category', 'department', 'company'])->orderBy('first_name')->get();
 
         return view('tracking.geofences', compact('geofences', 'companies', 'departments', 'categories', 'employees'));
     }
@@ -219,7 +226,8 @@ class TrackingController extends Controller
         }
 
         $data = $request->validate([
-            'company_id' => 'required|exists:companies,id',
+            'company_id' => 'nullable|exists:companies,id',
+            'assigned_companies' => 'nullable|array',
             'name' => 'nullable|string',
             'address' => 'nullable|string',
             'latitude' => 'required|numeric',
@@ -234,6 +242,10 @@ class TrackingController extends Controller
 
         if (empty($data['name'])) {
             $data['name'] = !empty($data['address']) ? \Illuminate\Support\Str::limit($data['address'], 30) : 'Geofence ' . date('Y-m-d H:i');
+        }
+
+        if (empty($data['company_id']) && !empty($data['assigned_companies'])) {
+            $data['company_id'] = (int) $data['assigned_companies'][0];
         }
 
         $data['status'] = $data['status'] ?? 'active';
@@ -251,7 +263,8 @@ class TrackingController extends Controller
         }
 
         $data = $request->validate([
-            'company_id' => 'required|exists:companies,id',
+            'company_id' => 'nullable|exists:companies,id',
+            'assigned_companies' => 'nullable|array',
             'name' => 'nullable|string',
             'address' => 'nullable|string',
             'latitude' => 'required|numeric',
@@ -266,6 +279,10 @@ class TrackingController extends Controller
 
         if (empty($data['name'])) {
             $data['name'] = !empty($data['address']) ? \Illuminate\Support\Str::limit($data['address'], 30) : $geofence->name;
+        }
+
+        if (empty($data['company_id']) && !empty($data['assigned_companies'])) {
+            $data['company_id'] = (int) $data['assigned_companies'][0];
         }
 
         $geofence->update($data);

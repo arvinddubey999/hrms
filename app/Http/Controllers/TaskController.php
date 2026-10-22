@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\Department;
 use App\Models\Task;
 use App\Models\TaskAttachment;
+use App\Models\TaskCategory;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -29,6 +30,7 @@ class TaskController extends Controller
         $priority = $request->get('priority');
         $q = $request->get('q');
         $departmentId = $request->get('department_id');
+        $categoryId = $request->get('category_id');
         $companyId = $request->get('company_id');
         $userId = $request->get('user_id');
         $viewMode = $request->get('view_mode'); // 'user_wise' or null
@@ -89,13 +91,15 @@ class TaskController extends Controller
             'overdue' => (clone $baseCountQuery)->where('status', '!=', 'completed')->whereDate('due_date', '<', now()->toDateString())->count(),
         ];
 
-        // Ensure all active employees of the company are included for task creation
+        // Restrict employees dropdown ONLY to users who have task access permissions (tasks.view, tasks.create, tasks.manage)
         $compIds = $u->accessibleCompanyIds();
         $companyEmployeesQuery = User::where('status', 'active');
         if (!$u->isSuperAdmin() && !empty($compIds)) {
             $companyEmployeesQuery->whereIn('company_id', $compIds);
         }
-        $companyEmployees = $companyEmployeesQuery->orderBy('first_name')->get();
+        $companyEmployees = $companyEmployeesQuery->orderBy('first_name')->get()->filter(function ($emp) {
+            return $emp->isSuperAdmin() || $emp->hasPermission('tasks.view') || $emp->hasPermission('tasks.create') || $emp->hasPermission('tasks.manage');
+        })->values();
 
         return view('tasks.index', [
             'items' => $items,
@@ -104,6 +108,7 @@ class TaskController extends Controller
             'priority' => $priority,
             'q' => $q,
             'departmentId' => $departmentId,
+            'categoryId' => $categoryId,
             'companyId' => $companyId,
             'userId' => $userId,
             'dateFilter' => $dateFilter,
@@ -114,7 +119,7 @@ class TaskController extends Controller
             'employees' => $companyEmployees,
             'departments' => Department::orderBy('name')->get(),
             'companies' => (!$u->isSuperAdmin() && !empty($u->accessibleCompanyIds())) ? Company::whereIn('id', $u->accessibleCompanyIds())->orderBy('name')->get() : Company::orderBy('name')->get(),
-            'categories' => Category::orderBy('name')->get(),
+            'categories' => TaskCategory::orderBy('name')->get(),
             'allTasksForCalendar' => (clone $baseCountQuery)->with(['assignee'])->select(['id', 'title', 'due_date', 'due_time', 'priority', 'status', 'assigned_to'])->get(),
         ]);
     }
@@ -135,6 +140,7 @@ class TaskController extends Controller
             'due_time' => 'nullable',
             'repeat_type' => 'nullable|in:none,daily,weekly,monthly,quarterly,half_yearly,yearly',
             'department_id' => 'nullable|exists:departments,id',
+            'category_id' => 'nullable|exists:task_categories,id',
             'assigned_to' => 'nullable|exists:users,id',
             'others' => 'nullable|array',
             'assignee_ids' => 'nullable|array',
@@ -143,8 +149,9 @@ class TaskController extends Controller
             'attachment_files.*' => 'nullable|file|max:15360',
         ]);
 
-        $others = $data['others'] ?? [];
-        $assigneeIds = $data['assignee_ids'] ?? [];
+        $rawOthers = $request->input('assignee_ids') ?? $request->input('others') ?? [];
+        $others = is_array($rawOthers) ? $rawOthers : [$rawOthers];
+        $assigneeIds = is_array($data['assignee_ids'] ?? []) ? $data['assignee_ids'] : [];
         unset($data['others'], $data['assignee_ids'], $data['attachment_file'], $data['attachment_files']);
 
         $data['created_by'] = $request->user()->id;
@@ -231,12 +238,18 @@ class TaskController extends Controller
             }
         }
 
-        $task->load(['assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments.user', 'histories.user']);
+        $task->load(['assignee', 'assignees', 'others', 'department', 'category', 'replies.user', 'attachments.user', 'histories.user']);
+
+        // Restrict dropdowns only to employees with task access
+        $accessibleEmployees = User::where('status', 'active')->orderBy('first_name')->get()->filter(function ($emp) {
+            return $emp->isSuperAdmin() || $emp->hasPermission('tasks.view') || $emp->hasPermission('tasks.create') || $emp->hasPermission('tasks.manage');
+        })->values();
 
         return view('tasks.show', [
             'task' => $task,
-            'employees' => User::where('status', 'active')->orderBy('first_name')->get(),
+            'employees' => $accessibleEmployees,
             'departments' => Department::orderBy('name')->get(),
+            'categories' => TaskCategory::orderBy('name')->get(),
         ]);
     }
 
@@ -252,13 +265,15 @@ class TaskController extends Controller
             'due_time' => 'nullable',
             'repeat_type' => 'nullable|in:none,daily,weekly,monthly,quarterly,half_yearly,yearly',
             'department_id' => 'nullable|exists:departments,id',
+            'category_id' => 'nullable|exists:task_categories,id',
             'assigned_to' => 'nullable|exists:users,id',
             'others' => 'nullable|array',
             'assignee_ids' => 'nullable|array',
         ]);
 
-        $others = $data['others'] ?? [];
-        $assigneeIds = $data['assignee_ids'] ?? [];
+        $rawOthers = $request->input('assignee_ids') ?? $request->input('others') ?? [];
+        $others = is_array($rawOthers) ? $rawOthers : [$rawOthers];
+        $assigneeIds = is_array($data['assignee_ids'] ?? []) ? $data['assignee_ids'] : [];
         unset($data['others'], $data['assignee_ids']);
 
         $oldStatus = $task->status;
@@ -322,16 +337,16 @@ class TaskController extends Controller
 
     public function reassign(Request $request, Task $task)
     {
-        $data = $request->validate([
-            'new_assigned_to' => 'required',
-            'remarks' => 'nullable|string',
-        ]);
+        $rawAssignees = $request->input('new_assigned_to') ?: $request->input('assignees') ?: $request->input('assignee_ids');
+        if (empty($rawAssignees)) {
+            return back()->with('error', 'The new assigned to field is required. Please select at least one employee to re-assign.');
+        }
 
-        $rawAssignees = is_array($data['new_assigned_to']) ? $data['new_assigned_to'] : [$data['new_assigned_to']];
+        $rawAssignees = is_array($rawAssignees) ? $rawAssignees : [$rawAssignees];
         $assigneeIds = array_filter(array_map('intval', $rawAssignees));
 
         if (empty($assigneeIds)) {
-            return back()->with('error', 'Please select at least one assignee.');
+            return back()->with('error', 'The new assigned to field is required. Please select at least one employee to re-assign.');
         }
 
         $assignees = User::whereIn('id', $assigneeIds)->get();
@@ -347,13 +362,13 @@ class TaskController extends Controller
 
         $newNames = $assignees->map(fn ($u) => $u->displayName())->implode(', ');
         $logMsg = "Task re-assigned from {$oldAssigneeName} to {$newNames}";
-        if (!empty($data['remarks'])) {
-            $logMsg .= " (Reason: {$data['remarks']})";
+        if ($request->filled('remarks')) {
+            $logMsg .= " (Reason: " . $request->input('remarks') . ")";
         }
 
         $task->logHistory('reassigned', $logMsg, $request->user()->id);
 
-        // Send FCM Notification to all new assignees
+        // Send FCM Notification & Email to all new assignees
         foreach ($assignees as $newAssignee) {
             \App\Services\FirebaseNotificationService::sendTaskNotification(
                 $newAssignee,
@@ -361,9 +376,88 @@ class TaskController extends Controller
                 $logMsg,
                 $task->id
             );
+            \App\Services\MailService::sendTaskAssignedMail($newAssignee, $task, $request->user());
         }
 
         return back()->with('ok', "Task re-assigned to {$newNames} successfully.");
+    }
+
+    public function storeCategory(Request $request)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:100|unique:task_categories,name',
+        ]);
+
+        $category = TaskCategory::create([
+            'name' => $data['name'],
+            'created_by' => $request->user()?->id,
+        ]);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'category' => $category,
+                'message' => "Category '{$category->name}' created successfully.",
+            ]);
+        }
+
+        return back()->with('ok', "Category '{$category->name}' created successfully.");
+    }
+
+    public function updateDeadline(Request $request, Task $task)
+    {
+        $u = $request->user();
+        if (!$u) {
+            return redirect()->route('login');
+        }
+
+        $data = $request->validate([
+            'due_date' => 'nullable|date',
+            'due_time' => 'nullable|string',
+            'status' => 'nullable|in:pending,in_progress,completed',
+            'remarks' => 'nullable|string',
+        ]);
+
+        $update = [];
+        $logDetails = [];
+        if (!empty($data['due_date'])) {
+            $update['due_date'] = $data['due_date'];
+            $logDetails[] = "New deadline: " . Carbon::parse($data['due_date'])->format('d M Y');
+        }
+        if (!empty($data['due_time'])) {
+            $update['due_time'] = $data['due_time'];
+            $logDetails[] = "Time: " . $data['due_time'];
+        }
+        if (!empty($data['status'])) {
+            $update['status'] = $data['status'];
+            $logDetails[] = "Status: " . strtoupper(str_replace('_', ' ', $data['status']));
+        }
+
+        if (!empty($update)) {
+            $task->update($update);
+            $msg = "Deadline/Status updated by " . $u->displayName() . ": " . implode(', ', $logDetails);
+            if (!empty($data['remarks'])) {
+                $msg .= " (Note: {$data['remarks']})";
+            }
+            $task->logHistory('deadline_updated', $msg, $u->id);
+
+            // Notify all assignees via Push & Email
+            $assignees = $task->assignees;
+            if ($task->assignee) $assignees->push($task->assignee);
+            foreach ($assignees->unique('id') as $assigneeUser) {
+                if ($assigneeUser->id !== $u->id) {
+                    \App\Services\FirebaseNotificationService::sendTaskNotification(
+                        $assigneeUser,
+                        'Task Deadline Updated: ' . $task->title,
+                        $msg,
+                        $task->id
+                    );
+                    \App\Services\MailService::sendTaskAssignedMail($assigneeUser, $task, $u);
+                }
+            }
+        }
+
+        return back()->with('ok', 'Task deadline and status updated successfully.');
     }
 
     public function updateStatus(Request $request, Task $task)
@@ -633,6 +727,7 @@ class TaskController extends Controller
         $priority = $request->get('priority');
         $q = $request->get('q');
         $departmentId = $request->get('department_id');
+        $categoryId = $request->get('category_id');
         $companyId = $request->get('company_id');
         $userId = $request->get('user_id');
 
@@ -640,7 +735,7 @@ class TaskController extends Controller
         $sortDir = strtolower($request->get('sort_dir', 'asc')) === 'desc' ? 'desc' : 'asc';
 
         $query = Task::query()
-            ->with(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])
+            ->with(['creator', 'assignee', 'assignees', 'others', 'department', 'category', 'replies.user', 'attachments', 'histories.user'])
             ->when(!$u || !$u->isAdmin(), function ($q) use ($u) {
                 if (!$u) return;
                 $q->where(function ($inner) use ($u) {
@@ -653,6 +748,7 @@ class TaskController extends Controller
             ->when($status && $status !== 'all', fn ($q) => $q->where('status', $status))
             ->when($priority, fn ($q) => $q->where('priority', $priority))
             ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
+            ->when($categoryId, fn ($q) => $q->where('category_id', $categoryId))
             ->when($companyId, fn ($q) => $q->whereHas('assignee', fn ($u) => $u->where('company_id', $companyId)))
             ->when($userId, fn ($q) => $q->where(fn ($uQuery) => $uQuery->where('assigned_to', $userId)->orWhereHas('assignees', fn ($p) => $p->where('users.id', $userId))))
             ->when($dateFilter === 'overdue', fn ($q) => $q->where('status', '!=', 'completed')->whereDate('due_date', '<', now()->toDateString()))

@@ -80,8 +80,8 @@
     .modal-card-clean {
         background: #ffffff;
         border-radius: 16px;
-        width: 950px;
-        max-width: 95vw;
+        width: 1060px;
+        max-width: 96vw;
         max-height: 90vh;
         overflow-x: hidden !important;
         overflow-y: auto;
@@ -124,16 +124,21 @@
         border-radius: 4px;
     }
 
-    /* 3-Column Layout matching Screenshot 2 */
+    /* 4-Column Layout */
     .geofence-modal-grid {
         display: grid;
-        grid-template-columns: 280px 230px 1fr;
-        gap: 14px;
+        grid-template-columns: 260px 180px 200px 1fr;
+        gap: 12px;
         align-items: stretch;
         width: 100%;
         box-sizing: border-box;
     }
-    @media (max-width: 920px) {
+    @media (max-width: 1024px) {
+        .geofence-modal-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+    @media (max-width: 640px) {
         .geofence-modal-grid {
             grid-template-columns: 1fr;
         }
@@ -380,7 +385,7 @@
                         <th style="padding: 10px 14px;">Latitude</th>
                         <th style="padding: 10px 14px;">Longitude</th>
                         <th style="padding: 10px 14px;">Radius (m)</th>
-                        <th style="padding: 10px 14px;">Category / Department</th>
+                        <th style="padding: 10px 14px;">Company / Department</th>
                         <th style="padding: 10px 14px;">Status</th>
                         <th style="padding: 10px 14px; text-align: right;">Actions</th>
                     </tr>
@@ -388,14 +393,20 @@
                 <tbody>
                     @forelse($geofences as $fence)
                         @php
-                            $catNames = [];
-                            if (!empty($fence->assigned_categories) && is_array($fence->assigned_categories)) {
-                                $catNames = $categories->whereIn('id', $fence->assigned_categories)->pluck('name')->all();
+                            $compNames = [];
+                            if (!empty($fence->assigned_companies) && is_array($fence->assigned_companies)) {
+                                $compNames = $companies->whereIn('id', $fence->assigned_companies)->pluck('name')->all();
+                            } elseif ($fence->company) {
+                                $compNames = [$fence->company->name];
                             }
-                            if (empty($catNames) && !empty($fence->assigned_departments) && is_array($fence->assigned_departments)) {
-                                $catNames = $departments->whereIn('id', $fence->assigned_departments)->pluck('name')->all();
+
+                            $deptNames = [];
+                            if (!empty($fence->assigned_departments) && is_array($fence->assigned_departments)) {
+                                $deptNames = $departments->whereIn('id', $fence->assigned_departments)->pluck('name')->all();
                             }
-                            $catDisplay = !empty($catNames) ? implode(', ', $catNames) : ($fence->category ?: '-');
+
+                            $compDisplay = !empty($compNames) ? implode(', ', $compNames) : 'All Companies';
+                            $deptDisplay = !empty($deptNames) ? implode(', ', $deptNames) : 'All Departments';
                         @endphp
                         <tr class="geofence-row" id="row-fence-{{ $fence->id }}" onclick="highlightGeofence({{ $fence->id }}, {{ $fence->latitude }}, {{ $fence->longitude }}, {{ $fence->radius }})">
                             <td style="padding: 12px 14px; font-weight: 600; color: #1e293b; max-width: 380px;">
@@ -410,7 +421,10 @@
                             <td style="padding: 12px 14px; font-family: monospace; font-size: 13px; color: #334155;">{{ round($fence->latitude, 6) }}</td>
                             <td style="padding: 12px 14px; font-family: monospace; font-size: 13px; color: #334155;">{{ round($fence->longitude, 6) }}</td>
                             <td style="padding: 12px 14px; font-weight: 700; color: #0f172a;">{{ $fence->radius }}</td>
-                            <td style="padding: 12px 14px; color: #475569; font-size: 12.5px;">{{ $catDisplay }}</td>
+                            <td style="padding: 12px 14px; color: #475569; font-size: 12.5px;">
+                                <div style="font-weight: 700; color: #1e293b;">{{ $compDisplay }}</div>
+                                <div style="font-size: 11.5px; color: #64748b;">{{ $deptDisplay }}</div>
+                            </td>
                             <td style="padding: 12px 14px;">
                                 <span style="background: {{ $fence->status === 'active' ? '#dcfce7' : '#fee2e2' }}; color: {{ $fence->status === 'active' ? '#15803d' : '#b91c1c' }}; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 6px;">
                                     {{ $fence->status }}
@@ -470,9 +484,9 @@
         <form id="geofenceForm" method="POST" action="{{ route('tracking.geofences.store') }}" style="display: flex; flex-direction: column; margin: 0;">
             @csrf
             <input type="hidden" name="_method" id="formMethod" value="POST">
-            <input type="hidden" name="company_id" id="fieldCompanyId" value="{{ $companies->first()?->id }}">
+            <input type="hidden" name="company_id" id="fieldCompanyId" value="">
 
-            <!-- 3 Column Main Grid matching Screenshot 2 -->
+            <!-- 4 Column Main Grid: Settings, Companies, Departments, Employees -->
             <div class="geofence-modal-grid">
                 <!-- Column 1: Settings -->
                 <div class="modal-section-card">
@@ -525,53 +539,70 @@
                     </div>
                 </div>
 
-                <!-- Column 2: Employee Categories (X selected) matching Screenshot 2 -->
+                <!-- Column 2: Companies (X selected) -->
                 <div class="modal-section-card">
                     <div class="modal-section-header">
-                        <i class="fa-solid fa-id-badge" style="color: #0f172a; font-size: 14px;"></i>
-                        <span>Employee Categories (<span id="catSelectedCount">0</span> selected)</span>
+                        <i class="fa-solid fa-building" style="color: #ea580c; font-size: 14px;"></i>
+                        <span>Companies (<span id="compSelectedCount">0</span> selected)</span>
                     </div>
 
                     <div class="clean-scrollbar" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; padding-right: 4px;">
-                        @foreach($categories as $cat)
+                        @foreach($companies as $comp)
                             <label class="cat-row-label">
-                                <input type="checkbox" name="assigned_categories[]" value="{{ $cat->id }}" class="cat-checkbox" data-cat-id="{{ $cat->id }}" onchange="handleCategoryCheck({{ $cat->id }}, this.checked)">
-                                <span class="cat-name-text">{{ $cat->name }}</span>
+                                <input type="checkbox" name="assigned_companies[]" value="{{ $comp->id }}" class="comp-checkbox" data-comp-id="{{ $comp->id }}" onchange="handleCompanyCheck({{ $comp->id }}, this.checked)">
+                                <span class="cat-name-text">{{ $comp->name }}</span>
                             </label>
                         @endforeach
                     </div>
                 </div>
 
-                <!-- Column 3: Select Employees (X selected) matching Screenshot 2 -->
+                <!-- Column 3: Departments (X selected) -->
                 <div class="modal-section-card">
                     <div class="modal-section-header">
-                        <i class="fa-solid fa-crosshairs" style="color: #ea580c; font-size: 14px;"></i>
+                        <i class="fa-solid fa-sitemap" style="color: #0f172a; font-size: 14px;"></i>
+                        <span>Departments (<span id="deptSelectedCount">0</span> selected)</span>
+                    </div>
+
+                    <div class="clean-scrollbar" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; padding-right: 4px;">
+                        @foreach($departments as $dept)
+                            <label class="cat-row-label">
+                                <input type="checkbox" name="assigned_departments[]" value="{{ $dept->id }}" class="dept-checkbox" data-dept-id="{{ $dept->id }}" onchange="handleDepartmentCheck({{ $dept->id }}, this.checked)">
+                                <span class="cat-name-text">{{ $dept->name }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+                </div>
+
+                <!-- Column 4: Select Employees (X selected) -->
+                <div class="modal-section-card">
+                    <div class="modal-section-header">
+                        <i class="fa-solid fa-users" style="color: #ea580c; font-size: 14px;"></i>
                         <span>Select Employees (<span id="empSelectedCount">0</span> selected)</span>
                     </div>
 
-                    <!-- Category Filter Carousel with arrows matching Screenshot 2 -->
+                    <!-- Department Filter Carousel with arrows -->
                     <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
-                        <button type="button" onclick="scrollCatPills(-1)" style="border:0; background:none; color:#64748b; cursor:pointer; font-size:12px; padding:2px 4px;">&#9664;</button>
-                        <div class="category-scroll-pills" id="catPillsContainer">
-                            <button type="button" class="cat-pill active" onclick="filterEmployeesByCat('all', this)">All</button>
-                            @foreach($categories as $cat)
-                                @php $empCount = $employees->where('category_id', $cat->id)->count(); @endphp
+                        <button type="button" onclick="scrollDeptPills(-1)" style="border:0; background:none; color:#64748b; cursor:pointer; font-size:12px; padding:2px 4px;">&#9664;</button>
+                        <div class="category-scroll-pills" id="deptPillsContainer">
+                            <button type="button" class="cat-pill active" onclick="filterEmployeesByDept('all', this)">All</button>
+                            @foreach($departments as $dept)
+                                @php $empCount = $employees->where('department_id', $dept->id)->count(); @endphp
                                 @if($empCount > 0)
-                                    <button type="button" class="cat-pill" onclick="filterEmployeesByCat({{ $cat->id }}, this)">
-                                        {{ $cat->name }} ({{ $empCount }})
+                                    <button type="button" class="cat-pill" onclick="filterEmployeesByDept({{ $dept->id }}, this)">
+                                        {{ $dept->name }} ({{ $empCount }})
                                     </button>
                                 @endif
                             @endforeach
                         </div>
-                        <button type="button" onclick="scrollCatPills(1)" style="border:0; background:none; color:#64748b; cursor:pointer; font-size:12px; padding:2px 4px;">&#9654;</button>
+                        <button type="button" onclick="scrollDeptPills(1)" style="border:0; background:none; color:#64748b; cursor:pointer; font-size:12px; padding:2px 4px;">&#9654;</button>
                     </div>
 
-                    <!-- Pill Slider Bar matching Screenshot 2 -->
+                    <!-- Pill Slider Bar -->
                     <div style="display: flex; justify-content: center; margin: 2px 0 8px 0;">
                         <div style="width: 44px; height: 4px; background: #94a3b8; border-radius: 4px;"></div>
                     </div>
 
-                    <!-- Search Filter + All + Clear row matching Screenshot 2 -->
+                    <!-- Search Filter + All + Clear row -->
                     <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 8px;">
                         <div style="flex: 1;">
                             <input type="text" id="empSearchInput" placeholder="Filter employees..." oninput="searchEmployeesInList(this.value)" style="width: 100% !important; border: 1px solid #d1d5db !important; border-radius: 8px !important; padding: 6px 10px !important; font-size: 12px !important; height: 32px !important; outline: none; background: #fff !important;">
@@ -580,22 +611,22 @@
                         <button type="button" class="btn light" onclick="selectAllEmployees(false)" style="padding: 0 12px; height: 32px; font-size: 11.5px; font-weight: 600; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; color: #334155; cursor: pointer;">Clear</button>
                     </div>
 
-                    <!-- Scrollable Employee Rows matching Screenshot 2 -->
+                    <!-- Scrollable Employee Rows -->
                     <div id="empListContainer" class="clean-scrollbar" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; padding-right: 4px;">
                         @foreach($employees as $emp)
                             @php
                                 $badgeClass = in_array(strtolower($emp->role ?? ''), ['admin', 'manager', 'supervisor', 'floor incharge']) ? 'incharge' : 'staff';
                                 $badgeText = $emp->role ? strtoupper($emp->role) : 'Staff';
                             @endphp
-                            <div class="emp-row-card emp-card" data-cat-id="{{ $emp->category_id }}" data-emp-name="{{ strtolower($emp->displayName()) }}">
+                            <div class="emp-row-card emp-card" data-dept-id="{{ $emp->department_id }}" data-comp-id="{{ $emp->company_id }}" data-emp-name="{{ strtolower($emp->displayName()) }}">
                                 <label class="emp-row-label">
-                                    <input type="checkbox" name="assigned_employees[]" value="{{ $emp->id }}" class="emp-checkbox emp-for-cat-{{ $emp->category_id }}" onchange="updateEmpCount()">
+                                    <input type="checkbox" name="assigned_employees[]" value="{{ $emp->id }}" class="emp-checkbox emp-for-dept-{{ $emp->department_id }} emp-for-comp-{{ $emp->company_id }}" onchange="updateEmpCount()">
                                     <div class="emp-row-info">
                                         <div class="emp-row-head">
                                             <span class="emp-name-text">{{ $emp->displayName() }}</span>
                                             <span class="emp-badge {{ $badgeClass }}">{{ $badgeText }}</span>
                                         </div>
-                                        <div class="emp-sub-dept">{{ $emp->category?->name ?? 'Staff' }}</div>
+                                        <div class="emp-sub-dept">{{ $emp->department?->name ?? 'General' }} <span style="color:#94a3b8">({{ $emp->company?->name ?? 'Tulsi Fabrics' }})</span></div>
                                     </div>
                                 </label>
                             </div>
@@ -620,12 +651,14 @@
             'id' => $g->id,
             'name' => $g->name,
             'company_id' => $g->company_id,
+            'assigned_companies' => $g->assigned_companies ?: ($g->company_id ? [$g->company_id] : []),
             'address' => $g->address,
             'latitude' => (float)$g->latitude,
             'longitude' => (float)$g->longitude,
             'radius' => (int)$g->radius,
             'category' => $g->category,
             'assigned_categories' => $g->assigned_categories ?: [],
+            'assigned_departments' => $g->assigned_departments ?: [],
             'assigned_employees' => $g->assigned_employees ?: [],
             'status' => $g->status,
         ];
@@ -712,9 +745,11 @@
         document.getElementById('locationModeSelect').value = 'current';
         handleLocationModeChange();
 
-        document.querySelectorAll('.cat-checkbox').forEach(c => c.checked = false);
+        document.querySelectorAll('.comp-checkbox').forEach(c => c.checked = false);
+        document.querySelectorAll('.dept-checkbox').forEach(c => c.checked = false);
         document.querySelectorAll('.emp-checkbox').forEach(c => c.checked = false);
-        updateCatCount();
+        updateCompCount();
+        updateDeptCount();
         updateEmpCount();
 
         document.getElementById('geofenceModal').style.display = 'flex';
@@ -732,18 +767,24 @@
         document.getElementById('dispLat').textContent = fence.latitude;
         document.getElementById('dispLng').textContent = fence.longitude;
 
-        const assignedCats = fence.assigned_categories || [];
+        const assignedComps = fence.assigned_companies || (fence.company_id ? [fence.company_id] : []);
+        const assignedDepts = fence.assigned_departments || [];
         const assignedEmps = fence.assigned_employees || [];
 
-        document.querySelectorAll('.cat-checkbox').forEach(c => {
-            c.checked = assignedCats.includes(parseInt(c.value)) || assignedCats.includes(String(c.value));
+        document.querySelectorAll('.comp-checkbox').forEach(c => {
+            c.checked = assignedComps.includes(parseInt(c.value)) || assignedComps.includes(String(c.value));
+        });
+
+        document.querySelectorAll('.dept-checkbox').forEach(c => {
+            c.checked = assignedDepts.includes(parseInt(c.value)) || assignedDepts.includes(String(c.value));
         });
 
         document.querySelectorAll('.emp-checkbox').forEach(c => {
             c.checked = assignedEmps.includes(parseInt(c.value)) || assignedEmps.includes(String(c.value));
         });
 
-        updateCatCount();
+        updateCompCount();
+        updateDeptCount();
         updateEmpCount();
 
         document.getElementById('geofenceModal').style.display = 'flex';
@@ -823,18 +864,32 @@
         }, 300);
     }
 
-    // Category selection automatically checks all employees of that category
-    function handleCategoryCheck(catId, isChecked) {
-        document.querySelectorAll('.emp-for-cat-' + catId).forEach(empBox => {
+    // Company selection automatically checks all employees of that company
+    function handleCompanyCheck(compId, isChecked) {
+        document.querySelectorAll('.emp-for-comp-' + compId).forEach(empBox => {
             empBox.checked = isChecked;
         });
-        updateCatCount();
+        updateCompCount();
         updateEmpCount();
     }
 
-    function updateCatCount() {
-        const count = document.querySelectorAll('.cat-checkbox:checked').length;
-        document.getElementById('catSelectedCount').textContent = count;
+    // Department selection automatically checks all employees of that department
+    function handleDepartmentCheck(deptId, isChecked) {
+        document.querySelectorAll('.emp-for-dept-' + deptId).forEach(empBox => {
+            empBox.checked = isChecked;
+        });
+        updateDeptCount();
+        updateEmpCount();
+    }
+
+    function updateCompCount() {
+        const count = document.querySelectorAll('.comp-checkbox:checked').length;
+        document.getElementById('compSelectedCount').textContent = count;
+    }
+
+    function updateDeptCount() {
+        const count = document.querySelectorAll('.dept-checkbox:checked').length;
+        document.getElementById('deptSelectedCount').textContent = count;
     }
 
     function updateEmpCount() {
@@ -847,12 +902,12 @@
         updateEmpCount();
     }
 
-    function filterEmployeesByCat(catId, pillBtn) {
+    function filterEmployeesByDept(deptId, pillBtn) {
         document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
         pillBtn.classList.add('active');
 
         document.querySelectorAll('.emp-card').forEach(card => {
-            if (catId === 'all' || String(card.getAttribute('data-cat-id')) === String(catId)) {
+            if (deptId === 'all' || String(card.getAttribute('data-dept-id')) === String(deptId)) {
                 card.style.display = 'flex';
             } else {
                 card.style.display = 'none';
@@ -872,8 +927,8 @@
         });
     }
 
-    function scrollCatPills(direction) {
-        const container = document.getElementById('catPillsContainer');
+    function scrollDeptPills(direction) {
+        const container = document.getElementById('deptPillsContainer');
         container.scrollBy({ left: direction * 120, behavior: 'smooth' });
     }
 </script>

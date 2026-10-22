@@ -21,6 +21,11 @@ class Task extends Model
         return $this->belongsTo(Department::class);
     }
 
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(TaskCategory::class, 'category_id');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

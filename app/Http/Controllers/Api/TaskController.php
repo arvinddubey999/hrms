@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\Task;
+use App\Models\TaskCategory;
 use App\Models\User;
 use App\Services\FirebaseNotificationService;
+use App\Services\MailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -23,6 +25,7 @@ class TaskController extends Controller
             'assignees',
             'others',
             'department',
+            'category',
             'replies.user',
             'attachments',
             'histories.user',
@@ -61,6 +64,7 @@ class TaskController extends Controller
             'assignees',
             'others',
             'department',
+            'category',
             'replies.user',
             'attachments.user',
             'histories.user',
@@ -77,6 +81,7 @@ class TaskController extends Controller
             'client' => 'nullable|string',
             'status' => 'nullable|in:pending,in_progress,completed',
             'priority' => 'required|in:low,medium,high',
+            'category_id' => 'nullable|exists:task_categories,id',
             'due_date' => 'nullable|date',
             'due_time' => 'nullable',
             'repeat_type' => 'nullable|in:none,daily,weekly,monthly,quarterly,half_yearly,yearly',
@@ -121,7 +126,7 @@ class TaskController extends Controller
 
         $task->logHistory('created', 'Task created via Mobile App', $request->user()->id);
 
-        // Send FCM Push Notification to assigned users
+        // Send FCM Push Notification and Email to assigned users
         $targetUserIds = array_unique(array_filter(array_merge([$task->assigned_to], $assigneeIds, $others)));
         $notifyUsers = User::whereIn('id', $targetUserIds)->where('id', '!=', $request->user()->id)->get();
 
@@ -132,12 +137,13 @@ class TaskController extends Controller
                 'You have been assigned a new task due on ' . ($task->due_date ? $task->due_date->format('d M Y') : 'N/A'),
                 $task->id
             );
+            MailService::sendTaskAssignedMail($emp, $task, $request->user());
         }
 
         return response()->json([
             'ok' => true,
             'message' => 'Task created successfully and notifications dispatched!',
-            'data' => $this->formatTask($task->fresh(['assignee', 'assignees', 'others', 'department', 'replies.user', 'histories.user'])),
+            'data' => $this->formatTask($task->fresh(['assignee', 'assignees', 'others', 'department', 'category', 'replies.user', 'histories.user'])),
         ]);
     }
 
@@ -161,7 +167,7 @@ class TaskController extends Controller
             $task->logHistory('status_updated', "Status updated from {$oldStatus} to {$task->status}", $user->id);
         }
 
-        return response()->json(['data' => $this->formatTask($task->fresh(['assignee', 'assignees', 'others', 'department', 'replies.user', 'histories.user']))]);
+        return response()->json(['data' => $this->formatTask($task->fresh(['assignee', 'assignees', 'others', 'department', 'category', 'replies.user', 'histories.user']))]);
     }
 
     public function reply(Request $request, Task $task)
@@ -201,7 +207,7 @@ class TaskController extends Controller
         return response()->json([
             'ok' => true,
             'message' => 'Reply posted successfully!',
-            'data' => $this->formatTask($task->fresh(['assignee', 'assignees', 'others', 'department', 'replies.user', 'histories.user'])),
+            'data' => $this->formatTask($task->fresh(['assignee', 'assignees', 'others', 'department', 'category', 'replies.user', 'histories.user'])),
         ]);
     }
 
@@ -231,11 +237,12 @@ class TaskController extends Controller
             $logMsg,
             $task->id
         );
+        MailService::sendTaskAssignedMail($newAssignee, $task, $request->user());
 
         return response()->json([
             'ok' => true,
             'message' => "Task re-assigned to {$newAssignee->displayName()} successfully!",
-            'data' => $this->formatTask($task->fresh(['assignee', 'assignees', 'others', 'department', 'replies.user', 'histories.user'])),
+            'data' => $this->formatTask($task->fresh(['assignee', 'assignees', 'others', 'department', 'category', 'replies.user', 'histories.user'])),
         ]);
     }
 
@@ -257,6 +264,7 @@ class TaskController extends Controller
                 $msg,
                 $task->id
             );
+            MailService::sendTaskReminderMail($u, $task, $request->user());
         }
 
         $task->logHistory('reminded', "Reminder notification sent by {$senderName}", $request->user()->id);
@@ -276,14 +284,56 @@ class TaskController extends Controller
             $query->where('department_id', $departmentId);
         }
 
-        $list = $query->orderBy('first_name')->get()->map(fn ($u) => [
-            'id' => $u->id,
-            'name' => $u->displayName(),
-            'department_id' => $u->department_id,
-            'department' => $u->department ?: ($u->department_id ? Department::find($u->department_id)?->name : '-'),
-        ]);
+        $list = $query->orderBy('first_name')->get()
+            ->filter(function ($u) {
+                return $u->isSuperAdmin()
+                    || $u->hasPermission('tasks.view')
+                    || $u->hasPermission('tasks.create')
+                    || $u->hasPermission('tasks.manage');
+            })
+            ->values()
+            ->map(fn ($u) => [
+                'id' => $u->id,
+                'name' => $u->displayName(),
+                'department_id' => $u->department_id,
+                'department' => $u->department ?: ($u->department_id ? Department::find($u->department_id)?->name : '-'),
+            ]);
 
         return response()->json(['data' => $list]);
+    }
+
+    public function categories(Request $request)
+    {
+        $companyId = $request->user()->company_id;
+        $categories = TaskCategory::active()
+            ->when($companyId, fn ($q) => $q->where(fn ($sub) => $sub->whereNull('company_id')->orWhere('company_id', $companyId)))
+            ->orderBy('name')
+            ->get();
+
+        return response()->json(['data' => $categories]);
+    }
+
+    public function storeCategory(Request $request)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:100',
+            'color' => 'nullable|string|max:20',
+            'description' => 'nullable|string|max:255',
+        ]);
+
+        $category = TaskCategory::create([
+            'name' => trim($data['name']),
+            'color' => $data['color'] ?? '#6366f1',
+            'description' => $data['description'] ?? null,
+            'company_id' => $request->user()->company_id,
+            'is_active' => true,
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Task category created successfully!',
+            'data' => $category,
+        ]);
     }
 
     private function formatTask(Task $t): array
@@ -294,6 +344,9 @@ class TaskController extends Controller
             'description' => $t->description,
             'status' => $t->status,
             'priority' => $t->priority,
+            'category_id' => $t->category_id,
+            'category_name' => $t->category?->name,
+            'category_color' => $t->category?->color,
             'repeat_type' => $t->repeat_type ?? 'none',
             'due_date' => optional($t->due_date)->toDateString(),
             'due_time' => $t->due_time,

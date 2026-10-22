@@ -74,7 +74,7 @@ class AttendanceController extends Controller
             'greeting' => $punch->greeting,
             'speak' => $punch->greeting,
             'next_action' => $nextAction,
-            'inside' => GeoService::insideOffice((float) $data['lat'], (float) $data['lng']),
+            'inside' => GeoService::insideOffice((float) $data['lat'], (float) $data['lng'], null, $target),
         ]);
     }
 

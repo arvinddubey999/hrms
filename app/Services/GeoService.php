@@ -29,21 +29,12 @@ class GeoService
             return true;
         }
 
-        // 2. Check company multi-geofences if user company is set
-        if ($user && $user->company_id) {
-            $geofences = CompanyGeofence::where('company_id', $user->company_id)
-                ->where('status', 'active')
-                ->get();
-
+        // 2. Check active company multi-geofences
+        $geofences = CompanyGeofence::where('status', 'active')->get();
+        if ($geofences->isNotEmpty()) {
             foreach ($geofences as $fence) {
-                // Check category or employee assignment filter if set
-                if (!empty($fence->assigned_employees) && !in_array($user->id, $fence->assigned_employees)) {
-                    continue;
-                }
-                if (!empty($fence->assigned_departments) && !in_array($user->department_id, $fence->assigned_departments)) {
-                    continue;
-                }
-                if (!empty($fence->assigned_categories) && !in_array($user->category_id, $fence->assigned_categories)) {
+                // Check if this geofence applies to the user
+                if ($user && !$fence->appliesToUser($user)) {
                     continue;
                 }
 
@@ -54,11 +45,18 @@ class GeoService
             }
         }
 
-        // 3. Fallback to global setting geofence
+        // 3. Fallback to global setting geofence if configured
         $setting ??= Setting::current();
-        if ($setting->office_lat && $setting->office_lng) {
+        if ($setting && $setting->office_lat && $setting->office_lng) {
             $meters = self::distanceMeters($lat, $lng, (float) $setting->office_lat, (float) $setting->office_lng);
-            return $meters <= ($setting->geofence_radius_m ?: 100);
+            if ($meters <= ($setting->geofence_radius_m ?: 100)) {
+                return true;
+            }
+        }
+
+        // If any geofence or office setting is configured and user is not inside, reject
+        if ($geofences->isNotEmpty() || ($setting && $setting->office_lat && $setting->office_lng)) {
+            return false;
         }
 
         return true;

@@ -14,7 +14,7 @@
     @endif
     <div>
         <h2 style="margin:0">{{ $setting->company_name }}</h2>
-        <div class="muted">{{ $setting->company_address ?: 'Address not set' }} | Geofence Radius: {{ $setting->geofence_radius_m }}m</div>
+        <div class="muted">{{ $setting->company_address ?: 'Address not set' }}</div>
     </div>
 </div>
 
@@ -279,7 +279,7 @@
 </div>
 
 <!-- 3. ROLE & PERMISSION (ACCORDION - MATCHING SCREENSHOT REF) -->
-<div class="accordion-item active">
+<div class="accordion-item">
     <div class="accordion-header" onclick="toggleAccordion(this)">
         <span><i class="fa-solid fa-user-shield" style="color:var(--accent);margin-right:8px"></i> Role & Permission</span>
         <i class="fa-solid fa-chevron-down chevron"></i>
@@ -641,156 +641,17 @@
             <label style="margin-top:10px">Company Main Address</label>
             <input name="company_address" value="{{ $setting->company_address }}">
 
-            <div class="grid-3" style="margin-top:10px">
-                <div>
-                    <label>DEFAULT LATITUDE *</label>
-                    <input name="office_lat" value="{{ $setting->office_lat }}" required>
-                </div>
-                <div>
-                    <label>DEFAULT LONGITUDE *</label>
-                    <input name="office_lng" value="{{ $setting->office_lng }}" required>
-                </div>
-                <div>
-                    <label>GEOFENCE RADIUS (Meters)</label>
-                    <input name="geofence_radius_m" value="{{ $setting->geofence_radius_m }}" required>
-                </div>
-            </div>
+            <!-- Hidden Lat/Lng/Radius to preserve settings without cluttering UI -->
+            <input type="hidden" name="office_lat" value="{{ $setting->office_lat }}">
+            <input type="hidden" name="office_lng" value="{{ $setting->office_lng }}">
+            <input type="hidden" name="geofence_radius_m" value="{{ $setting->geofence_radius_m }}">
 
             <div style="display:flex;gap:12px;margin-top:14px;align-items:center">
                 <button class="btn"><i class="fa-solid fa-floppy-disk"></i> Save System Settings</button>
-                <button type="button" class="btn light" onclick="openGeofenceModal()" style="border:1px solid #cbd5e1;background:#fff">
-                    <i class="fa-solid fa-map-location-dot" style="color:var(--accent)"></i> Geo Fencing Locations
-                </button>
             </div>
         </form>
     </div>
 </div>
-
-<!-- GEOFENCING LOCATIONS MODAL (MATCHING SCREENSHOTS 1 & 4) -->
-<div id="geofenceModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;padding:16px">
-    <div style="background:#fff;width:1050px;max-width:98%;max-height:92vh;border-radius:16px;padding:24px;overflow-y:auto;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25)">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid #e2e8f0;padding-bottom:12px">
-            <div>
-                <h3 style="margin:0;font-size:18px;font-weight:700"><i class="fa-solid fa-location-dot" style="color:#ef4444"></i> Manage Geo-fences</h3>
-                <p class="muted" style="margin:2px 0 0 0;font-size:12px">Select a geofence to highlight it on the map. You can also add, edit or delete existing fences.</p>
-            </div>
-            <button type="button" onclick="closeGeofenceModal()" style="border:0;background:none;font-size:22px;cursor:pointer">&times;</button>
-        </div>
-
-        <!-- ADD GEOFENCE FORM (SCREENSHOT 4) -->
-        <form method="post" action="{{ route('settings.geofences.store') }}" style="background:#f8fafc;padding:18px;border-radius:14px;border:1px solid #e2e8f0;margin-bottom:20px">
-            @csrf
-            <h4 style="margin:0 0 12px 0;font-size:14px;color:#1e293b"><i class="fa-solid fa-circle-plus" style="color:var(--accent)"></i> Configure New Geofence</h4>
-            
-            <div class="grid-3" style="gap:14px">
-                <div>
-                    <label>Select Company *</label>
-                    <select name="company_id" required>
-                        @foreach($companies as $comp)
-                            <option value="{{ $comp->id }}">{{ $comp->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label>Geofence Name / Title *</label>
-                    <input name="name" placeholder="e.g. Kohinoor Textile Market, Branch 1" required>
-                </div>
-                <div>
-                    <label>Category Tag</label>
-                    <input name="category" placeholder="e.g. Factory, Showroom, Office">
-                </div>
-            </div>
-
-            <div class="grid-3" style="gap:14px;margin-top:10px">
-                <div>
-                    <label>Full Address / Location Search *</label>
-                    <input name="address" placeholder="e.g. 3WJ6+Q68, Hojiwala Industrial Estate, Sachin, Surat" required>
-                </div>
-                <div>
-                    <label>Latitude *</label>
-                    <input name="latitude" placeholder="21.1882" required>
-                </div>
-                <div>
-                    <label>Longitude *</label>
-                    <input name="longitude" placeholder="72.8377" required>
-                </div>
-            </div>
-
-            <div class="grid-2" style="gap:14px;margin-top:10px">
-                <div>
-                    <label>Geofence Radius (meters) *</label>
-                    <input type="number" name="radius" value="100" min="10" required>
-                </div>
-                <div>
-                    <label>Status</label>
-                    <select name="status">
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                    </select>
-                </div>
-            </div>
-
-            <div style="margin-top:14px;display:flex;justify-content:flex-end">
-                <button class="btn"><i class="fa-solid fa-check"></i> Confirm & Save Geofence Location</button>
-            </div>
-        </form>
-
-        <!-- EXISTING GEOFENCES TABLE (SCREENSHOT 1) -->
-        <div style="overflow-x:auto">
-            <table class="table" style="font-size:13px">
-                <thead>
-                    <tr style="background:#f1f5f9">
-                        <th>Address / Name</th>
-                        <th>Latitude</th>
-                        <th>Longitude</th>
-                        <th>Radius (m)</th>
-                        <th>Category</th>
-                        <th>Company</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($geofences as $geo)
-                        <tr>
-                            <td>
-                                <b>{{ $geo->name }}</b>
-                                @if($geo->address)<div style="font-size:11px;color:#6b7280">{{ $geo->address }}</div>@endif
-                            </td>
-                            <td>{{ round($geo->latitude, 4) }}</td>
-                            <td>{{ round($geo->longitude, 4) }}</td>
-                            <td><span class="chip" style="background:#e0f2fe;color:#0369a1">{{ $geo->radius }} m</span></td>
-                            <td>{{ $geo->category ?: '-' }}</td>
-                            <td>{{ $geo->company->name ?? 'All' }}</td>
-                            <td>
-                                <span class="chip" style="background:{{ $geo->status==='active'?'#dcfce7':'#fee2e2' }};color:{{ $geo->status==='active'?'#166534':'#991b1b' }}">
-                                    {{ ucfirst($geo->status) }}
-                                </span>
-                            </td>
-                            <td>
-                                <form method="post" action="{{ route('settings.geofences.destroy', $geo) }}" style="display:inline" onsubmit="return confirm('Delete geofence?')">
-                                    @csrf @method('delete')
-                                    <button class="btn light" style="font-size:11px;padding:4px 8px;color:#dc2626"><i class="fa-solid fa-trash"></i> Delete</button>
-                                </form>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="8" class="muted" style="text-align:center">No geo-fences configured yet. Add a new geofence above.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<script>
-function openGeofenceModal() {
-    document.getElementById('geofenceModal').style.display = 'flex';
-}
-function closeGeofenceModal() {
-    document.getElementById('geofenceModal').style.display = 'none';
-}
-</script>
 
 
 <!-- SLIDE-OVER DRAWER MODAL FOR EDIT ROLE & MODULE PERMISSIONS (SCREENSHOT REF) -->

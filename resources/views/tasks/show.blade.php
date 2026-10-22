@@ -36,8 +36,22 @@
                 <b>{{ $task->client ?: 'N/A' }}</b>
             </div>
             <div>
+                <span style="color:#6b7280;display:block;font-size:11px;text-transform:uppercase;font-weight:700;margin-bottom:2px">Category</span>
+                @if($task->category)
+                    <span class="chip" style="background:{{ $task->category->color ? $task->category->color . '20' : '#e0e7ff' }};color:{{ $task->category->color ?: '#4338ca' }};font-weight:700">
+                        {{ $task->category->name }}
+                    </span>
+                @else
+                    <b>General</b>
+                @endif
+            </div>
+            <div>
                 <span style="color:#6b7280;display:block;font-size:11px;text-transform:uppercase;font-weight:700;margin-bottom:2px">Department</span>
                 <b>{{ $task->department->name ?? 'General' }}</b>
+            </div>
+            <div>
+                <span style="color:#6b7280;display:block;font-size:11px;text-transform:uppercase;font-weight:700;margin-bottom:2px">Created Date</span>
+                <b>{{ $task->created_at ? $task->created_at->format('d M Y, h:i A') : 'N/A' }}</b>
             </div>
             <div>
                 <span style="color:#6b7280;display:block;font-size:11px;text-transform:uppercase;font-weight:700;margin-bottom:2px">Due Date & Time</span>
@@ -90,6 +104,22 @@
                             <option value="{{ $p }}" {{ $task->priority===$p?'selected':'' }}>{{ ucfirst($p) }}</option>
                         @endforeach
                     </select>
+                </div>
+            </div>
+
+            <div class="grid-2" style="gap:12px;margin-bottom:12px">
+                <div>
+                    <label style="font-weight:600;font-size:13px;margin-bottom:4px;display:block">Category</label>
+                    <select name="category_id">
+                        <option value="">Select Category</option>
+                        @foreach($categories as $c)
+                            <option value="{{ $c->id }}" {{ $task->category_id==$c->id?'selected':'' }}>{{ $c->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label style="font-weight:600;font-size:13px;margin-bottom:4px;display:block">Client</label>
+                    <input name="client" value="{{ $task->client }}" placeholder="Client name">
                 </div>
             </div>
 

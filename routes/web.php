@@ -88,6 +88,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/tasks/{task}/remind', [TaskController::class, 'remind'])->name('tasks.remind');
     Route::post('/tasks/{task}/attachment', [TaskController::class, 'uploadAttachment'])->name('tasks.attachment');
     Route::delete('/tasks/attachments/{attachment}', [TaskController::class, 'deleteAttachment'])->name('tasks.attachments.destroy');
+    Route::post('/tasks/categories', [TaskController::class, 'storeCategory'])->name('tasks.categories.store');
+    Route::post('/tasks/{task}/update-deadline', [TaskController::class, 'updateDeadline'])->name('tasks.update-deadline');
     Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
 
     // Reports

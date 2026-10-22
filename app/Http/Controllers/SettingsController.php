@@ -40,9 +40,9 @@ class SettingsController extends Controller
         $data = $request->validate([
             'company_name' => 'required|string',
             'company_address' => 'nullable|string',
-            'office_lat' => 'required|numeric',
-            'office_lng' => 'required|numeric',
-            'geofence_radius_m' => 'required|integer|min:20',
+            'office_lat' => 'nullable|numeric',
+            'office_lng' => 'nullable|numeric',
+            'geofence_radius_m' => 'nullable|integer',
             'first_name' => 'nullable|string',
             'last_name' => 'nullable|string',
             'phone' => 'nullable|string',
@@ -58,9 +58,9 @@ class SettingsController extends Controller
         $settingData = [
             'company_name' => $data['company_name'],
             'company_address' => $data['company_address'] ?? $setting->company_address,
-            'office_lat' => $data['office_lat'],
-            'office_lng' => $data['office_lng'],
-            'geofence_radius_m' => $data['geofence_radius_m'],
+            'office_lat' => $data['office_lat'] ?? $setting->office_lat,
+            'office_lng' => $data['office_lng'] ?? $setting->office_lng,
+            'geofence_radius_m' => $data['geofence_radius_m'] ?? $setting->geofence_radius_m,
         ];
 
         if ($request->hasFile('company_logo')) {

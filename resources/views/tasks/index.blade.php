@@ -44,6 +44,13 @@
             @endforeach
         </select>
 
+        <select name="category_id" onchange="this.form.submit()" style="width:150px">
+            <option value="">All Categories</option>
+            @foreach($categories as $cat)
+                <option value="{{ $cat->id }}" {{ $categoryId==$cat->id?'selected':'' }}>{{ $cat->name }}</option>
+            @endforeach
+        </select>
+
         <select name="user_id" onchange="this.form.submit()" style="width:160px">
             <option value="">All Assigned Users</option>
             @foreach($employees as $emp)
@@ -151,10 +158,17 @@
                         </thead>
                         <tbody>
                             @foreach($grpTasks as $gTask)
-                                <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer" onclick="openTaskDetailsDrawer({{ json_encode($gTask->load(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])) }})">
+                                <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer" onclick="openTaskDetailsDrawer({{ json_encode($gTask->load(['creator', 'assignee', 'assignees', 'others', 'department', 'category', 'replies.user', 'attachments', 'histories.user'])) }})">
                                     <td style="padding:10px 14px;text-align:center;color:#64748b">{{ $loop->iteration }}</td>
                                     <td style="padding:10px 14px">
-                                        <b style="color:#1e293b">{{ $gTask->title }}</b>
+                                        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                                            <b style="color:#1e293b">{{ $gTask->title }}</b>
+                                            @if($gTask->category)
+                                                <span class="chip" style="background:{{ $gTask->category->color ? $gTask->category->color . '20' : '#e0e7ff' }};color:{{ $gTask->category->color ?: '#4338ca' }};font-size:10px;font-weight:700;padding:1px 6px">
+                                                    {{ $gTask->category->name }}
+                                                </span>
+                                            @endif
+                                        </div>
                                         @if($gTask->client)<small style="display:block;color:#64748b">Client: {{ $gTask->client }}</small>@endif
                                     </td>
                                     <td style="padding:10px 14px;color:#475569">{{ $gTask->creator ? $gTask->creator->displayName() : 'Admin' }}</td>
@@ -292,7 +306,7 @@
                     <tr style="background:{{ $rowBg }};border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background 0.15s ease" 
                         onmouseover="this.style.background='#f1f5f9'" 
                         onmouseout="this.style.background='{{ $rowBg }}'"
-                        onclick="openTaskDetailsDrawer({{ json_encode($task->load(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments', 'histories.user'])) }})"
+                        onclick="openTaskDetailsDrawer({{ json_encode($task->load(['creator', 'assignee', 'assignees', 'others', 'department', 'category', 'replies.user', 'attachments', 'histories.user'])) }})"
                         title="Click row to open details for {{ $task->title }}">
 
                         <!-- # (Index & Pin) -->
@@ -308,9 +322,16 @@
                             </div>
                         </td>
 
-                        <!-- TASK NAME -->
+                        <!-- TASK NAME & CATEGORY -->
                         <td style="padding:15px 18px">
-                            <div style="font-weight:600;color:#1e293b;font-size:13.5px;line-height:1.3">{{ $task->title }}</div>
+                            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                                <span style="font-weight:600;color:#1e293b;font-size:13.5px;line-height:1.3">{{ $task->title }}</span>
+                                @if($task->category)
+                                    <span class="chip" style="background:{{ $task->category->color ? $task->category->color . '20' : '#e0e7ff' }};color:{{ $task->category->color ?: '#4338ca' }};font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:12px;border:1px solid {{ $task->category->color ? $task->category->color . '40' : '#c7d2fe' }}">
+                                        <i class="fa-solid fa-tag" style="font-size:9px"></i> {{ $task->category->name }}
+                                    </span>
+                                @endif
+                            </div>
                             @if($task->client)
                                 <div style="font-size:11px;color:#64748b;margin-top:2px">
                                     <i class="fa-solid fa-user-tie" style="font-size:10px"></i> Client: <b>{{ $task->client }}</b>
@@ -484,6 +505,21 @@
                 <input name="client" placeholder="Select or type client name...">
             </div>
 
+            <div style="margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                    <label style="margin:0;font-size:13px;font-weight:600">Task Category</label>
+                    <a href="javascript:void(0)" onclick="openNewCategoryModal()" style="font-size:12px;color:var(--accent);font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:4px">
+                        <i class="fa-solid fa-plus-circle"></i> Add New Category
+                    </a>
+                </div>
+                <select name="category_id" id="taskCategorySelect" style="width:100%;background:#fff;border:1px solid #cbd5e1;padding:8px 12px;border-radius:8px;font-size:12.5px;color:#1e293b">
+                    <option value="">Select Category (Optional)</option>
+                    @foreach($categories as $cat)
+                        <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
             <div class="grid-2" style="margin-bottom:12px">
                 <div>
                     <label>Department (Optional)</label>
@@ -589,7 +625,7 @@
                         <div class="picker-emp-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;margin-bottom:12px">
                             @foreach($employees as $e)
                                 <label class="picker-emp-item" data-dept-id="{{ $e->department_id }}" data-emp-id="{{ $e->id }}" data-name="{{ strtolower($e->displayName()) }}" style="display:flex;align-items:center;gap:8px;font-size:12px;color:#1e293b;cursor:pointer;padding:3px 0">
-                                    <input type="checkbox" class="emp-select-chk" value="{{ $e->id }}" data-name="{{ $e->displayName() }}" onchange="onEmpPickerChange('picker_others', 'multiple', 'assignee_ids[]')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
+                                    <input type="checkbox" name="assignee_ids[]" class="emp-select-chk" value="{{ $e->id }}" data-name="{{ $e->displayName() }}" onchange="onEmpPickerChange('picker_others', 'multiple', 'assignee_ids[]')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
                                     <span>{{ strtoupper($e->displayName()) }}</span>
                                 </label>
                             @endforeach
@@ -632,11 +668,51 @@
                     <p id="dtlDescription" class="muted" style="margin:0 0 10px 0;font-size:13px">Description...</p>
                     
                     <div class="grid-2" style="font-size:12px;color:#475569;margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:10px">
+                        <div><i class="fa-solid fa-tags" style="color:#6366f1"></i> <b>Category:</b> <span id="dtlCategory">-</span></div>
+                        <div><i class="fa-regular fa-calendar-plus" style="color:#0284c7"></i> <b>Created On:</b> <span id="dtlCreatedAt">-</span></div>
                         <div><i class="fa-regular fa-calendar"></i> <b>Due Date:</b> <span id="dtlDueDate">-</span></div>
                         <div><i class="fa-regular fa-clock"></i> <b>Due Time:</b> <span id="dtlDueTime">-</span></div>
                         <div><i class="fa-solid fa-flag"></i> <b>Priority:</b> <span id="dtlPriority">-</span></div>
                         <div><i class="fa-solid fa-repeat"></i> <b>Repeat:</b> <span id="dtlRepeat">-</span></div>
                     </div>
+                </div>
+
+                <!-- EDIT DUE DATE & STATUS (Deadline Extension / Resume Task) -->
+                <div style="background:#f0f9ff;border:1.5px solid #bae6fd;padding:12px 14px;border-radius:10px;margin-bottom:14px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                        <strong style="font-size:12.5px;color:#0369a1;display:flex;align-items:center;gap:6px">
+                            <i class="fa-solid fa-calendar-pen"></i> Edit Due Date & Update Status
+                        </strong>
+                        <span style="font-size:11px;color:#0284c7;font-weight:600">Extend / Resume</span>
+                    </div>
+                    <form id="drawerDeadlineForm" method="post" action="">
+                        @csrf
+                        <div class="grid-2" style="margin-bottom:8px;gap:8px">
+                            <div>
+                                <label style="font-size:11px;font-weight:700;color:#334155;display:block;margin-bottom:2px">New Due Date</label>
+                                <input type="date" name="due_date" id="dtlEditDueDate" style="font-size:12px;padding:5px 8px;width:100%">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;font-weight:700;color:#334155;display:block;margin-bottom:2px">New Due Time</label>
+                                <input type="time" name="due_time" id="dtlEditDueTime" style="font-size:12px;padding:5px 8px;width:100%">
+                            </div>
+                        </div>
+                        <div style="margin-bottom:8px">
+                            <label style="font-size:11px;font-weight:700;color:#334155;display:block;margin-bottom:2px">Update Status</label>
+                            <select name="status" id="dtlEditStatus" style="font-size:12px;padding:5px 8px;width:100%;background:#fff">
+                                <option value="pending">⏳ Pending (Not Started)</option>
+                                <option value="in_progress">⚡ In Progress</option>
+                                <option value="completed">✓ Completed</option>
+                            </select>
+                        </div>
+                        <div style="margin-bottom:8px">
+                            <label style="font-size:11px;font-weight:700;color:#334155;display:block;margin-bottom:2px">Reason / Remarks (Optional)</label>
+                            <input type="text" name="remarks" id="dtlEditRemarks" placeholder="e.g. Work verification pending, deadline extended..." style="font-size:12px;padding:5px 8px;width:100%">
+                        </div>
+                        <button type="submit" class="btn" style="width:100%;font-size:12px;padding:6px;background:#0284c7;color:#fff;border-radius:6px">
+                            <i class="fa-solid fa-floppy-disk"></i> Update Deadline & Status
+                        </button>
+                    </form>
                 </div>
 
                 <div style="background:#fff;padding:12px;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:14px">
@@ -713,10 +789,13 @@
 </div>
 
 <!-- Modal: Re-Assign Task -->
-<div id="reassignModal" class="modal-bg">
-    <div class="modal" style="max-width:460px;z-index:10000;padding:20px;border-radius:14px">
-        <h3 style="margin-top:0"><i class="fa-solid fa-right-left" style="color:var(--accent)"></i> Re-Assign Task</h3>
-        <p class="muted" style="font-size:12.5px;margin-bottom:12px">Select one or multiple employees to re-assign this task to. A push notification will be sent immediately to the new assignee(s).</p>
+<div id="reassignModal" class="modal-bg" style="align-items:center;justify-content:center">
+    <div class="modal" style="max-width:500px;width:92%;max-height:90vh;overflow-y:auto;z-index:10000;padding:22px;border-radius:14px;background:#fff;margin:auto;box-shadow:0 15px 35px rgba(0,0,0,0.25)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h3 style="margin:0"><i class="fa-solid fa-right-left" style="color:var(--accent)"></i> Re-Assign Task</h3>
+            <button type="button" onclick="closeReassignModal()" style="border:0;background:none;font-size:22px;cursor:pointer;color:#64748b">&times;</button>
+        </div>
+        <p class="muted" style="font-size:12.5px;margin-bottom:12px">Select one or multiple employees to re-assign this task to. A push notification and email will be sent immediately to the new assignee(s).</p>
         <form id="reassignForm" method="post">
             @csrf
             <label style="margin-bottom:4px;display:block;font-size:13px;font-weight:600">Select New Assignee(s) *</label>
@@ -727,14 +806,14 @@
                 </button>
                 <div id="hidden_inputs_reassign"></div>
 
-                <!-- Dropdown Box matching Screenshot 5 -->
-                <div class="picker-dropdown" id="dropdown_picker_reassign" style="display:none;position:absolute;bottom:100%;left:0;right:0;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,0.18);z-index:9999;margin-bottom:4px;padding:14px;box-sizing:border-box">
-                    <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:8px">FILTER BY CATEGORY</div>
-                    <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:6px 12px;margin-bottom:12px;max-height:120px;overflow-y:auto;padding-right:4px">
-                        @foreach($categories as $cat)
+                <!-- Dropdown Box matching FILTER BY DEPARTMENT (Opens downwards, responsive) -->
+                <div class="picker-dropdown" id="dropdown_picker_reassign" style="display:none;position:relative;width:100%;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:9999;margin-top:6px;padding:14px;box-sizing:border-box;max-height:280px;overflow-y:auto">
+                    <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:8px">FILTER BY DEPARTMENT</div>
+                    <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:6px 12px;margin-bottom:12px;max-height:110px;overflow-y:auto;padding-right:4px">
+                        @foreach($departments as $dept)
                             <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#334155;cursor:pointer">
-                                <input type="checkbox" class="cat-filter-chk" data-cat-id="{{ $cat->id }}" onchange="applyPickerFilters('picker_reassign')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
-                                <span>{{ $cat->name }}</span>
+                                <input type="checkbox" class="dept-filter-chk" data-dept-id="{{ $dept->id }}" onchange="applyPickerFilters('picker_reassign')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
+                                <span>{{ $dept->name }}</span>
                             </label>
                         @endforeach
                     </div>
@@ -745,10 +824,10 @@
                     </div>
 
                     <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:6px">EMPLOYEES</div>
-                    <div class="picker-emp-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;margin-bottom:12px">
+                    <div class="picker-emp-list" style="max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;margin-bottom:12px">
                         @foreach($employees as $e)
-                            <label class="picker-emp-item" data-cat-id="{{ $e->category_id }}" data-emp-id="{{ $e->id }}" data-name="{{ strtolower($e->displayName()) }}" style="display:flex;align-items:center;gap:8px;font-size:12px;color:#1e293b;cursor:pointer;padding:3px 0">
-                                <input type="checkbox" class="emp-select-chk" value="{{ $e->id }}" data-name="{{ $e->displayName() }}" onchange="onEmpPickerChange('picker_reassign', 'multiple', 'new_assigned_to[]')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
+                            <label class="picker-emp-item" data-dept-id="{{ $e->department_id }}" data-emp-id="{{ $e->id }}" data-name="{{ strtolower($e->displayName()) }}" style="display:flex;align-items:center;gap:8px;font-size:12px;color:#1e293b;cursor:pointer;padding:3px 0">
+                                <input type="checkbox" name="new_assigned_to[]" class="emp-select-chk" value="{{ $e->id }}" data-name="{{ $e->displayName() }}" onchange="onEmpPickerChange('picker_reassign', 'multiple', 'new_assigned_to[]')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
                                 <span>{{ strtoupper($e->displayName()) }}</span>
                             </label>
                         @endforeach
@@ -764,7 +843,7 @@
             <textarea name="remarks" rows="2" placeholder="e.g. Belongs to Accounts Dept..." style="margin-bottom:14px;width:100%"></textarea>
             <div style="display:flex;justify-content:flex-end;gap:8px">
                 <button type="button" class="btn light" onclick="closeReassignModal()">Cancel</button>
-                <button class="btn">Re-Assign & Notify</button>
+                <button type="submit" class="btn"><i class="fa-solid fa-check"></i> Re-Assign & Notify</button>
             </div>
         </form>
     </div>
@@ -863,21 +942,87 @@ function openTaskDetailsDrawer(task, initialTab = 'details') {
     document.getElementById('dtlPriority').innerText = (task.priority || 'medium').toUpperCase();
     document.getElementById('dtlRepeat').innerText = (task.repeat_type || 'none').toUpperCase();
 
-    // Status Select in Drawer
+    // Created On & Category in Drawer
+    const createdSpan = document.getElementById('dtlCreatedAt');
+    if (createdSpan) {
+        createdSpan.innerText = formatDateTime(task.created_at) || 'N/A';
+    }
+    const catSpan = document.getElementById('dtlCategory');
+    if (catSpan) {
+        if (task.category) {
+            catSpan.innerHTML = `<span class="chip" style="background:${task.category.color ? task.category.color + '20' : '#e0e7ff'};color:${task.category.color || '#4338ca'};font-weight:700">${task.category.name}</span>`;
+        } else {
+            catSpan.innerText = 'General';
+        }
+    }
+
+    // Set deadline & status edit form values
+    if (document.getElementById('drawerDeadlineForm')) {
+        document.getElementById('drawerDeadlineForm').action = "/tasks/" + task.id + "/update-deadline";
+    }
+    if (document.getElementById('dtlEditDueDate')) {
+        document.getElementById('dtlEditDueDate').value = task.due_date ? task.due_date.substring(0, 10) : '';
+    }
+    if (document.getElementById('dtlEditDueTime')) {
+        document.getElementById('dtlEditDueTime').value = task.due_time || '12:00';
+    }
+    if (document.getElementById('dtlEditStatus')) {
+        document.getElementById('dtlEditStatus').value = task.status || 'pending';
+    }
+    if (document.getElementById('dtlEditRemarks')) {
+        document.getElementById('dtlEditRemarks').value = '';
+    }
+
+    // Status Select in Drawer Header
     const stSelect = document.getElementById('dtlStatusSelect');
     if (stSelect) {
         stSelect.value = task.status || 'pending';
     }
 
-    // Assignees List
+    // Consolidated Assignees List
     const assigneesDiv = document.getElementById('dtlAssigneesList');
     assigneesDiv.innerHTML = '';
+    const allAssigneesMap = new Map();
+
     if (task.assignee) {
-        assigneesDiv.innerHTML += `<span class="chip" style="background:var(--accent);color:#fff">${task.assignee.first_name} ${task.assignee.last_name || ''}</span>`;
+        allAssigneesMap.set(Number(task.assignee.id), {
+            id: task.assignee.id,
+            name: `${task.assignee.first_name} ${task.assignee.last_name || ''}`.trim(),
+            isPrimary: true
+        });
     }
-    if (task.others && task.others.length > 0) {
-        task.others.forEach(o => {
-            assigneesDiv.innerHTML += `<span class="chip" style="background:#e0f2fe;color:#0369a1">${o.first_name} ${o.last_name || ''}</span>`;
+    if (Array.isArray(task.assignees)) {
+        task.assignees.forEach(u => {
+            if (!allAssigneesMap.has(Number(u.id))) {
+                allAssigneesMap.set(Number(u.id), {
+                    id: u.id,
+                    name: `${u.first_name} ${u.last_name || ''}`.trim(),
+                    isPrimary: false
+                });
+            }
+        });
+    }
+    if (Array.isArray(task.others)) {
+        task.others.forEach(u => {
+            if (!allAssigneesMap.has(Number(u.id))) {
+                allAssigneesMap.set(Number(u.id), {
+                    id: u.id,
+                    name: `${u.first_name} ${u.last_name || ''}`.trim(),
+                    isPrimary: false
+                });
+            }
+        });
+    }
+
+    if (allAssigneesMap.size === 0) {
+        assigneesDiv.innerHTML = '<span class="chip" style="background:#fee2e2;color:#991b1b">Unassigned</span>';
+    } else {
+        allAssigneesMap.forEach(emp => {
+            if (emp.isPrimary) {
+                assigneesDiv.innerHTML += `<span class="chip" style="background:var(--accent);color:#fff;font-weight:700" title="Primary Assignee">${emp.name} <span style="font-size:10px;opacity:0.85">(Primary)</span></span>`;
+            } else {
+                assigneesDiv.innerHTML += `<span class="chip" style="background:#e0f2fe;color:#0369a1;font-weight:600" title="Additional Assignee">${emp.name}</span>`;
+            }
         });
     }
 
@@ -1028,6 +1173,22 @@ function openReassignModal() {
     if (!currentActiveTask) return;
     closeTaskDrawer();
     document.getElementById('reassignForm').action = "/tasks/" + currentActiveTask.id + "/reassign";
+    
+    // Reset picker state
+    const dropdown = document.getElementById('dropdown_picker_reassign');
+    if (dropdown) {
+        dropdown.querySelectorAll('.dept-filter-chk').forEach(c => c.checked = false);
+        dropdown.querySelectorAll('.emp-select-chk').forEach(c => c.checked = false);
+        dropdown.style.display = 'none';
+        applyPickerFilters('picker_reassign');
+    }
+    const labelSpan = document.getElementById('picker_label_reassign');
+    if (labelSpan) {
+        labelSpan.innerText = 'Select New Assignee(s)';
+        labelSpan.style.color = '#64748b';
+        labelSpan.style.fontWeight = 'normal';
+    }
+
     document.getElementById('reassignModal').classList.add('open');
 }
 
@@ -1204,5 +1365,96 @@ document.addEventListener('click', function(e) {
         document.querySelectorAll('.picker-dropdown').forEach(d => d.style.display = 'none');
     }
 });
+
+function openNewCategoryModal() {
+    const m = document.getElementById('newCategoryModal');
+    if (m) {
+        m.classList.add('open');
+        document.getElementById('catModalName').value = '';
+        document.getElementById('catModalDesc').value = '';
+        setTimeout(() => document.getElementById('catModalName').focus(), 100);
+    }
+}
+
+function closeNewCategoryModal() {
+    const m = document.getElementById('newCategoryModal');
+    if (m) m.classList.remove('open');
+}
+
+async function submitNewCategory(e) {
+    e.preventDefault();
+    const nameInput = document.getElementById('catModalName');
+    const colorInput = document.getElementById('catModalColor');
+    const descInput = document.getElementById('catModalDesc');
+    const btn = document.getElementById('btnSaveCategory');
+
+    const name = nameInput ? nameInput.value.trim() : '';
+    const color = colorInput ? colorInput.value : '#4f46e5';
+    const description = descInput ? descInput.value.trim() : '';
+
+    if (!name) return;
+    btn.disabled = true;
+    btn.innerText = 'Saving...';
+
+    try {
+        const resp = await fetch('{{ route("tasks.categories.store") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({ name, color, description })
+        });
+
+        const res = await resp.json();
+        if (res.ok && res.category) {
+            // Dynamically add to taskCategorySelect
+            const catSelect = document.getElementById('taskCategorySelect');
+            if (catSelect) {
+                const opt = new Option(res.category.name, res.category.id, true, true);
+                catSelect.add(opt);
+                catSelect.value = res.category.id;
+            }
+            closeNewCategoryModal();
+            alert("Category '" + res.category.name + "' created and selected!");
+        } else {
+            alert(res.message || 'Error creating category');
+        }
+    } catch(err) {
+        console.error(err);
+        alert('Failed to create category. Please check your network.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> Save Category';
+    }
+}
 </script>
+
+<!-- Modal: Add New Task Category -->
+<div id="newCategoryModal" class="modal-bg" style="align-items:center;justify-content:center">
+    <div class="modal" style="background:#fff;max-width:420px;width:90%;padding:22px;border-radius:14px;box-shadow:0 15px 35px rgba(0,0,0,0.25);margin:auto;z-index:10010">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h3 style="margin:0;font-size:16px"><i class="fa-solid fa-tags" style="color:var(--accent)"></i> Add New Task Category</h3>
+            <button type="button" onclick="closeNewCategoryModal()" style="border:0;background:none;font-size:22px;cursor:pointer;color:#64748b">&times;</button>
+        </div>
+        <p class="muted" style="font-size:12px;margin-bottom:14px">Create custom task categories like Electricity Bill, Credit Card, Insurance Payment, Sales OS Followup, etc.</p>
+        <form id="ajaxCategoryForm" onsubmit="submitNewCategory(event)">
+            @csrf
+            <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:4px">Category Name *</label>
+            <input type="text" id="catModalName" name="name" placeholder="e.g. Electricity Bill, Sales OS Followup..." required style="margin-bottom:12px;width:100%">
+
+            <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:4px">Category Color (Badge)</label>
+            <input type="color" id="catModalColor" name="color" value="#4f46e5" style="width:100%;height:38px;padding:2px;border-radius:6px;border:1px solid #cbd5e1;cursor:pointer;margin-bottom:12px">
+
+            <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:4px">Description (Optional)</label>
+            <textarea id="catModalDesc" name="description" rows="2" placeholder="Brief note about this category..." style="margin-bottom:16px;width:100%"></textarea>
+
+            <div style="display:flex;justify-content:flex-end;gap:8px">
+                <button type="button" class="btn light" onclick="closeNewCategoryModal()">Cancel</button>
+                <button type="submit" id="btnSaveCategory" class="btn"><i class="fa-solid fa-check"></i> Save Category</button>
+            </div>
+        </form>
+    </div>
+</div>
 @endsection

@@ -70,4 +70,23 @@ class Task extends Model
             'details' => $details,
         ]);
     }
+
+    /**
+     * Get all stakeholders / participants for this task (creator, primary assignee, assignees, others).
+     */
+    public function getParticipants(?int $excludeUserId = null)
+    {
+        $userIds = array_filter(array_unique(array_merge(
+            $this->created_by ? [(int)$this->created_by] : [],
+            $this->assigned_to ? [(int)$this->assigned_to] : [],
+            $this->assignees()->pluck('users.id')->map(fn ($id) => (int)$id)->toArray(),
+            $this->others()->pluck('users.id')->map(fn ($id) => (int)$id)->toArray()
+        )));
+
+        if ($excludeUserId) {
+            $userIds = array_values(array_diff($userIds, [(int)$excludeUserId]));
+        }
+
+        return User::whereIn('id', $userIds)->get();
+    }
 }

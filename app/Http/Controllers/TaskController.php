@@ -91,15 +91,41 @@ class TaskController extends Controller
             'overdue' => (clone $baseCountQuery)->where('status', '!=', 'completed')->whereDate('due_date', '<', now()->toDateString())->count(),
         ];
 
-        // Restrict employees dropdown ONLY to users who have task access permissions (tasks.view, tasks.create, tasks.manage)
-        $compIds = $u->accessibleCompanyIds();
-        $companyEmployeesQuery = User::where('status', 'active');
-        if (!$u->isSuperAdmin() && !empty($compIds)) {
-            $companyEmployeesQuery->whereIn('company_id', $compIds);
+        // Any active employee who has task access permissions (tasks.view, tasks.create, tasks.manage) in their role or is superadmin, regardless of company
+        $companyEmployees = User::where('status', 'active')
+            ->orderBy('first_name')
+            ->get()
+            ->filter(function ($emp) {
+                return $emp->isSuperAdmin() || $emp->hasPermission('tasks.view') || $emp->hasPermission('tasks.create') || $emp->hasPermission('tasks.manage');
+            })
+            ->values();
+
+        // Support opening a specific task directly via email/notification link (e.g. /tasks?open_task=47&tab=reports)
+        $openTask = null;
+        if ($request->filled('open_task')) {
+            $taskId = (int)$request->get('open_task');
+            $openTask = Task::with([
+                'creator',
+                'assignee',
+                'assignees',
+                'others',
+                'department',
+                'category',
+                'replies.user',
+                'attachments',
+                'histories.user'
+            ])->find($taskId);
+
+            if ($openTask && !$u->isAdmin()) {
+                $hasAccess = $openTask->assigned_to == $u->id
+                    || $openTask->created_by == $u->id
+                    || $openTask->assignees->contains('id', $u->id)
+                    || $openTask->others->contains('id', $u->id);
+                if (!$hasAccess) {
+                    $openTask = null;
+                }
+            }
         }
-        $companyEmployees = $companyEmployeesQuery->orderBy('first_name')->get()->filter(function ($emp) {
-            return $emp->isSuperAdmin() || $emp->hasPermission('tasks.view') || $emp->hasPermission('tasks.create') || $emp->hasPermission('tasks.manage');
-        })->values();
 
         return view('tasks.index', [
             'items' => $items,
@@ -117,6 +143,7 @@ class TaskController extends Controller
             'sortDir' => $sortDir,
             'userWiseGroups' => $userWiseGroups,
             'employees' => $companyEmployees,
+            'openTask' => $openTask,
             'departments' => Department::orderBy('name')->get(),
             'companies' => (!$u->isSuperAdmin() && !empty($u->accessibleCompanyIds())) ? Company::whereIn('id', $u->accessibleCompanyIds())->orderBy('name')->get() : Company::orderBy('name')->get(),
             'categories' => \Illuminate\Support\Facades\Schema::hasTable('task_categories') ? TaskCategory::orderBy('name')->get() : collect(),
@@ -252,33 +279,13 @@ class TaskController extends Controller
         }
     }
 
-    public function show(Task $task)
+    public function show(Task $task, Request $request)
     {
-        $u = auth()->user();
-        $canManageAll = $u && ($u->isAdmin() || $u->hasPermission('tasks.manage'));
-        if (!$canManageAll) {
-            $isAssigned = $task->assigned_to == $u->id 
-                || $task->created_by == $u->id 
-                || $task->assignees()->where('users.id', $u->id)->exists()
-                || $task->others()->where('users.id', $u->id)->exists();
-            if (!$isAssigned) {
-                return redirect()->route('tasks.index')->with('error', 'You are not authorized to view this task.');
-            }
-        }
-
-        $task->load(['assignee', 'assignees', 'others', 'department', 'category', 'replies.user', 'attachments.user', 'histories.user']);
-
-        // Restrict dropdowns only to employees with task access
-        $accessibleEmployees = User::where('status', 'active')->orderBy('first_name')->get()->filter(function ($emp) {
-            return $emp->isSuperAdmin() || $emp->hasPermission('tasks.view') || $emp->hasPermission('tasks.create') || $emp->hasPermission('tasks.manage');
-        })->values();
-
-        return view('tasks.show', [
-            'task' => $task,
-            'employees' => $accessibleEmployees,
-            'departments' => Department::orderBy('name')->get(),
-            'categories' => TaskCategory::orderBy('name')->get(),
-        ]);
+        $tab = $request->get('tab', 'details');
+        return redirect()->route('tasks.index', array_filter([
+            'open_task' => $task->id,
+            'tab' => $tab,
+        ]));
     }
 
     public function update(Request $request, Task $task)
@@ -336,7 +343,22 @@ class TaskController extends Controller
             $task->logHistory('updated', 'Task details updated', $request->user()->id);
         }
 
-        return back()->with('ok', 'Task updated successfully.');
+        // Notify participants via FCM and Email
+        $participants = $task->getParticipants($request->user()->id);
+        foreach ($participants as $notifyUser) {
+            \App\Services\FirebaseNotificationService::sendTaskNotification(
+                $notifyUser,
+                'Task Updated: ' . $task->title,
+                $request->user()->displayName() . ' updated the task details.',
+                $task->id
+            );
+            \App\Services\MailService::sendTaskUpdatedMail($notifyUser, $task, 'Task details were updated by ' . $request->user()->displayName(), $request->user());
+        }
+
+        return redirect()->route('tasks.index', [
+            'open_task' => $task->id,
+            'tab' => 'details',
+        ])->with('ok', 'Task updated successfully and notifications dispatched.');
     }
 
     public function reply(Request $request, Task $task)
@@ -359,21 +381,26 @@ class TaskController extends Controller
 
         $task->logHistory('replied', "Reply added: " . Str::limit($data['message'], 50), $request->user()->id);
 
-        // Notify task creator and assignees via FCM Push Notification
-        $assigneeIds = $task->assignees()->pluck('users.id')->toArray();
-        $targetUserIds = array_unique(array_filter(array_merge([$task->created_by, $task->assigned_to], $assigneeIds)));
-        $notifyUsers = User::whereIn('id', $targetUserIds)->where('id', '!=', $request->user()->id)->get();
+        // Notify task creator and assignees via FCM Push Notification & Email
+        $participants = $task->getParticipants($request->user()->id);
 
-        foreach ($notifyUsers as $user) {
+        foreach ($participants as $user) {
+            // 1. FCM Push Notification
             \App\Services\FirebaseNotificationService::sendTaskNotification(
                 $user,
                 'New Reply on Task: ' . $task->title,
                 $request->user()->displayName() . ': ' . Str::limit($data['message'], 60),
                 $task->id
             );
+
+            // 2. Email Notification
+            \App\Services\MailService::sendTaskReplyMail($user, $task, $reply, $request->user());
         }
 
-        return back()->with('ok', 'Reply posted successfully.');
+        return redirect()->route('tasks.index', [
+            'open_task' => $task->id,
+            'tab' => 'reports',
+        ])->with('ok', 'Reply posted successfully and notifications dispatched via Push & Email.');
     }
 
     public function reassign(Request $request, Task $task)
@@ -420,7 +447,10 @@ class TaskController extends Controller
             \App\Services\MailService::sendTaskAssignedMail($newAssignee, $task, $request->user());
         }
 
-        return back()->with('ok', "Task re-assigned to {$newNames} successfully.");
+        return redirect()->route('tasks.index', [
+            'open_task' => $task->id,
+            'tab' => 'details',
+        ])->with('ok', "Task re-assigned to {$newNames} successfully.");
     }
 
     public function storeCategory(Request $request)
@@ -490,23 +520,23 @@ class TaskController extends Controller
             }
             $task->logHistory('deadline_updated', $msg, $u->id);
 
-            // Notify all assignees via Push & Email
-            $assignees = $task->assignees;
-            if ($task->assignee) $assignees->push($task->assignee);
-            foreach ($assignees->unique('id') as $assigneeUser) {
-                if ($assigneeUser->id !== $u->id) {
-                    \App\Services\FirebaseNotificationService::sendTaskNotification(
-                        $assigneeUser,
-                        'Task Deadline Updated: ' . $task->title,
-                        $msg,
-                        $task->id
-                    );
-                    \App\Services\MailService::sendTaskAssignedMail($assigneeUser, $task, $u);
-                }
+            // Notify all participants (creator + assignees) via Push & Email
+            $participants = $task->getParticipants($u->id);
+            foreach ($participants as $notifyUser) {
+                \App\Services\FirebaseNotificationService::sendTaskNotification(
+                    $notifyUser,
+                    'Task Deadline Updated: ' . $task->title,
+                    $msg,
+                    $task->id
+                );
+                \App\Services\MailService::sendTaskUpdatedMail($notifyUser, $task, $msg, $u);
             }
         }
 
-        return back()->with('ok', 'Task deadline and status updated successfully.');
+        return redirect()->route('tasks.index', [
+            'open_task' => $task->id,
+            'tab' => 'details',
+        ])->with('ok', 'Task deadline and status updated successfully.');
     }
 
     public function updateStatus(Request $request, Task $task)
@@ -533,6 +563,18 @@ class TaskController extends Controller
         $newLabel = $statusLabels[$task->status] ?? $task->status;
 
         $task->logHistory('status_updated', "Status updated from '{$oldLabel}' to '{$newLabel}' by " . $u->displayName(), $u->id);
+
+        // Notify creator & all assignees via Push & Email
+        $participants = $task->getParticipants($u->id);
+        foreach ($participants as $notifyUser) {
+            \App\Services\FirebaseNotificationService::sendTaskNotification(
+                $notifyUser,
+                'Task Status Updated: ' . $task->title,
+                "Status changed from '{$oldLabel}' to '{$newLabel}' by " . $u->displayName(),
+                $task->id
+            );
+            \App\Services\MailService::sendTaskStatusUpdatedMail($notifyUser, $task, $oldStatus, $task->status, $u);
+        }
 
         // Repeat Task Option: When task is closed (completed) and repeat_type is active, spawn next recurrence
         if ($data['status'] === 'completed' && !empty($task->repeat_type) && $task->repeat_type !== 'none') {
@@ -572,11 +614,17 @@ class TaskController extends Controller
 
                 $newTask->logHistory('created', "Auto-created next recurring task ({$task->repeat_type}) for due date " . $nextDate->format('d M Y') . " because Task #{$task->id} was completed.", $u->id);
 
-                return back()->with('ok', "Task status updated to '{$newLabel}'. Next recurring task for {$nextDate->format('d M Y')} has been automatically created!");
+                return redirect()->route('tasks.index', [
+                    'open_task' => $task->id,
+                    'tab' => 'details',
+                ])->with('ok', "Task status updated to '{$newLabel}'. Next recurring task for {$nextDate->format('d M Y')} has been automatically created!");
             }
         }
 
-        return back()->with('ok', "Task status updated to '{$newLabel}' successfully.");
+        return redirect()->route('tasks.index', [
+            'open_task' => $task->id,
+            'tab' => 'details',
+        ])->with('ok', "Task status updated to '{$newLabel}' successfully and notifications dispatched.");
     }
 
     public function togglePin(Request $request, Task $task)
@@ -619,22 +667,41 @@ class TaskController extends Controller
 
         $task->logHistory('reopened', $msg, $u->id);
 
-        return back()->with('ok', 'Task re-opened successfully with updated deadline.');
+        $participants = $task->getParticipants($u->id);
+        foreach ($participants as $notifyUser) {
+            \App\Services\FirebaseNotificationService::sendTaskNotification(
+                $notifyUser,
+                'Task Re-Opened: ' . $task->title,
+                $msg,
+                $task->id
+            );
+            \App\Services\MailService::sendTaskUpdatedMail($notifyUser, $task, $msg, $u);
+        }
+
+        return redirect()->route('tasks.index', [
+            'open_task' => $task->id,
+            'tab' => 'details',
+        ])->with('ok', 'Task re-opened successfully with updated deadline.');
     }
 
     public function exportRepliesPdf(Task $task)
     {
         $task->load(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments.user', 'histories.user']);
+        // dd($task);
         return view('tasks.replies-pdf', compact('task'));
     }
 
     public function deleteAttachment(TaskAttachment $attachment)
     {
+        $taskId = $attachment->task_id;
         if ($attachment->file_path) {
             \Illuminate\Support\Facades\Storage::disk('public')->delete($attachment->file_path);
         }
         $attachment->delete();
-        return back()->with('ok', 'Attachment removed successfully.');
+        return redirect()->route('tasks.index', [
+            'open_task' => $taskId,
+            'tab' => 'details',
+        ])->with('ok', 'Attachment removed successfully.');
     }
 
     public function remind(Request $request, Task $task)
@@ -664,7 +731,10 @@ class TaskController extends Controller
 
         $task->logHistory('reminded', "Reminder notification and email sent by {$senderName}", $request->user()->id);
 
-        return back()->with('ok', 'Reminder notification and email sent to assigned team members.');
+        return redirect()->route('tasks.index', [
+            'open_task' => $task->id,
+            'tab' => 'reports',
+        ])->with('ok', 'Reminder notification and email sent to assigned team members.');
     }
 
     public function uploadAttachment(Request $request, Task $task)
@@ -684,7 +754,10 @@ class TaskController extends Controller
 
         $task->logHistory('attachment_added', "Uploaded file: {$file->getClientOriginalName()}", $request->user()->id);
 
-        return back()->with('ok', 'Attachment uploaded.');
+        return redirect()->route('tasks.index', [
+            'open_task' => $task->id,
+            'tab' => 'details',
+        ])->with('ok', 'Attachment uploaded.');
     }
 
     public function destroy(Request $request, Task $task)

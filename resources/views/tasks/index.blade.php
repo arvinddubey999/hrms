@@ -1164,9 +1164,28 @@ function switchDrawerTab(tab) {
     document.getElementById('drawerTabReports').style.display = tab === 'reports' ? 'block' : 'none';
     document.getElementById('drawerTabHistory').style.display = tab === 'history' ? 'block' : 'none';
 
-    document.getElementById('tabBtnDetails').style.fontWeight = tab === 'details' ? '700' : '400';
-    document.getElementById('tabBtnReports').style.fontWeight = tab === 'reports' ? '700' : '400';
-    document.getElementById('tabBtnHistory').style.fontWeight = tab === 'history' ? '700' : '400';
+    const btnDetails = document.getElementById('tabBtnDetails');
+    const btnReports = document.getElementById('tabBtnReports');
+    const btnHistory = document.getElementById('tabBtnHistory');
+
+    if (btnDetails) {
+        btnDetails.style.fontWeight = tab === 'details' ? '700' : '500';
+        btnDetails.style.color = tab === 'details' ? 'var(--accent)' : '#64748b';
+        btnDetails.style.borderBottom = tab === 'details' ? '2px solid var(--accent)' : 'none';
+        btnDetails.style.paddingBottom = '4px';
+    }
+    if (btnReports) {
+        btnReports.style.fontWeight = tab === 'reports' ? '700' : '500';
+        btnReports.style.color = tab === 'reports' ? 'var(--accent)' : '#64748b';
+        btnReports.style.borderBottom = tab === 'reports' ? '2px solid var(--accent)' : 'none';
+        btnReports.style.paddingBottom = '4px';
+    }
+    if (btnHistory) {
+        btnHistory.style.fontWeight = tab === 'history' ? '700' : '500';
+        btnHistory.style.color = tab === 'history' ? 'var(--accent)' : '#64748b';
+        btnHistory.style.borderBottom = tab === 'history' ? '2px solid var(--accent)' : 'none';
+        btnHistory.style.paddingBottom = '4px';
+    }
 }
 
 function openReassignModal() {
@@ -1435,6 +1454,14 @@ async function submitNewCategory(e) {
         btn.innerHTML = '<i class="fa-solid fa-check"></i> Save Category';
     }
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    @if(isset($openTask) && $openTask)
+        const initialTask = @json($openTask);
+        const initialTab = @json(request('tab', 'details'));
+        openTaskDetailsDrawer(initialTask, initialTab);
+    @endif
+});
 </script>
 
 <!-- Modal: Add New Task Category (high z-index to appear on top of New Task Drawer) -->

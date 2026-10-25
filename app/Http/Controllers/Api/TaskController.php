@@ -165,6 +165,18 @@ class TaskController extends Controller
 
         if ($oldStatus !== $task->status) {
             $task->logHistory('status_updated', "Status updated from {$oldStatus} to {$task->status}", $user->id);
+
+            // Notify participants via FCM and Email
+            $participants = $task->getParticipants($user->id);
+            foreach ($participants as $notifyUser) {
+                FirebaseNotificationService::sendTaskNotification(
+                    $notifyUser,
+                    'Task Status Updated: ' . $task->title,
+                    "Status changed from {$oldStatus} to {$task->status} by " . $user->displayName(),
+                    $task->id
+                );
+                MailService::sendTaskStatusUpdatedMail($notifyUser, $task, $oldStatus, $task->status, $user);
+            }
         }
 
         return response()->json(['data' => $this->formatTask($task->fresh(['assignee', 'assignees', 'others', 'department', 'category', 'replies.user', 'histories.user']))]);
@@ -190,18 +202,20 @@ class TaskController extends Controller
 
         $task->logHistory('replied', "Reply added: " . Str::limit($data['message'], 50), $request->user()->id);
 
-        // Notify creator & assignees
-        $assigneeIds = $task->assignees()->pluck('users.id')->toArray();
-        $targetUserIds = array_unique(array_filter(array_merge([$task->created_by, $task->assigned_to], $assigneeIds)));
-        $notifyUsers = User::whereIn('id', $targetUserIds)->where('id', '!=', $request->user()->id)->get();
+        // Notify creator & assignees via Push Notification and Email
+        $participants = $task->getParticipants($request->user()->id);
 
-        foreach ($notifyUsers as $u) {
+        foreach ($participants as $u) {
+            // 1. Push Notification
             FirebaseNotificationService::sendTaskNotification(
                 $u,
                 'New Reply on Task: ' . $task->title,
                 $request->user()->displayName() . ': ' . Str::limit($data['message'], 60),
                 $task->id
             );
+
+            // 2. Email Notification
+            MailService::sendTaskReplyMail($u, $task, $reply, $request->user());
         }
 
         return response()->json([

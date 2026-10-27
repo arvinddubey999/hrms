@@ -132,6 +132,7 @@ class TaskController extends Controller
             ->filter(function ($emp) {
                 return $emp->isSuperAdmin() || $emp->hasPermission('tasks.view') || $emp->hasPermission('tasks.create') || $emp->hasPermission('tasks.manage');
             })
+            ->sortBy(fn ($emp) => strtolower(trim($emp->displayName())))
             ->values();
 
         // Support opening a specific task directly via email/notification link (e.g. /tasks?open_task=47&tab=reports)
@@ -401,18 +402,35 @@ class TaskController extends Controller
     {
         $data = $request->validate([
             'message' => 'required|string',
-            'reply_attachment' => 'nullable|file|max:10240',
+            'reply_attachment' => 'nullable',
+            'reply_attachments' => 'nullable|array',
+            'attachments' => 'nullable|array',
         ]);
 
-        $attachmentPath = null;
-        if ($request->hasFile('reply_attachment')) {
-            $attachmentPath = $request->file('reply_attachment')->store('task_replies', 'public');
+        $storedPaths = [];
+        $checkKeys = ['reply_attachments', 'reply_attachment', 'attachments', 'files'];
+        foreach ($checkKeys as $key) {
+            if ($request->hasFile($key)) {
+                $files = $request->file($key);
+                if (is_array($files)) {
+                    foreach ($files as $f) {
+                        if ($f && $f->isValid()) {
+                            $storedPaths[] = $f->store('task_replies', 'public');
+                        }
+                    }
+                } elseif ($files && $files->isValid()) {
+                    $storedPaths[] = $files->store('task_replies', 'public');
+                }
+            }
         }
+
+        $firstPath = count($storedPaths) > 0 ? $storedPaths[0] : null;
 
         $reply = $task->replies()->create([
             'user_id' => $request->user()->id,
             'message' => $data['message'],
-            'attachment' => $attachmentPath,
+            'attachment' => $firstPath,
+            'attachments' => $storedPaths,
         ]);
 
         $task->logHistory('replied', "Reply added: " . Str::limit($data['message'], 50), $request->user()->id);
@@ -431,6 +449,14 @@ class TaskController extends Controller
 
             // 2. Email Notification
             \App\Services\MailService::sendTaskReplyMail($user, $task, $reply, $request->user());
+        }
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Reply posted successfully.',
+                'reply' => $reply->load('user'),
+            ]);
         }
 
         return redirect()->route('tasks.index', [
@@ -483,10 +509,16 @@ class TaskController extends Controller
             \App\Services\MailService::sendTaskAssignedMail($newAssignee, $task, $request->user());
         }
 
-        return redirect()->route('tasks.index', [
-            'open_task' => $task->id,
-            'tab' => 'details',
-        ])->with('ok', "Task re-assigned to {$newNames} successfully.");
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'message' => "Task re-assigned to {$newNames} successfully.",
+            ]);
+        }
+
+        $redirectParams = $request->except(['open_task', 'tab', '_token', 'new_assigned_to', 'remarks', 'assignees', 'assignee_ids']);
+        return redirect()->route('tasks.index', $redirectParams)
+            ->with('ok', "Task re-assigned to {$newNames} successfully.");
     }
 
     public function storeCategory(Request $request)

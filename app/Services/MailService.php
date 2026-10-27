@@ -162,11 +162,18 @@ class MailService
             $actionUrl = url('/tasks?open_task=' . $task->id . '&tab=reports');
 
             $attachmentHtml = '';
-            if ($reply->attachment) {
-                $attUrl = url('/storage/' . $reply->attachment);
+            $replyAttachments = $reply->attachments_list ?? ($reply->attachment ? [$reply->attachment] : []);
+            if (!empty($replyAttachments)) {
                 $attachmentHtml = "
                 <div style='margin-top: 12px; font-size: 13px;'>
-                    📎 <b>Attachment:</b> <a href='{$attUrl}' target='_blank' style='color: #4f46e5; text-decoration: underline; font-weight: 600;'>View / Download Attached File</a>
+                    📎 <b>Attachments (" . count($replyAttachments) . "):</b>
+                    <ul style='margin: 6px 0 0 0; padding-left: 20px;'>";
+                foreach ($replyAttachments as $attPath) {
+                    $attUrl = url('/storage/' . $attPath);
+                    $attName = basename($attPath);
+                    $attachmentHtml .= "<li style='margin-bottom: 4px;'><a href='{$attUrl}' target='_blank' style='color: #4f46e5; text-decoration: underline; font-weight: 600;'>{$attName}</a></li>";
+                }
+                $attachmentHtml .= "</ul>
                 </div>";
             }
 

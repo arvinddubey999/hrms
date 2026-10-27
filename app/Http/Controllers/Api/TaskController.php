@@ -398,6 +398,8 @@ class TaskController extends Controller
                 'user_photo' => $r->user?->profile_photo ? asset('storage/' . $r->user->profile_photo) : null,
                 'message' => $r->message,
                 'attachment_url' => $r->attachment ? asset('storage/' . $r->attachment) : null,
+                'attachment_urls' => array_map(fn($path) => asset('storage/' . $path), $r->attachments_list ?? ($r->attachment ? [$r->attachment] : [])),
+                'attachments' => array_map(fn($path) => asset('storage/' . $path), $r->attachments_list ?? ($r->attachment ? [$r->attachment] : [])),
                 'created_at' => $r->created_at ? $r->created_at->format('Y-m-d H:i') : null,
             ]) : [],
             'histories' => $t->histories ? $t->histories->map(fn ($h) => [

@@ -51,17 +51,17 @@
             @endforeach
         </select>
 
-        <select name="from_user_id" onchange="this.form.submit()" style="width:160px" title="Filter by user who created & assigned the task">
+        <select name="from_user_id" onchange="this.form.submit()" style="width:160px" title="Filter by user who created & assigned the task (From User)">
             <option value="">From User (All)</option>
             @foreach($employees as $emp)
-                <option value="{{ $emp->id }}" {{ ($fromUserId ?? null)==$emp->id?'selected':'' }}>From: {{ $emp->displayName() }}</option>
+                <option value="{{ $emp->id }}" {{ ($fromUserId ?? null)==$emp->id?'selected':'' }}>{{ $emp->displayName() }}</option>
             @endforeach
         </select>
 
-        <select name="user_id" onchange="this.form.submit()" style="width:160px" title="Filter by assigned user">
+        <select name="user_id" onchange="this.form.submit()" style="width:160px" title="Filter by assigned user (To User)">
             <option value="">To User (All)</option>
             @foreach($employees as $emp)
-                <option value="{{ $emp->id }}" {{ $userId==$emp->id?'selected':'' }}>To: {{ $emp->displayName() }}</option>
+                <option value="{{ $emp->id }}" {{ $userId==$emp->id?'selected':'' }}>{{ $emp->displayName() }}</option>
             @endforeach
         </select>
 
@@ -930,8 +930,14 @@
                 <form id="postReplyForm" method="post" enctype="multipart/form-data" style="background:#f8fafc;padding:12px;border-radius:8px;border:1px solid #e2e8f0">
                     @csrf
                     <textarea name="message" rows="2" placeholder="Write remark or progress update..." required style="margin-bottom:8px;width:100%"></textarea>
-                    <div style="display:flex;justify-content:space-between;align-items:center">
-                        <input type="file" name="reply_attachment" style="font-size:11px;width:200px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+                        <div style="flex:1;min-width:200px">
+                            <label style="font-size:11px;color:#475569;font-weight:600;display:flex;align-items:center;gap:4px;margin-bottom:3px">
+                                <i class="fa-solid fa-paperclip"></i> Attachments (Single or Multiple):
+                            </label>
+                            <input type="file" name="reply_attachments[]" id="replyAttachmentsInput" multiple style="font-size:11px;width:100%" onchange="previewReplyAttachments(this)" title="Hold Ctrl/Shift to select multiple files">
+                            <div id="replyAttachmentsPreview" style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap"></div>
+                        </div>
                         <button class="btn light" style="font-size:12px"><i class="fa-solid fa-paper-plane"></i> Post Reply</button>
                     </div>
                 </form>
@@ -948,62 +954,103 @@
     </div>
 </div>
 
-<!-- Modal: Re-Assign Task -->
+<!-- Modal: Re-Assign Task (User-Friendly Modern Redesign) -->
 <div id="reassignModal" class="modal-bg" style="align-items:center;justify-content:center">
-    <div class="modal" style="max-width:500px;width:92%;max-height:90vh;overflow-y:auto;z-index:10000;padding:22px;border-radius:14px;background:#fff;margin:auto;box-shadow:0 15px 35px rgba(0,0,0,0.25)">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <h3 style="margin:0"><i class="fa-solid fa-right-left" style="color:var(--accent)"></i> Re-Assign Task</h3>
-            <button type="button" onclick="closeReassignModal()" style="border:0;background:none;font-size:22px;cursor:pointer;color:#64748b">&times;</button>
+    <div class="modal" style="max-width:640px;width:94%;max-height:92vh;overflow-y:auto;z-index:10000;padding:22px 24px;border-radius:16px;background:#fff;margin:auto;box-shadow:0 20px 45px rgba(0,0,0,0.25)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div>
+                <h3 style="margin:0;font-size:17px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px">
+                    <i class="fa-solid fa-arrows-split-up-and-left" style="color:var(--accent)"></i> Re-Assign Task
+                </h3>
+                <div id="reassignTaskInfoBadge" style="font-size:12px;color:#64748b;margin-top:3px">
+                    Select one or multiple employees to re-assign this task to.
+                </div>
+            </div>
+            <button type="button" onclick="closeReassignModal()" style="border:0;background:none;font-size:24px;cursor:pointer;color:#94a3b8;line-height:1;padding:0 4px">&times;</button>
         </div>
-        <p class="muted" style="font-size:12.5px;margin-bottom:12px">Select one or multiple employees to re-assign this task to. A push notification and email will be sent immediately to the new assignee(s).</p>
-        <form id="reassignForm" method="post">
+
+        <form id="reassignForm" method="post" onsubmit="return validateReassignForm()">
             @csrf
-            <label style="margin-bottom:4px;display:block;font-size:13px;font-weight:600">Select New Assignee(s) *</label>
-            <div class="custom-emp-picker" id="picker_reassign" style="position:relative;margin-bottom:12px">
-                <button type="button" class="picker-btn" onclick="toggleEmpPicker('picker_reassign')" style="width:100%;text-align:left;background:#fff;border:1px solid #cbd5e1;padding:8px 12px;border-radius:8px;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;cursor:pointer">
-                    <span class="picker-label" id="picker_label_reassign" style="color:#64748b">Select New Assignee(s)</span>
-                    <i class="fa-solid fa-chevron-down" style="font-size:11px;color:#94a3b8"></i>
-                </button>
-                <div id="hidden_inputs_reassign"></div>
 
-                <!-- Dropdown Box matching FILTER BY DEPARTMENT (Opens downwards, responsive) -->
-                <div class="picker-dropdown" id="dropdown_picker_reassign" style="display:none;position:relative;width:100%;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:9999;margin-top:6px;padding:14px;box-sizing:border-box;max-height:280px;overflow-y:auto">
-                    <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:8px">FILTER BY DEPARTMENT</div>
-                    <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:6px 12px;margin-bottom:12px;max-height:110px;overflow-y:auto;padding-right:4px">
-                        @foreach($departments as $dept)
-                            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#334155;cursor:pointer">
-                                <input type="checkbox" class="dept-filter-chk" data-dept-id="{{ $dept->id }}" onchange="applyPickerFilters('picker_reassign')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
-                                <span>{{ $dept->name }}</span>
-                            </label>
-                        @endforeach
+            <!-- Search & Department Filter Toolbar -->
+            <div style="background:#f8fafc;padding:10px 12px;border-radius:10px;border:1px solid #e2e8f0;margin:12px 0 10px 0">
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                    <!-- Search Input -->
+                    <div style="flex:1;min-width:200px;position:relative">
+                        <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:12px"></i>
+                        <input type="text" id="reassignSearchInput" placeholder="Search employee by name..." oninput="filterReassignEmployees()" style="width:100%;padding:7px 10px 7px 30px;font-size:12.5px;border-radius:7px;border:1px solid #cbd5e1;background:#fff;outline:none" autocomplete="off">
                     </div>
 
-                    <div style="border-top:1px solid #e2e8f0;padding-top:8px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-                        <a href="javascript:void(0)" onclick="selectAllPickerEmployees('picker_reassign', true)" style="color:#2563eb;font-size:12px;font-weight:700;text-decoration:none">Select All Filtered Employees</a>
-                        <a href="javascript:void(0)" onclick="selectAllPickerEmployees('picker_reassign', false)" style="color:#64748b;font-size:11px;text-decoration:none">Clear</a>
+                    <!-- Department Dropdown -->
+                    <div style="width:180px">
+                        <select id="reassignDeptSelect" onchange="filterReassignEmployees()" style="width:100%;padding:7px 10px;font-size:12.5px;border-radius:7px;border:1px solid #cbd5e1;background:#fff">
+                            <option value="">All Departments</option>
+                            @foreach($departments as $dept)
+                                <option value="{{ $dept->id }}">{{ $dept->name }}</option>
+                            @endforeach
+                        </select>
                     </div>
+                </div>
 
-                    <div style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:0.8px;margin-bottom:6px">EMPLOYEES</div>
-                    <div class="picker-emp-list" style="max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;margin-bottom:12px">
-                        @foreach($employees as $e)
-                            <label class="picker-emp-item" data-dept-id="{{ $e->department_id }}" data-emp-id="{{ $e->id }}" data-name="{{ strtolower($e->displayName()) }}" style="display:flex;align-items:center;gap:8px;font-size:12px;color:#1e293b;cursor:pointer;padding:3px 0">
-                                <input type="checkbox" name="new_assigned_to[]" class="emp-select-chk" value="{{ $e->id }}" data-name="{{ $e->displayName() }}" onchange="onEmpPickerChange('picker_reassign', 'multiple', 'new_assigned_to[]')" style="accent-color:#2563eb;width:15px;height:15px;cursor:pointer">
-                                <span>{{ strtoupper($e->displayName()) }}</span>
-                            </label>
-                        @endforeach
-                    </div>
-
-                    <div style="position:relative">
-                        <input type="text" class="picker-search-input" placeholder="Search employees" oninput="onPickerSearch('picker_reassign', this.value)" style="width:100%;padding:7px 10px;font-size:12px;border-radius:6px;border:1.5px solid #3b82f6;outline:none" autocomplete="off">
+                <!-- Selection Status & Quick Actions -->
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:7px;border-top:1px dashed #cbd5e1;font-size:11.5px">
+                    <span style="font-weight:700;color:#1e293b" id="reassignSelectedCount">
+                        <i class="fa-solid fa-users" style="color:var(--accent)"></i> 0 employee(s) selected
+                    </span>
+                    <div style="display:flex;gap:12px">
+                        <a href="javascript:void(0)" onclick="selectAllReassignEmployees(true)" style="color:#2563eb;font-weight:700;text-decoration:none">
+                            <i class="fa-solid fa-check-double"></i> Select Filtered
+                        </a>
+                        <a href="javascript:void(0)" onclick="selectAllReassignEmployees(false)" style="color:#64748b;font-weight:600;text-decoration:none">
+                            <i class="fa-solid fa-xmark"></i> Clear
+                        </a>
                     </div>
                 </div>
             </div>
 
-            <label style="margin-bottom:4px;display:block;font-size:13px;font-weight:600">Reason / Remarks (Optional)</label>
-            <textarea name="remarks" rows="2" placeholder="e.g. Belongs to Accounts Dept..." style="margin-bottom:14px;width:100%"></textarea>
-            <div style="display:flex;justify-content:flex-end;gap:8px">
-                <button type="button" class="btn light" onclick="closeReassignModal()">Cancel</button>
-                <button type="submit" class="btn"><i class="fa-solid fa-check"></i> Re-Assign & Notify</button>
+            <!-- Employees Grid (2 Columns, Single Smooth Scrollbar) -->
+            <label style="margin-bottom:6px;display:block;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px">
+                Choose Assignee(s) *
+            </label>
+            <div id="reassignEmpContainer" style="max-height:220px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:10px;padding:8px;background:#fff;display:grid;grid-template-columns:repeat(2, 1fr);gap:6px">
+                @foreach($employees as $e)
+                    @php
+                        $deptName = is_string($e->department) && !empty($e->department)
+                            ? $e->department
+                            : ($departments->firstWhere('id', $e->department_id)?->name ?? 'Staff');
+                        $initials = strtoupper(substr($e->first_name ?: $e->name, 0, 1));
+                    @endphp
+                    <label class="reassign-emp-card" data-dept-id="{{ $e->department_id }}" data-name="{{ strtolower($e->displayName()) }}" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer;transition:all 0.15s ease">
+                        <input type="checkbox" name="new_assigned_to[]" value="{{ $e->id }}" class="reassign-emp-chk" onchange="updateReassignCardStyle(this)" style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer;flex-shrink:0">
+                        <span style="width:24px;height:24px;border-radius:50%;background:#e0f2fe;color:#0369a1;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;flex-shrink:0">
+                            {{ $initials }}
+                        </span>
+                        <div style="overflow:hidden;flex:1">
+                            <div style="font-size:12px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                {{ $e->displayName() }}
+                            </div>
+                            <small style="font-size:10px;color:#64748b;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                {{ $deptName }}
+                            </small>
+                        </div>
+                    </label>
+                @endforeach
+            </div>
+            <div id="reassignNoEmpMsg" style="display:none;text-align:center;padding:16px;color:#94a3b8;font-size:12px">
+                No employees matching current search or department filter.
+            </div>
+
+            <!-- Reason / Remarks -->
+            <div style="margin-top:12px">
+                <label style="margin-bottom:4px;display:block;font-size:12px;font-weight:700;color:#334155">Reason / Remarks (Optional)</label>
+                <textarea name="remarks" id="reassignRemarks" rows="2" placeholder="e.g. Belongs to Accounts Dept / Workload redistribution..." style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;font-size:12.5px;resize:vertical"></textarea>
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:10px;border-top:1px solid #e2e8f0">
+                <button type="button" class="btn light" onclick="closeReassignModal()" style="padding:7px 16px;border-radius:8px">Cancel</button>
+                <button type="submit" class="btn" style="padding:7px 18px;border-radius:8px;display:flex;align-items:center;gap:6px">
+                    <i class="fa-solid fa-check"></i> Re-Assign & Notify
+                </button>
             </div>
         </form>
     </div>
@@ -1236,6 +1283,11 @@ function openTaskDetailsDrawer(task, initialTab = 'details') {
         if (fileInput) fileInput.value = '';
     }
 
+    const replyFileInput = document.getElementById('replyAttachmentsInput');
+    if (replyFileInput) replyFileInput.value = '';
+    const replyPreview = document.getElementById('replyAttachmentsPreview');
+    if (replyPreview) replyPreview.innerHTML = '';
+
     // Render Attached Files of the Task
     const attContainer = document.getElementById('dtlAttachmentsList');
     if (attContainer) {
@@ -1304,7 +1356,30 @@ function renderReplies(replies) {
     }
     replies.forEach(r => {
         let name = r.user ? (r.user.first_name + ' ' + (r.user.last_name || '')) : 'User';
-        let fileHtml = r.attachment ? `<div style="margin-top:4px"><a href="/storage/${r.attachment}" target="_blank" style="color:var(--accent);font-size:11px"><i class="fa-solid fa-paperclip"></i> View Attachment</a></div>` : '';
+        let atts = [];
+        if (r.attachments_list && Array.isArray(r.attachments_list) && r.attachments_list.length > 0) {
+            atts = r.attachments_list;
+        } else if (r.attachments && Array.isArray(r.attachments)) {
+            atts = r.attachments;
+        } else if (r.attachment) {
+            try {
+                const parsed = JSON.parse(r.attachment);
+                atts = Array.isArray(parsed) ? parsed : [r.attachment];
+            } catch(e) {
+                atts = [r.attachment];
+            }
+        }
+
+        let fileHtml = '';
+        if (atts.length > 0) {
+            fileHtml = '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">' + atts.map(attPath => {
+                const fName = attPath.split('/').pop();
+                return `<a href="/storage/${attPath}" target="_blank" style="background:#fff;border:1px solid #cbd5e1;padding:3px 8px;border-radius:5px;color:var(--accent);font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px;text-decoration:none">
+                    <i class="fa-solid fa-paperclip"></i> ${fName}
+                </a>`;
+            }).join('') + '</div>';
+        }
+
         let timeStr = formatDateTime(r.created_at);
         container.innerHTML += `
             <div style="background:#f8fafc;padding:10px;border-radius:8px;border:1px solid #e2e8f0;font-size:12px">
@@ -1317,6 +1392,20 @@ function renderReplies(replies) {
             </div>
         `;
     });
+}
+
+function previewReplyAttachments(input) {
+    const container = document.getElementById('replyAttachmentsPreview');
+    if (!container) return;
+    container.innerHTML = '';
+    if (input.files && input.files.length > 0) {
+        Array.from(input.files).forEach(f => {
+            const badge = document.createElement('span');
+            badge.style.cssText = 'background:#e0f2fe;color:#0369a1;font-size:10.5px;padding:2px 6px;border-radius:4px;border:1px solid #bae6fd;display:inline-flex;align-items:center;gap:3px';
+            badge.innerHTML = `<i class="fa-solid fa-paperclip" style="font-size:9px"></i> ${f.name}`;
+            container.appendChild(badge);
+        });
+    }
 }
 
 function renderHistories(histories) {
@@ -1373,26 +1462,102 @@ function openReassignModal() {
     closeTaskDrawer();
     document.getElementById('reassignForm').action = "/tasks/" + currentActiveTask.id + "/reassign";
     
-    // Reset picker state
-    const dropdown = document.getElementById('dropdown_picker_reassign');
-    if (dropdown) {
-        dropdown.querySelectorAll('.dept-filter-chk').forEach(c => c.checked = false);
-        dropdown.querySelectorAll('.emp-select-chk').forEach(c => c.checked = false);
-        dropdown.style.display = 'none';
-        applyPickerFilters('picker_reassign');
+    // Set task info
+    const infoBadge = document.getElementById('reassignTaskInfoBadge');
+    if (infoBadge) {
+        infoBadge.innerHTML = `Re-assigning <b>Task #${currentActiveTask.id}: ${currentActiveTask.title}</b>. Assigned staff will receive immediate notifications.`;
     }
-    const labelSpan = document.getElementById('picker_label_reassign');
-    if (labelSpan) {
-        labelSpan.innerText = 'Select New Assignee(s)';
-        labelSpan.style.color = '#64748b';
-        labelSpan.style.fontWeight = 'normal';
-    }
+
+    // Reset inputs
+    const searchInp = document.getElementById('reassignSearchInput');
+    if (searchInp) searchInp.value = '';
+    const deptSel = document.getElementById('reassignDeptSelect');
+    if (deptSel) deptSel.value = '';
+    const remarks = document.getElementById('reassignRemarks');
+    if (remarks) remarks.value = '';
+
+    // Clear all checked boxes
+    document.querySelectorAll('.reassign-emp-chk').forEach(cb => {
+        cb.checked = false;
+        updateReassignCardStyle(cb);
+    });
+
+    filterReassignEmployees();
 
     document.getElementById('reassignModal').classList.add('open');
 }
 
 function closeReassignModal() {
     document.getElementById('reassignModal').classList.remove('open');
+}
+
+function filterReassignEmployees() {
+    const searchVal = (document.getElementById('reassignSearchInput')?.value || '').toLowerCase().trim();
+    const deptVal = document.getElementById('reassignDeptSelect')?.value || '';
+
+    const cards = document.querySelectorAll('.reassign-emp-card');
+    let visibleCount = 0;
+
+    cards.forEach(card => {
+        const empName = card.getAttribute('data-name') || '';
+        const empDept = card.getAttribute('data-dept-id') || '';
+
+        const matchesSearch = !searchVal || empName.includes(searchVal);
+        const matchesDept = !deptVal || empDept === deptVal;
+
+        if (matchesSearch && matchesDept) {
+            card.style.display = 'flex';
+            visibleCount++;
+        } else {
+            card.style.display = 'none';
+        }
+    });
+
+    const noMsg = document.getElementById('reassignNoEmpMsg');
+    if (noMsg) {
+        noMsg.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+}
+
+function updateReassignCardStyle(cb) {
+    const card = cb.closest('.reassign-emp-card');
+    if (card) {
+        if (cb.checked) {
+            card.style.borderColor = 'var(--accent, #0284c7)';
+            card.style.background = '#eff6ff';
+        } else {
+            card.style.borderColor = '#e2e8f0';
+            card.style.background = '#f8fafc';
+        }
+    }
+
+    const checkedCount = document.querySelectorAll('.reassign-emp-chk:checked').length;
+    const badge = document.getElementById('reassignSelectedCount');
+    if (badge) {
+        badge.innerHTML = `<i class="fa-solid fa-users" style="color:var(--accent)"></i> ${checkedCount} employee(s) selected`;
+    }
+}
+
+function selectAllReassignEmployees(selectAll) {
+    const cards = document.querySelectorAll('.reassign-emp-card');
+    cards.forEach(card => {
+        if (card.style.display !== 'none') {
+            const cb = card.querySelector('.reassign-emp-chk');
+            if (cb) {
+                cb.checked = selectAll;
+                updateReassignCardStyle(cb);
+            }
+        }
+    });
+}
+
+function validateReassignForm() {
+    const checked = document.querySelectorAll('.reassign-emp-chk:checked');
+    if (checked.length === 0) {
+        alert('Please select at least one employee to re-assign this task.');
+        return false;
+    }
+    return true;
 }
 
 function openReopenModal() {
@@ -1444,126 +1609,7 @@ function filterEmployeesByDept(deptId) {
     }
 }
 
-function toggleEmpPicker(pickerId) {
-    const dropdown = document.getElementById('dropdown_' + pickerId);
-    if (!dropdown) return;
-    const isVisible = dropdown.style.display === 'block';
-    
-    // Close any other open dropdowns first
-    document.querySelectorAll('.picker-dropdown').forEach(d => {
-        if (d !== dropdown) d.style.display = 'none';
-    });
-    
-    dropdown.style.display = isVisible ? 'none' : 'block';
-}
 
-function applyPickerFilters(pickerId) {
-    const dropdown = document.getElementById('dropdown_' + pickerId);
-    if (!dropdown) return;
-
-    const checkedDeptBoxes = dropdown.querySelectorAll('.dept-filter-chk:checked');
-    const checkedDeptIds = Array.from(checkedDeptBoxes).map(cb => cb.getAttribute('data-dept-id'));
-    const searchInput = dropdown.querySelector('.picker-search-input');
-    const searchVal = searchInput ? searchInput.value.toLowerCase().trim() : '';
-
-    const empItems = dropdown.querySelectorAll('.picker-emp-item');
-    empItems.forEach(item => {
-        const itemDeptId = item.getAttribute('data-dept-id');
-        const itemName = item.getAttribute('data-name');
-        
-        const matchesDept = checkedDeptIds.length === 0 || checkedDeptIds.includes(itemDeptId);
-        const matchesSearch = !searchVal || itemName.includes(searchVal);
-
-        item.style.display = (matchesDept && matchesSearch) ? 'flex' : 'none';
-    });
-}
-
-function onPickerSearch(pickerId, val) {
-    applyPickerFilters(pickerId);
-}
-
-function selectAllPickerEmployees(pickerId, selectAll) {
-    const dropdown = document.getElementById('dropdown_' + pickerId);
-    if (!dropdown) return;
-
-    const visibleItems = dropdown.querySelectorAll('.picker-emp-item');
-    visibleItems.forEach(item => {
-        if (item.style.display !== 'none') {
-            const chk = item.querySelector('.emp-select-chk');
-            if (chk) chk.checked = selectAll;
-        }
-    });
-
-    if (pickerId === 'picker_primary') {
-        onEmpPickerChange('picker_primary', 'single');
-    } else if (pickerId === 'picker_others') {
-        onEmpPickerChange('picker_others', 'multiple', 'assignee_ids[]');
-    } else if (pickerId === 'picker_reassign') {
-        onEmpPickerChange('picker_reassign', 'multiple', 'new_assigned_to[]');
-    }
-}
-
-function onEmpPickerChange(pickerId, mode, inputName = '') {
-    const dropdown = document.getElementById('dropdown_' + pickerId);
-    const labelSpan = document.getElementById('picker_label_' + pickerId);
-    if (!dropdown || !labelSpan) return;
-
-    if (mode === 'single') {
-        const checked = dropdown.querySelectorAll('.emp-select-chk:checked');
-        if (checked.length > 1) {
-            checked.forEach((c, idx) => {
-                if (idx < checked.length - 1) c.checked = false;
-            });
-        }
-        const lastChecked = dropdown.querySelector('.emp-select-chk:checked');
-        const hiddenInput = document.getElementById('input_primary');
-        if (lastChecked) {
-            labelSpan.innerText = lastChecked.getAttribute('data-name');
-            labelSpan.style.color = '#1e293b';
-            labelSpan.style.fontWeight = '700';
-            if (hiddenInput) hiddenInput.value = lastChecked.value;
-        } else {
-            labelSpan.innerText = 'Select Primary Employee';
-            labelSpan.style.color = '#64748b';
-            labelSpan.style.fontWeight = 'normal';
-            if (hiddenInput) hiddenInput.value = '';
-        }
-    } else {
-        const checked = dropdown.querySelectorAll('.emp-select-chk:checked');
-        const container = document.getElementById(pickerId === 'picker_others' ? 'hidden_inputs_others' : 'hidden_inputs_reassign');
-        if (container) {
-            container.innerHTML = '';
-            checked.forEach(c => {
-                const hidden = document.createElement('input');
-                hidden.type = 'hidden';
-                hidden.name = inputName;
-                hidden.value = c.value;
-                container.appendChild(hidden);
-            });
-        }
-
-        if (checked.length === 0) {
-            labelSpan.innerText = pickerId === 'picker_others' ? 'Select Additional Assignees (Optional)' : 'Select New Assignee(s)';
-            labelSpan.style.color = '#64748b';
-            labelSpan.style.fontWeight = 'normal';
-        } else if (checked.length === 1) {
-            labelSpan.innerText = checked[0].getAttribute('data-name');
-            labelSpan.style.color = '#1e293b';
-            labelSpan.style.fontWeight = '700';
-        } else {
-            labelSpan.innerText = checked.length + ' employees selected';
-            labelSpan.style.color = '#2563eb';
-            labelSpan.style.fontWeight = '700';
-        }
-    }
-}
-
-// Close pickers when clicking outside
-document.addEventListener('click', function(e) {
-    if (!e.target.closest('.custom-emp-picker')) {
-        document.querySelectorAll('.picker-dropdown').forEach(d => d.style.display = 'none');
-    }
-});
 
 function openNewCategoryModal() {
     const m = document.getElementById('newCategoryModal');

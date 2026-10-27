@@ -162,10 +162,17 @@
                         {{ $reply->message }}
                     </td>
                     <td>
-                        @if($reply->attachment)
-                            <a href="{{ asset('storage/'.$reply->attachment) }}" target="_blank" style="color:#0284c7;font-weight:600;text-decoration:none">
-                                📎 {{ basename($reply->attachment) }}
-                            </a>
+                        @php
+                            $rAttList = $reply->attachments_list ?? ($reply->attachment ? [$reply->attachment] : []);
+                        @endphp
+                        @if(!empty($rAttList) && count($rAttList) > 0)
+                            <div style="display:flex;flex-direction:column;gap:3px">
+                                @foreach($rAttList as $attFile)
+                                    <a href="{{ asset('storage/'.$attFile) }}" target="_blank" style="color:#0284c7;font-weight:600;text-decoration:none;font-size:10.5px">
+                                        📎 {{ basename($attFile) }}
+                                    </a>
+                                @endforeach
+                            </div>
                         @else
                             <span style="color:#94a3b8">-</span>
                         @endif

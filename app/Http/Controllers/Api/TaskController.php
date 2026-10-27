@@ -89,18 +89,25 @@ class TaskController extends Controller
             'assigned_to' => 'nullable|exists:users,id',
             'others' => 'nullable|array',
             'assignee_ids' => 'nullable|array',
-            'attachment_file' => 'nullable|file|max:10240',
+            'attachment_file' => 'nullable|file|max:15360',
+            'attachment_files' => 'nullable|array',
+            'attachment_files.*' => 'nullable|file|max:15360',
         ]);
 
         $others = $data['others'] ?? [];
         $assigneeIds = $data['assignee_ids'] ?? [];
-        unset($data['others'], $data['assignee_ids'], $data['attachment_file']);
+        unset($data['others'], $data['assignee_ids'], $data['attachment_file'], $data['attachment_files']);
 
         $data['created_by'] = $request->user()->id;
         $data['status'] = $data['status'] ?? 'pending';
         $data['repeat_type'] = $data['repeat_type'] ?? 'none';
 
-        if ($request->hasFile('attachment_file')) {
+        if ($request->hasFile('attachment_files')) {
+            $first = $request->file('attachment_files')[0] ?? null;
+            if ($first) {
+                $data['attachment'] = $first->store('task_attachments', 'public');
+            }
+        } elseif ($request->hasFile('attachment_file')) {
             $data['attachment'] = $request->file('attachment_file')->store('task_attachments', 'public');
         }
 
@@ -116,7 +123,18 @@ class TaskController extends Controller
             $task->assignees()->sync([$task->assigned_to]);
         }
 
-        if (!empty($data['attachment'])) {
+        if ($request->hasFile('attachment_files')) {
+            foreach ($request->file('attachment_files') as $file) {
+                if ($file && $file->isValid()) {
+                    $p = $file->store('task_attachments', 'public');
+                    $task->attachments()->create([
+                        'user_id' => $request->user()->id,
+                        'file_path' => $p,
+                        'file_name' => $file->getClientOriginalName(),
+                    ]);
+                }
+            }
+        } elseif (!empty($data['attachment'])) {
             $task->attachments()->create([
                 'user_id' => $request->user()->id,
                 'file_path' => $data['attachment'],

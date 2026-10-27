@@ -51,10 +51,17 @@
             @endforeach
         </select>
 
-        <select name="user_id" onchange="this.form.submit()" style="width:160px">
-            <option value="">All Assigned Users</option>
+        <select name="from_user_id" onchange="this.form.submit()" style="width:160px" title="Filter by user who created & assigned the task">
+            <option value="">From User (All)</option>
             @foreach($employees as $emp)
-                <option value="{{ $emp->id }}" {{ $userId==$emp->id?'selected':'' }}>{{ $emp->displayName() }}</option>
+                <option value="{{ $emp->id }}" {{ ($fromUserId ?? null)==$emp->id?'selected':'' }}>From: {{ $emp->displayName() }}</option>
+            @endforeach
+        </select>
+
+        <select name="user_id" onchange="this.form.submit()" style="width:160px" title="Filter by assigned user">
+            <option value="">To User (All)</option>
+            @foreach($employees as $emp)
+                <option value="{{ $emp->id }}" {{ $userId==$emp->id?'selected':'' }}>To: {{ $emp->displayName() }}</option>
             @endforeach
         </select>
 
@@ -94,6 +101,7 @@
     <a class="{{ $status==='completed' && !$viewMode && $dateFilter!=='overdue' ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['status'=>'completed', 'date_filter'=>null, 'view_mode'=>null])) }}">Completed ({{ $counts['completed'] }})</a>
     <a class="{{ $dateFilter==='overdue' && !$viewMode ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['date_filter'=>'overdue', 'status'=>'all', 'view_mode'=>null])) }}" style="color:#dc2626">Overdue ({{ $counts['overdue'] }})</a>
     <a class="{{ $viewMode==='user_wise' ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['view_mode'=>'user_wise', 'sort_by'=>'deadline', 'sort_dir'=>'asc'])) }}" style="color:#4f46e5;font-weight:700"><i class="fa-solid fa-users"></i> User Wise</a>
+    <a class="{{ $viewMode==='category_wise' ? 'active' : '' }}" href="{{ route('tasks.index', array_merge(request()->query(), ['view_mode'=>'category_wise', 'sort_by'=>'deadline', 'sort_dir'=>'asc'])) }}" style="color:#0284c7;font-weight:700"><i class="fa-solid fa-tags"></i> Category Wise</a>
 </div>
 
 @if($viewMode === 'user_wise' && $userWiseGroups)
@@ -217,8 +225,135 @@
     </div>
 @endif
 
+@if($viewMode === 'category_wise' && $categoryWiseGroups)
+    <!-- CATEGORY WISE GROUPED DISPLAY (Requirement 1: Category Filter like User Wise tab) -->
+    <div style="background:#f0f9ff;border:1.5px solid #bae6fd;padding:12px 18px;border-radius:10px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div>
+            <strong style="color:#0369a1;font-size:14px;display:flex;align-items:center;gap:6px"><i class="fa-solid fa-tags"></i> Category-Wise Task Breakdown</strong>
+            <div style="color:#0284c7;font-size:12px;margin-top:2px">Viewing tasks grouped by Category. Total {{ $categoryWiseGroups->count() }} category group(s).</div>
+        </div>
+        <a href="{{ route('tasks.index') }}" class="btn light" style="background:#fff;color:#dc2626;border:1px solid #fca5a5;font-weight:700;font-size:12px">
+            <i class="fa-solid fa-xmark"></i> Clear Filter (Normal Mode)
+        </a>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:18px;margin-bottom:24px">
+        @forelse($categoryWiseGroups as $categoryGroupName => $grpTasks)
+            @php
+                $firstTaskCat = $grpTasks->first()?->category;
+                $catColor = $firstTaskCat && $firstTaskCat->color ? $firstTaskCat->color : '#0284c7';
+            @endphp
+            <div class="card" style="padding:0;overflow:hidden;border:1px solid #cbd5e1;border-radius:12px">
+                <div style="background:#f8fafc;padding:12px 18px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+                    <div style="display:flex;align-items:center;gap:10px">
+                        <div style="background:{{ $catColor }};color:#fff;width:34px;height:34px;border-radius:8px;display:grid;place-items:center;font-weight:700;font-size:14px">
+                            <i class="fa-solid fa-tag"></i>
+                        </div>
+                        <div>
+                            <strong style="color:#0f172a;font-size:14px">{{ $categoryGroupName }}</strong>
+                            <span style="font-size:11px;color:#64748b;margin-left:8px">Total: {{ $grpTasks->count() }} task(s)</span>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:6px">
+                        <span class="chip" style="background:#fee2e2;color:#991b1b;font-size:11px;font-weight:700">Pending: {{ $grpTasks->where('status','pending')->count() }}</span>
+                        <span class="chip" style="background:#fef3c7;color:#92400e;font-size:11px;font-weight:700">In Progress: {{ $grpTasks->where('status','in_progress')->count() }}</span>
+                        <span class="chip" style="background:#dcfce7;color:#166534;font-size:11px;font-weight:700">Done: {{ $grpTasks->where('status','completed')->count() }}</span>
+                    </div>
+                </div>
+                <div style="overflow-x:auto">
+                    <table style="width:100%;border-collapse:collapse;font-size:13px">
+                        <thead>
+                            <tr style="background:#f1f5f9;color:#475569">
+                                <th style="padding:10px 14px;text-align:center;width:40px">#</th>
+                                <th style="padding:10px 14px;text-align:left">Task Title</th>
+                                <th style="padding:10px 14px;text-align:left">Assigned To</th>
+                                <th style="padding:10px 14px;text-align:left">Assigned By</th>
+                                <th style="padding:10px 14px;text-align:left">Priority</th>
+                                <th style="padding:10px 14px;text-align:left">
+                                    @php
+                                        $nextSortDir = ($sortBy === 'deadline' && $sortDir === 'asc') ? 'desc' : 'asc';
+                                    @endphp
+                                    <a href="{{ route('tasks.index', array_merge(request()->query(), ['view_mode'=>'category_wise', 'sort_by' => 'deadline', 'sort_dir' => $nextSortDir])) }}" style="color:#475569;text-decoration:none;display:inline-flex;align-items:center;gap:4px" title="Click to sort by deadline">
+                                        Deadline
+                                        @if($sortBy === 'deadline')
+                                            @if($sortDir === 'asc')
+                                                <i class="fa-solid fa-arrow-up-short-wide" style="color:#0284c7" title="Closest deadline first"></i>
+                                            @else
+                                                <i class="fa-solid fa-arrow-down-wide-short" style="color:#0284c7" title="Furthest deadline first"></i>
+                                            @endif
+                                        @else
+                                            <i class="fa-solid fa-sort" style="color:#94a3b8"></i>
+                                        @endif
+                                    </a>
+                                </th>
+                                <th style="padding:10px 14px;text-align:left">Status (Update)</th>
+                                <th style="padding:10px 14px;text-align:left">Comments</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($grpTasks as $gTask)
+                                <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer" onclick="openTaskDetailsDrawer({{ json_encode($gTask->load(['creator', 'assignee', 'assignees', 'others', 'department', 'category', 'replies.user', 'attachments', 'histories.user'])) }})">
+                                    <td style="padding:10px 14px;text-align:center;color:#64748b">{{ $loop->iteration }}</td>
+                                    <td style="padding:10px 14px">
+                                        <b style="color:#1e293b">{{ $gTask->title }}</b>
+                                        @if($gTask->client)<small style="display:block;color:#64748b">Client: {{ $gTask->client }}</small>@endif
+                                    </td>
+                                    <td style="padding:10px 14px">
+                                        <div style="display:flex;align-items:center;gap:6px">
+                                            <div style="background:#e0f2fe;color:#0369a1;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:11px">
+                                                {{ strtoupper(substr($gTask->assignee ? $gTask->assignee->displayName() : 'U', 0, 1)) }}
+                                            </div>
+                                            <span style="font-weight:600;color:#1e293b">{{ $gTask->assignee ? $gTask->assignee->displayName() : 'Unassigned' }}</span>
+                                        </div>
+                                    </td>
+                                    <td style="padding:10px 14px;color:#475569">{{ $gTask->creator ? $gTask->creator->displayName() : 'Admin' }}</td>
+                                    <td style="padding:10px 14px">
+                                        <span class="chip" style="font-size:10px;text-transform:uppercase;font-weight:700;{{ $gTask->priority==='high' ? 'background:#fee2e2;color:#991b1b' : ($gTask->priority==='medium' ? 'background:#fef3c7;color:#92400e' : 'background:#dcfce7;color:#166534') }}">{{ $gTask->priority }}</span>
+                                    </td>
+                                    <td style="padding:10px 14px;white-space:nowrap">
+                                        @if($gTask->due_date)
+                                            @php $isOverdue = $gTask->status !== 'completed' && $gTask->due_date->isPast() && !$gTask->due_date->isToday(); @endphp
+                                            <div style="font-size:13px;color:{{ $isOverdue ? '#dc2626' : '#334155' }};font-weight:{{ $isOverdue ? '700' : '500' }}">
+                                                {{ $gTask->due_date->format('d M Y') }}
+                                            </div>
+                                            @if(!empty($gTask->due_time))
+                                                <small style="color:#64748b;font-size:11px;display:flex;align-items:center;gap:3px;margin-top:2px">
+                                                    <i class="fa-regular fa-clock" style="font-size:10px"></i> {{ date('h:i A', strtotime($gTask->due_time)) }}
+                                                </small>
+                                            @endif
+                                        @else
+                                            <span style="color:#94a3b8;font-size:13px">-</span>
+                                        @endif
+                                    </td>
+                                    <td style="padding:10px 14px;white-space:nowrap" onclick="event.stopPropagation()">
+                                        <form method="post" action="{{ route('tasks.status', $gTask) }}" style="margin:0;display:inline-flex;align-items:center;gap:6px">
+                                            @csrf
+                                            <select name="status" onchange="this.form.submit()" style="font-size:11px;font-weight:700;padding:3px 6px;border-radius:6px;border:1px solid #cbd5e1;cursor:pointer">
+                                                <option value="pending" {{ $gTask->status==='pending' ? 'selected' : '' }}>⏳ Not Started</option>
+                                                <option value="in_progress" {{ $gTask->status==='in_progress' ? 'selected' : '' }}>⚡ In Process</option>
+                                                <option value="completed" {{ $gTask->status==='completed' ? 'selected' : '' }}>✓ Closed / Done</option>
+                                            </select>
+                                        </form>
+                                    </td>
+                                    <td style="padding:10px 14px;color:#64748b;font-size:12px">
+                                        {{ \Illuminate\Support\Str::limit($gTask->description ?: '-', 40) }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @empty
+            <div class="card" style="padding:30px;text-align:center;color:#64748b">
+                No active tasks found for category-wise grouping.
+            </div>
+        @endforelse
+    </div>
+@endif
+
 <!-- LIST VIEW CONTAINER (Matching Screenshot) -->
-<div id="taskListView" style="background:#fff;border-radius:14px;box-shadow:0 4px 20px -2px rgba(0,0,0,0.06);border:1px solid #e2e8f0;overflow:hidden;{{ $viewMode==='user_wise' ? 'display:none;' : '' }}">
+<div id="taskListView" style="background:#fff;border-radius:14px;box-shadow:0 4px 20px -2px rgba(0,0,0,0.06);border:1px solid #e2e8f0;overflow:hidden;{{ ($viewMode==='user_wise' || $viewMode==='category_wise') ? 'display:none;' : '' }}">
     <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-family:Inter,Segoe UI,-apple-system,sans-serif">
             <thead>
@@ -665,7 +800,22 @@
                         </form>
                     </div>
                     <h3 id="dtlTitle" style="margin:0 0 6px 0;color:#111827">Task Title</h3>
-                    <p id="dtlDescription" class="muted" style="margin:0 0 10px 0;font-size:13px">Description...</p>
+                    
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
+                        <p id="dtlDescription" class="muted" style="margin:0;font-size:13px;flex:1;white-space:pre-wrap">Description...</p>
+                        <button type="button" id="btnEditDescription" onclick="startEditDescription()" class="btn light" style="display:none;font-size:11px;padding:3px 8px;color:#4f46e5;border:1px solid #c7d2fe;white-space:nowrap;cursor:pointer" title="Edit Task Description (Creator or Admin)">
+                            <i class="fa-solid fa-pen-to-square"></i> Edit
+                        </button>
+                    </div>
+
+                    <div id="descEditContainer" style="display:none;background:#fff;border:1.5px solid #cbd5e1;border-radius:8px;padding:10px;margin-bottom:12px">
+                        <label style="font-size:11.5px;font-weight:700;color:#334155;display:block;margin-bottom:4px"><i class="fa-solid fa-pen"></i> Edit Task Description</label>
+                        <textarea id="dtlDescriptionInput" rows="3" style="width:100%;font-size:12.5px;padding:8px;border-radius:6px;border:1px solid #cbd5e1;box-sizing:border-box" placeholder="Enter updated task description..."></textarea>
+                        <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px">
+                            <button type="button" class="btn light" style="font-size:11px;padding:4px 10px" onclick="cancelEditDescription()">Cancel</button>
+                            <button type="button" id="btnSaveDesc" class="btn" style="font-size:11px;padding:4px 12px;background:#4f46e5;color:#fff" onclick="saveTaskDescription()"><i class="fa-solid fa-check"></i> Save Description</button>
+                        </div>
+                    </div>
                     
                     <div class="grid-2" style="font-size:12px;color:#475569;margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:10px">
                         <div><i class="fa-solid fa-tags" style="color:#6366f1"></i> <b>Category:</b> <span id="dtlCategory">-</span></div>
@@ -736,6 +886,16 @@
                     <div id="dtlAttachmentsList" style="display:flex;flex-direction:column;gap:6px">
                         <span class="muted" style="font-size:12px">No files attached to this task.</span>
                     </div>
+
+                    <!-- Upload Multiple Attachments Form (Requirement 5) -->
+                    <form id="drawerUploadAttachmentForm" method="post" enctype="multipart/form-data" onsubmit="submitDrawerAttachments(event)" style="margin-top:10px;padding-top:10px;border-top:1px dashed #e2e8f0">
+                        @csrf
+                        <label style="font-size:11.5px;font-weight:700;color:#334155;display:block;margin-bottom:4px"><i class="fa-solid fa-plus-circle"></i> Upload Attachments (Multiple Files Supported)</label>
+                        <div style="display:flex;gap:6px;align-items:center">
+                            <input type="file" id="drawerAttachmentFiles" name="attachment_files[]" multiple required style="font-size:11.5px;flex:1">
+                            <button type="submit" id="btnUploadDrawerAtt" class="btn light" style="font-size:11.5px;padding:5px 12px;white-space:nowrap;color:#0284c7;border-color:#bae6fd"><i class="fa-solid fa-upload"></i> Upload</button>
+                        </div>
+                    </form>
                 </div>
 
                 <!-- Action Buttons: Re-assign, Re-Open, Send Reminder & Delete -->
@@ -1047,6 +1207,7 @@ function openTaskDetailsDrawer(task, initialTab = 'details') {
     // Delete permission: only creator or super admin can see delete button
     const currentUserId = {{ (int)auth()->id() }};
     const isSuperAdmin = {{ (auth()->user() && auth()->user()->isSuperAdmin()) ? 'true' : 'false' }};
+    const isAdmin = {{ (auth()->user() && auth()->user()->isAdmin()) ? 'true' : 'false' }};
     const deleteBtnForm = document.getElementById('deleteTaskForm');
     if (deleteBtnForm) {
         if (isSuperAdmin || (task.created_by && task.created_by == currentUserId)) {
@@ -1054,6 +1215,25 @@ function openTaskDetailsDrawer(task, initialTab = 'details') {
         } else {
             deleteBtnForm.style.display = 'none';
         }
+    }
+
+    // Edit description permission (Requirement 3): Creator or Admin
+    const btnEditDesc = document.getElementById('btnEditDescription');
+    if (btnEditDesc) {
+        if (isSuperAdmin || isAdmin || (task.created_by && Number(task.created_by) === currentUserId)) {
+            btnEditDesc.style.display = 'inline-block';
+        } else {
+            btnEditDesc.style.display = 'none';
+        }
+    }
+    cancelEditDescription();
+
+    // Drawer Multiple Attachment Form Action (Requirement 5)
+    const drawerAttForm = document.getElementById('drawerUploadAttachmentForm');
+    if (drawerAttForm) {
+        drawerAttForm.action = "/tasks/" + task.id + "/attachment";
+        const fileInput = document.getElementById('drawerAttachmentFiles');
+        if (fileInput) fileInput.value = '';
     }
 
     // Render Attached Files of the Task
@@ -1455,11 +1635,137 @@ async function submitNewCategory(e) {
     }
 }
 
+function startEditDescription() {
+    if (!currentActiveTask) return;
+    const input = document.getElementById('dtlDescriptionInput');
+    if (input) input.value = currentActiveTask.description || '';
+    const container = document.getElementById('descEditContainer');
+    if (container) {
+        container.style.display = 'block';
+        input.focus();
+    }
+}
+
+function cancelEditDescription() {
+    const container = document.getElementById('descEditContainer');
+    if (container) container.style.display = 'none';
+}
+
+async function saveTaskDescription() {
+    if (!currentActiveTask) return;
+    const btn = document.getElementById('btnSaveDesc');
+    const input = document.getElementById('dtlDescriptionInput');
+    const newDesc = input ? input.value.trim() : '';
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+    try {
+        const resp = await fetch(`/tasks/${currentActiveTask.id}/update-description`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ description: newDesc })
+        });
+
+        const res = await resp.json();
+        if (res.ok) {
+            currentActiveTask.description = res.description || '';
+            const dtlDesc = document.getElementById('dtlDescription');
+            if (dtlDesc) dtlDesc.innerText = currentActiveTask.description || 'No description provided.';
+            cancelEditDescription();
+        } else {
+            alert(res.message || 'Failed to update description.');
+        }
+    } catch(err) {
+        console.error(err);
+        alert('Failed to save description. Please check your connection.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> Save Description';
+    }
+}
+
+async function submitDrawerAttachments(e) {
+    e.preventDefault();
+    if (!currentActiveTask) return;
+    const form = document.getElementById('drawerUploadAttachmentForm');
+    const fileInput = document.getElementById('drawerAttachmentFiles');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        alert('Please select at least one file to upload.');
+        return;
+    }
+
+    const btn = document.getElementById('btnUploadDrawerAtt');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading...';
+
+    const formData = new FormData(form);
+    try {
+        const resp = await fetch(`/tasks/${currentActiveTask.id}/attachment`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json'
+            },
+            body: formData
+        });
+
+        const res = await resp.json();
+        if (res.ok) {
+            fileInput.value = '';
+            if (res.attachments) {
+                currentActiveTask.attachments = res.attachments;
+                const attContainer = document.getElementById('dtlAttachmentsList');
+                if (attContainer) {
+                    attContainer.innerHTML = '';
+                    res.attachments.forEach(att => {
+                        const fName = att.file_name || att.file_path.split('/').pop();
+                        attContainer.innerHTML += `
+                            <div style="display:flex;align-items:center;justify-content:space-between;background:#f8fafc;padding:6px 10px;border-radius:6px;border:1px solid #e2e8f0;margin-bottom:4px">
+                                <a href="/storage/${att.file_path}" target="_blank" style="color:#0284c7;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;text-decoration:none">
+                                    <i class="fa-solid fa-paperclip"></i> ${fName}
+                                </a>
+                                <form method="post" action="/tasks/attachments/${att.id}" onsubmit="return confirm('Remove this attachment?')" style="margin:0;display:inline">
+                                    <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="_method" value="delete">
+                                    <button type="submit" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;padding:2px 4px" title="Delete attachment"><i class="fa-solid fa-trash"></i></button>
+                                </form>
+                            </div>
+                        `;
+                    });
+                }
+            }
+        } else {
+            alert(res.message || 'Error uploading attachments.');
+        }
+    } catch(err) {
+        console.error(err);
+        form.submit();
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-upload"></i> Upload';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     @if(isset($openTask) && $openTask)
         const initialTask = @json($openTask);
         const initialTab = @json(request('tab', 'details'));
         openTaskDetailsDrawer(initialTask, initialTab);
+
+        // Requirement 2: Clean open_task & tab from URL so subsequent refreshes or actions don't keep opening the drawer
+        try {
+            const cleanUrl = new URL(window.location.href);
+            cleanUrl.searchParams.delete('open_task');
+            cleanUrl.searchParams.delete('tab');
+            window.history.replaceState({}, document.title, cleanUrl.toString());
+        } catch (e) {
+            console.error('URL replace error:', e);
+        }
     @endif
 });
 </script>

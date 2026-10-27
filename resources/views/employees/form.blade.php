@@ -467,20 +467,33 @@
             </div>
         </div>
         <label><input type="checkbox" name="ai_selfie" value="1" {{ $staff->ai_selfie?'checked':'' }}> AI Selfie Verification</label>
-        <label style="margin-top:10px;display:block">Face Reference Images for AI Recognition</label>
-        <input type="file" name="face_images[]" accept="image/*" multiple>
-        @if($staff->faceImages && $staff->faceImages->count() > 0)
-            <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
-                @foreach($staff->faceImages as $fImg)
-                    <div style="position:relative;display:inline-block">
-                        <img src="{{ asset('storage/'.$fImg->path) }}" style="width:55px;height:55px;object-fit:cover;border-radius:6px;border:1px solid #cbd5e1;display:block">
-                        <label style="position:absolute;top:2px;right:2px;background:rgba(255,255,255,0.92);border-radius:4px;padding:2px 4px;color:#ef4444;font-size:10px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.15)" title="Check to delete image">
-                            <input type="checkbox" name="delete_face_image_ids[]" value="{{ $fImg->id }}" style="accent-color:#ef4444;width:12px;height:12px;cursor:pointer"> <i class="fa-solid fa-trash"></i>
-                        </label>
-                    </div>
-                @endforeach
+        <div style="background:#f8fafc;padding:14px;border-radius:10px;border:1px solid #e2e8f0;margin-top:12px;margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <label style="font-weight:700;color:#1e293b;margin:0;display:flex;align-items:center;gap:6px">
+                    <i class="fa-solid fa-camera-retro" style="color:var(--accent)"></i> Face Reference Images for AI Recognition
+                </label>
+                <span class="muted" style="font-size:11px">Upload multiple clear face photos for AI recognition</span>
             </div>
-        @endif
+            <input type="file" name="face_images[]" id="face_images_input" accept="image/*" multiple onchange="previewFaceImages(this)" style="font-size:12.5px;padding:6px;width:100%;background:#fff;border:1px solid #cbd5e1;border-radius:6px">
+            <div id="faceImagesPreview" style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap"></div>
+
+            @if($staff->faceImages && $staff->faceImages->count() > 0)
+                <div style="margin-top:12px;border-top:1px dashed #cbd5e1;padding-top:10px">
+                    <small style="font-weight:700;color:#475569;display:block;margin-bottom:6px">Currently Uploaded Face Images ({{ $staff->faceImages->count() }})</small>
+                    <div id="uploadedFaceImagesContainer" style="display:flex;gap:12px;flex-wrap:wrap">
+                        @foreach($staff->faceImages as $fImg)
+                            <div class="face-img-tile" style="position:relative;display:inline-block;border-radius:8px;overflow:hidden;border:1.5px solid #cbd5e1;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,0.06)">
+                                <img src="{{ asset('storage/'.$fImg->path) }}" style="width:70px;height:70px;object-fit:cover;display:block">
+                                <button type="button" onclick="deleteFaceImageWeb({{ $fImg->id }}, this)" style="position:absolute;top:3px;right:3px;background:rgba(239,68,68,0.92);color:#fff;border:none;border-radius:4px;padding:3px 6px;font-size:11px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.25)" title="Permanently delete this face image">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                                <input type="checkbox" name="delete_face_image_ids[]" value="{{ $fImg->id }}" style="display:none">
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+        </div>
     </div>
 
     <!-- PANE 4: PAYROLL & OVERTIME -->
@@ -714,6 +727,59 @@ function saveQuickCategory() {
       }
   })
   .catch(err => alert("Error adding category: " + err));
+}
+
+async function deleteFaceImageWeb(id, btn) {
+    if (!confirm('Permanently delete this face reference image?')) return;
+    const tile = btn.closest('.face-img-tile');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    try {
+        const resp = await fetch(`/employees/face-images/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json'
+            }
+        });
+        const res = await resp.json();
+        if (res.success || res.ok) {
+            if (tile) {
+                tile.style.transition = 'all 0.3s ease';
+                tile.style.opacity = '0';
+                tile.style.transform = 'scale(0.8)';
+                setTimeout(() => tile.remove(), 300);
+            }
+        } else {
+            alert(res.message || 'Error deleting image');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+        }
+    } catch (err) {
+        // Fallback: mark checkbox for form submit delete if server error
+        const cb = tile ? tile.querySelector('input[name="delete_face_image_ids[]"]') : null;
+        if (cb) cb.checked = true;
+        if (tile) tile.style.opacity = '0.4';
+        alert('Marked for deletion upon form submission.');
+    }
+}
+
+function previewFaceImages(input) {
+    const container = document.getElementById('faceImagesPreview');
+    if (!container) return;
+    container.innerHTML = '';
+    if (input.files && input.files.length > 0) {
+        Array.from(input.files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const div = document.createElement('div');
+                div.style.cssText = 'position:relative;border-radius:6px;overflow:hidden;border:1px solid #38bdf8;box-shadow:0 1px 3px rgba(0,0,0,0.1)';
+                div.innerHTML = `<img src="${e.target.result}" style="width:65px;height:65px;object-fit:cover;display:block">`;
+                container.appendChild(div);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
 }
 </script>
 @endsection

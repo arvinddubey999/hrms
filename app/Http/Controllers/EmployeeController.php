@@ -77,8 +77,14 @@ class EmployeeController extends Controller
             $query->orderBy('first_name', $sortDir)->orderBy('last_name', $sortDir);
         }
 
-        // Paginate 15 per page with query string preserved
-        $employees = $query->paginate(15)->withQueryString();
+        // Paginate per page with query string preserved (supports 15, 50, 100, All)
+        $perPageInput = $request->get('per_page', 15);
+        if ($perPageInput === 'all' || (int)$perPageInput === -1) {
+            $perPage = 10000;
+        } else {
+            $perPage = in_array((int)$perPageInput, [15, 25, 50, 100, 200, 500], true) ? (int)$perPageInput : 15;
+        }
+        $employees = $query->paginate($perPage)->withQueryString();
 
         // Calculate scoped stats for active employees
         if ($authUser && !$authUser->isSuperAdmin()) {
@@ -123,6 +129,24 @@ class EmployeeController extends Controller
         $managerCount = $activeEmployees->filter(fn($u) => strtolower(trim($u->role ?? '')) === 'manager')->count();
         $employeeCount = $activeEmployees->filter(fn($u) => !in_array(strtolower(trim($u->role ?? '')), ['admin', 'super admin', 'superadmin', 'manager'], true))->count();
 
+        // Fix PENDING TASK count (Requirement 6): Match TaskController pending query so /attendances matches /tasks?status=pending
+        $pendingTasksQuery = \App\Models\Task::query()->where('status', 'pending');
+        if (!$authUser || !$authUser->isAdmin()) {
+            $pendingTasksQuery->where(function ($inner) use ($authUser) {
+                if (!$authUser) return;
+                $inner->where('assigned_to', $authUser->id)
+                    ->orWhere('created_by', $authUser->id)
+                    ->orWhereHas('assignees', fn ($p) => $p->where('users.id', $authUser->id))
+                    ->orWhereHas('others', fn ($p) => $p->where('users.id', $authUser->id));
+            });
+        } elseif (!$authUser->isSuperAdmin() && !empty($authUser->accessibleCompanyIds())) {
+            $compIds = $authUser->accessibleCompanyIds();
+            $pendingTasksQuery->where(function ($q) use ($compIds) {
+                $q->whereHas('assignee', fn ($u) => $u->whereIn('company_id', $compIds))
+                  ->orWhereHas('assignees', fn ($u) => $u->whereIn('company_id', $compIds));
+            });
+        }
+
         $stats = [
             'present' => 0, 'absent' => 0, 'not_marked' => 0, 'late' => 0, 'leave' => 0, 'early' => 0,
             'total' => $activeEmployees->count(),
@@ -130,9 +154,7 @@ class EmployeeController extends Controller
             'manager' => $managerCount,
             'employee' => $employeeCount,
             'archived' => $archivedCount,
-            'pending_tasks' => \App\Models\Task::query()->where('status', 'pending')
-                ->when($authUser && !$authUser->isSuperAdmin(), fn($tq) => $tq->whereIn('assigned_to', $activeEmployees->pluck('id')))
-                ->count(),
+            'pending_tasks' => $pendingTasksQuery->count(),
             'in_progress_tasks' => \App\Models\Task::query()->where('status', 'in_progress')
                 ->when($authUser && !$authUser->isSuperAdmin(), fn($tq) => $tq->whereIn('assigned_to', $activeEmployees->pluck('id')))
                 ->count(),
@@ -197,6 +219,7 @@ class EmployeeController extends Controller
             'sortBy' => $sortBy,
             'sortDir' => $sortDir,
             'status' => $status,
+            'perPage' => $perPage,
         ]);
     }
 
@@ -449,15 +472,84 @@ class EmployeeController extends Controller
             return back()->with('error', 'You do not have permission to change employee shifts.');
         }
 
-        $data = $request->validate([
-            'employee_ids' => 'required|array',
-            'employee_ids.*' => 'exists:users,id',
+        $applyScope = $request->input('apply_scope', 'selected');
+
+        $rules = [
             'shift_id' => 'required|exists:shifts,id',
-        ]);
+            'apply_scope' => 'nullable|in:selected,filtered,all',
+        ];
 
-        User::whereIn('id', $data['employee_ids'])->update(['shift_id' => $data['shift_id']]);
+        if ($applyScope === 'selected') {
+            $rules['employee_ids'] = 'required|array';
+            $rules['employee_ids.*'] = 'exists:users,id';
+        }
 
-        return back()->with('ok', 'Shift assigned to selected employees.');
+        $data = $request->validate($rules);
+        $shiftId = $data['shift_id'];
+
+        if ($applyScope === 'all') {
+            // Assign shift to all active employees accessible to this user
+            $targetQuery = User::query()->where('status', 'active');
+            if ($authUser && !$authUser->isSuperAdmin()) {
+                $targetQuery->whereIn('id', $authUser->scopedEmployeesQuery()->pluck('id'));
+            }
+            $count = $targetQuery->update(['shift_id' => $shiftId]);
+            return back()->with('ok', "Shift assigned successfully to all {$count} active employees.");
+        } elseif ($applyScope === 'filtered') {
+            // Assign shift to all active employees matching the current filter parameters
+            $targetQuery = User::query()->where('status', 'active');
+            if ($authUser && !$authUser->isSuperAdmin()) {
+                $targetQuery->whereIn('id', $authUser->scopedEmployeesQuery()->pluck('id'));
+            } elseif ($request->filled('company_id')) {
+                $targetQuery->where('company_id', $request->input('company_id'));
+            }
+            if ($request->filled('category')) {
+                $targetQuery->where('category_id', $request->input('category'));
+            }
+            if ($request->filled('department_id')) {
+                $targetQuery->where('department_id', $request->input('department_id'));
+            }
+            if ($request->filled('q')) {
+                $q = $request->input('q');
+                $targetQuery->where(function ($sub) use ($q) {
+                    $sub->where('first_name', 'like', "%{$q}%")
+                        ->orWhere('last_name', 'like', "%{$q}%")
+                        ->orWhere('employee_code', 'like', "%{$q}%")
+                        ->orWhere('phone', 'like', "%{$q}%");
+                });
+            }
+            $count = $targetQuery->update(['shift_id' => $shiftId]);
+            return back()->with('ok', "Shift assigned successfully to all {$count} filtered employees.");
+        } else {
+            $empIds = $data['employee_ids'] ?? [];
+            if (empty($empIds)) {
+                return back()->with('error', 'Please select at least one employee or choose to apply to all employees.');
+            }
+            $count = User::whereIn('id', $empIds)->update(['shift_id' => $shiftId]);
+            return back()->with('ok', "Shift assigned successfully to {$count} selected employees.");
+        }
+    }
+
+    public function deleteFaceImage(Request $request, \App\Models\FaceImage $faceImage)
+    {
+        $authUser = $request->user();
+        if (!$authUser) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
+        if ($faceImage->path && \Illuminate\Support\Facades\Storage::disk('public')->exists($faceImage->path)) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($faceImage->path);
+        }
+        $faceImage->delete();
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Face reference image deleted successfully.',
+            ]);
+        }
+
+        return back()->with('ok', 'Face reference image deleted successfully.');
     }
 
     public function statModal(Request $request, AttendanceService $attendance)

@@ -33,7 +33,8 @@ class TaskController extends Controller
         $categoryId = $request->get('category_id');
         $companyId = $request->get('company_id');
         $userId = $request->get('user_id');
-        $viewMode = $request->get('view_mode'); // 'user_wise' or null
+        $fromUserId = $request->get('from_user_id');
+        $viewMode = $request->get('view_mode'); // 'user_wise', 'category_wise', or null
         $sortBy = $request->get('sort_by', 'deadline');
         $sortDir = strtolower($request->get('sort_dir', 'asc')) === 'desc' ? 'desc' : 'asc';
 
@@ -46,6 +47,39 @@ class TaskController extends Controller
             $allMatchingTasks = (clone $query)->get();
             $userWiseGroups = $allMatchingTasks->groupBy(function ($task) {
                 return $task->assignee ? $task->assignee->displayName() : 'Unassigned';
+            })->map(function ($grpTasks) use ($sortDir) {
+                if ($sortDir === 'desc') {
+                    return $grpTasks->sort(function ($a, $b) {
+                        $ad = $a->due_date ? $a->due_date->format('Y-m-d') : '0000-00-00';
+                        $bd = $b->due_date ? $b->due_date->format('Y-m-d') : '0000-00-00';
+                        if ($ad === $bd) {
+                            $at = $a->due_time ?: '00:00:00';
+                            $bt = $b->due_time ?: '00:00:00';
+                            return $bt <=> $at;
+                        }
+                        return $bd <=> $ad;
+                    })->values();
+                } else {
+                    return $grpTasks->sort(function ($a, $b) {
+                        $ad = $a->due_date ? $a->due_date->format('Y-m-d') : '9999-99-99';
+                        $bd = $b->due_date ? $b->due_date->format('Y-m-d') : '9999-99-99';
+                        if ($ad === $bd) {
+                            $at = $a->due_time ?: '23:59:59';
+                            $bt = $b->due_time ?: '23:59:59';
+                            return $at <=> $bt;
+                        }
+                        return $ad <=> $bd;
+                    })->values();
+                }
+            });
+        }
+
+        // In category_wise mode, group tasks by Category and sort tasks by closest deadline first (like User Wise tab)
+        $categoryWiseGroups = null;
+        if ($viewMode === 'category_wise') {
+            $allMatchingTasks = (clone $query)->get();
+            $categoryWiseGroups = $allMatchingTasks->groupBy(function ($task) {
+                return $task->category ? $task->category->name : 'General / Uncategorized';
             })->map(function ($grpTasks) use ($sortDir) {
                 if ($sortDir === 'desc') {
                     return $grpTasks->sort(function ($a, $b) {
@@ -137,11 +171,13 @@ class TaskController extends Controller
             'categoryId' => $categoryId,
             'companyId' => $companyId,
             'userId' => $userId,
+            'fromUserId' => $fromUserId,
             'dateFilter' => $dateFilter,
             'viewMode' => $viewMode,
             'sortBy' => $sortBy,
             'sortDir' => $sortDir,
             'userWiseGroups' => $userWiseGroups,
+            'categoryWiseGroups' => $categoryWiseGroups,
             'employees' => $companyEmployees,
             'openTask' => $openTask,
             'departments' => Department::orderBy('name')->get(),
@@ -614,17 +650,29 @@ class TaskController extends Controller
 
                 $newTask->logHistory('created', "Auto-created next recurring task ({$task->repeat_type}) for due date " . $nextDate->format('d M Y') . " because Task #{$task->id} was completed.", $u->id);
 
-                return redirect()->route('tasks.index', [
-                    'open_task' => $task->id,
-                    'tab' => 'details',
-                ])->with('ok', "Task status updated to '{$newLabel}'. Next recurring task for {$nextDate->format('d M Y')} has been automatically created!");
+                if ($request->wantsJson() || $request->ajax()) {
+                    return response()->json([
+                        'ok' => true,
+                        'message' => "Task status updated to '{$newLabel}'. Next recurring task for {$nextDate->format('d M Y')} has been automatically created!",
+                    ]);
+                }
+
+                $redirectParams = $request->except(['open_task', 'tab', '_token', 'status']);
+                return redirect()->route('tasks.index', $redirectParams)
+                    ->with('ok', "Task status updated to '{$newLabel}'. Next recurring task for {$nextDate->format('d M Y')} has been automatically created!");
             }
         }
 
-        return redirect()->route('tasks.index', [
-            'open_task' => $task->id,
-            'tab' => 'details',
-        ])->with('ok', "Task status updated to '{$newLabel}' successfully and notifications dispatched.");
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'message' => "Task status updated to '{$newLabel}' successfully.",
+            ]);
+        }
+
+        $redirectParams = $request->except(['open_task', 'tab', '_token', 'status']);
+        return redirect()->route('tasks.index', $redirectParams)
+            ->with('ok', "Task status updated to '{$newLabel}' successfully and notifications dispatched.");
     }
 
     public function togglePin(Request $request, Task $task)
@@ -740,24 +788,96 @@ class TaskController extends Controller
     public function uploadAttachment(Request $request, Task $task)
     {
         $request->validate([
-            'file' => 'required|file|max:10240',
+            'attachment_files' => 'nullable|array',
+            'attachment_files.*' => 'file|max:15360',
+            'files' => 'nullable|array',
+            'files.*' => 'file|max:15360',
+            'file' => 'nullable|file|max:15360',
         ]);
 
-        $file = $request->file('file');
-        $path = $file->store('task_attachments', 'public');
+        $uploaded = [];
+        $files = [];
 
-        $task->attachments()->create([
-            'user_id' => $request->user()->id,
-            'file_path' => $path,
-            'file_name' => $file->getClientOriginalName(),
-        ]);
+        if ($request->hasFile('attachment_files')) {
+            $files = array_merge($files, (array)$request->file('attachment_files'));
+        }
+        if ($request->hasFile('files')) {
+            $files = array_merge($files, (array)$request->file('files'));
+        }
+        if ($request->hasFile('file')) {
+            $files[] = $request->file('file');
+        }
 
-        $task->logHistory('attachment_added', "Uploaded file: {$file->getClientOriginalName()}", $request->user()->id);
+        foreach ($files as $file) {
+            if ($file && $file->isValid()) {
+                $path = $file->store('task_attachments', 'public');
+                $att = $task->attachments()->create([
+                    'user_id' => $request->user()->id,
+                    'file_path' => $path,
+                    'file_name' => $file->getClientOriginalName(),
+                ]);
+                $uploaded[] = $att;
+            }
+        }
+
+        $count = count($uploaded);
+        if ($count > 0) {
+            $fileNames = collect($uploaded)->pluck('file_name')->implode(', ');
+            $task->logHistory('attachment_added', "Uploaded {$count} attachment file(s): {$fileNames}", $request->user()->id);
+        }
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'message' => "{$count} attachment(s) uploaded successfully.",
+                'attachments' => $task->attachments()->with('user')->get(),
+            ]);
+        }
 
         return redirect()->route('tasks.index', [
             'open_task' => $task->id,
             'tab' => 'details',
-        ])->with('ok', 'Attachment uploaded.');
+        ])->with('ok', "{$count} attachment(s) uploaded successfully.");
+    }
+
+    public function updateDescription(Request $request, Task $task)
+    {
+        $u = $request->user();
+        if (!$u) {
+            return response()->json(['ok' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
+        // Only creator who created this task or an Admin/Super Admin can edit description
+        if ((int)$task->created_by !== (int)$u->id && !$u->isAdmin() && !$u->isSuperAdmin()) {
+            $msg = 'Only the user who created this task or an Admin can edit the description.';
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['ok' => false, 'message' => $msg], 403);
+            }
+            return back()->with('error', $msg);
+        }
+
+        $request->validate([
+            'description' => 'nullable|string',
+        ]);
+
+        $newDesc = $request->input('description');
+        $oldDesc = $task->description;
+        $task->update(['description' => $newDesc]);
+
+        $task->logHistory('description_updated', "Task description updated by " . $u->displayName(), $u->id);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'Task description updated successfully.',
+                'description' => $newDesc,
+            ]);
+        }
+
+        return redirect()->route('tasks.index', [
+            'open_task' => $task->id,
+            'tab' => 'details',
+        ])->with('ok', 'Task description updated successfully.');
     }
 
     public function destroy(Request $request, Task $task)
@@ -852,6 +972,7 @@ class TaskController extends Controller
         $categoryId = $request->get('category_id');
         $companyId = $request->get('company_id');
         $userId = $request->get('user_id');
+        $fromUserId = $request->get('from_user_id');
 
         $sortBy = $request->get('sort_by', 'deadline');
         $sortDir = strtolower($request->get('sort_dir', 'asc')) === 'desc' ? 'desc' : 'asc';
@@ -873,6 +994,7 @@ class TaskController extends Controller
             ->when($categoryId, fn ($q) => $q->where('category_id', $categoryId))
             ->when($companyId, fn ($q) => $q->whereHas('assignee', fn ($u) => $u->where('company_id', $companyId)))
             ->when($userId, fn ($q) => $q->where(fn ($uQuery) => $uQuery->where('assigned_to', $userId)->orWhereHas('assignees', fn ($p) => $p->where('users.id', $userId))))
+            ->when($fromUserId, fn ($q) => $q->where('created_by', $fromUserId))
             ->when($dateFilter === 'overdue', fn ($q) => $q->where('status', '!=', 'completed')->whereDate('due_date', '<', now()->toDateString()))
             ->when($dateFilter === 'today', fn ($q) => $q->whereDate('due_date', now()->toDateString()))
             ->when($dateFilter === 'future', fn ($q) => $q->whereDate('due_date', '>', now()->toDateString()))

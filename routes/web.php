@@ -58,6 +58,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/employees/{employee}/mark', [EmployeeController::class, 'mark'])->name('employees.mark');
     Route::get('/employees/{employee}/day', [EmployeeController::class, 'dayPunches'])->name('employees.day');
     Route::get('/employees/{employee}/monthly', [EmployeeController::class, 'monthlyPrint'])->name('employees.monthly');
+    Route::delete('/employees/face-images/{faceImage}', [EmployeeController::class, 'deleteFaceImage'])->name('employees.face-images.destroy');
+    Route::post('/employees/face-images/{faceImage}/delete', [EmployeeController::class, 'deleteFaceImage']);
 
     // Leave Requests
     Route::get('/requests', [RequestController::class, 'index'])->name('requests.index');
@@ -90,6 +92,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/tasks/attachments/{attachment}', [TaskController::class, 'deleteAttachment'])->name('tasks.attachments.destroy');
     Route::post('/tasks/categories', [TaskController::class, 'storeCategory'])->name('tasks.categories.store');
     Route::post('/tasks/{task}/update-deadline', [TaskController::class, 'updateDeadline'])->name('tasks.update-deadline');
+    Route::post('/tasks/{task}/update-description', [TaskController::class, 'updateDescription'])->name('tasks.update-description');
     Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
 
     // Reports

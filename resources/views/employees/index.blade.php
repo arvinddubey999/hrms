@@ -216,6 +216,12 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
 
         <!-- Sleek Sort dropdown menu matching Screenshot 4 -->
         <div class="row" style="gap:8px">
+            <select name="per_page" onchange="this.form.submit()" style="width:115px;font-size:12px;padding:6px 8px;border-radius:8px;border:1px solid #cbd5e1" title="Employees per page">
+                <option value="15" {{ ($perPage ?? 15) == 15 ? 'selected' : '' }}>15 / page</option>
+                <option value="50" {{ ($perPage ?? 15) == 50 ? 'selected' : '' }}>50 / page</option>
+                <option value="100" {{ ($perPage ?? 15) == 100 ? 'selected' : '' }}>100 / page</option>
+                <option value="all" {{ ($perPage ?? 15) == 10000 ? 'selected' : '' }}>All ({{ $stats['total'] }})</option>
+            </select>
             <a class="btn light" href="{{ route('attendances.index', ['date'=>$date->toDateString()]) }}" style="font-size:12px;padding:6px 12px;border-radius:8px">Clear all</a>
             <div style="position:relative">
                 <button type="button" class="btn light" onclick="toggleSortMenu()" style="border-radius:10px;padding:8px 12px">
@@ -399,23 +405,50 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
     </div>
 </div>
 
-<!-- Modal: Bulk Shift Assign -->
+<!-- Modal: Bulk Shift Assign (Requirement 7: Support 100 or All Employees) -->
 <div id="bulkShiftModal" class="modal-bg">
-    <div class="modal">
-        <h3>Bulk Shift Assignment</h3>
-        <p class="muted">Select shift to assign to checked employees:</p>
+    <div class="modal" style="max-width:480px;width:95%">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h3 style="margin:0"><i class="fa-solid fa-clock" style="color:var(--accent)"></i> Bulk Shift Assignment</h3>
+            <button type="button" onclick="document.getElementById('bulkShiftModal').classList.remove('open')" style="border:0;background:none;font-size:20px;cursor:pointer;color:#64748b">&times;</button>
+        </div>
+        <p class="muted" style="margin-bottom:12px;font-size:12.5px">Assign shift to checked employees, all filtered employees (100+), or the entire organization:</p>
+        
         <form method="post" action="{{ route('employees.bulk-shift') }}" onsubmit="return validateBulkSubmit(this)">
             @csrf
             <div id="bulkShiftInputs"></div>
-            <label>Select Shift</label>
-            <select name="shift_id" required>
+            <!-- Preserve current filter query parameters for filtered scope -->
+            <input type="hidden" name="company_id" value="{{ request('company_id') }}">
+            <input type="hidden" name="category" value="{{ request('category') }}">
+            <input type="hidden" name="department_id" value="{{ request('department_id') }}">
+            <input type="hidden" name="q" value="{{ request('q') }}">
+
+            <label style="font-size:12px;font-weight:700;color:#1e293b;display:block;margin-bottom:6px">Apply Shift To:</label>
+            <div style="background:#f8fafc;padding:12px;border-radius:10px;border:1px solid #cbd5e1;margin-bottom:14px;display:flex;flex-direction:column;gap:10px">
+                <label style="font-size:12.5px;display:flex;align-items:center;gap:8px;cursor:pointer;color:#1e293b">
+                    <input type="radio" name="apply_scope" value="selected" id="scope_selected" checked style="accent-color:var(--accent);width:15px;height:15px">
+                    <span><strong>Checked Employees Only</strong> (<span id="checkedCountInModal" style="color:var(--accent);font-weight:700">0</span> selected on current page)</span>
+                </label>
+                <label style="font-size:12.5px;display:flex;align-items:center;gap:8px;cursor:pointer;color:#1e293b">
+                    <input type="radio" name="apply_scope" value="filtered" id="scope_filtered" style="accent-color:var(--accent);width:15px;height:15px">
+                    <span><strong>All Employees Matching Current Filters</strong> (Total <strong style="color:#0284c7">{{ $stats['total'] }}</strong> employees)</span>
+                </label>
+                <label style="font-size:12.5px;display:flex;align-items:center;gap:8px;cursor:pointer;color:#1e293b">
+                    <input type="radio" name="apply_scope" value="all" id="scope_all" style="accent-color:var(--accent);width:15px;height:15px">
+                    <span><strong>All Active Employees</strong> (Entire Organization)</span>
+                </label>
+            </div>
+
+            <label style="font-size:12px;font-weight:700;color:#1e293b;display:block;margin-bottom:4px">Select Shift *</label>
+            <select name="shift_id" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;background:#fff">
                 @foreach($shifts as $s)
                     <option value="{{ $s->id }}">{{ $s->name }} ({{ substr($s->start_time,0,5) }} - {{ substr($s->end_time,0,5) }})</option>
                 @endforeach
             </select>
-            <div class="row" style="margin-top:16px;justify-content:flex-end">
+
+            <div class="row" style="margin-top:18px;justify-content:flex-end;gap:8px">
                 <button type="button" class="btn light" onclick="document.getElementById('bulkShiftModal').classList.remove('open')">Cancel</button>
-                <button class="btn">Assign Shift</button>
+                <button type="submit" class="btn"><i class="fa-solid fa-check"></i> Assign Shift</button>
             </div>
         </form>
     </div>
@@ -508,9 +541,17 @@ function toggleSortMenu() {
 function openBulkShiftModal() {
     updateBulkInputs();
     var checked = document.querySelectorAll('.emp-checkbox:checked');
-    if (checked.length === 0) {
-        alert('Please select at least one employee using the checkboxes before assigning bulk shift.');
-        return;
+    var count = checked.length;
+    var countSpan = document.getElementById('checkedCountInModal');
+    if (countSpan) countSpan.innerText = count;
+
+    var scopeSelected = document.getElementById('scope_selected');
+    var scopeFiltered = document.getElementById('scope_filtered');
+
+    if (count === 0) {
+        if (scopeFiltered) scopeFiltered.checked = true;
+    } else {
+        if (scopeSelected) scopeSelected.checked = true;
     }
     document.getElementById('bulkShiftModal').classList.add('open');
 }
@@ -526,11 +567,16 @@ function openBulkMarkModal() {
 }
 
 function validateBulkSubmit(form) {
-    updateBulkInputs();
-    var inputs = form.querySelectorAll('input[name="employee_ids[]"]');
-    if (inputs.length === 0) {
-        alert('Please select at least one employee from the table using checkboxes.');
-        return false;
+    var scopeRadio = form.querySelector('input[name="apply_scope"]:checked');
+    var scope = scopeRadio ? scopeRadio.value : 'selected';
+
+    if (scope === 'selected') {
+        updateBulkInputs();
+        var inputs = form.querySelectorAll('input[name="employee_ids[]"]');
+        if (inputs.length === 0) {
+            alert('Please select at least one employee from the table using checkboxes, or select "All Employees Matching Current Filters".');
+            return false;
+        }
     }
     return true;
 }

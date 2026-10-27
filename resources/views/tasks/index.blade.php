@@ -633,7 +633,7 @@
     <div style="padding:24px;flex:1">
         
         <!-- NEW TASK FORM MODE -->
-        <form id="newTaskForm" method="post" action="{{ route('tasks.store') }}" enctype="multipart/form-data">
+        <form id="newTaskForm" method="post" action="{{ route('tasks.store') }}" enctype="multipart/form-data" onsubmit="return handleFormSubmitDisable(this, 'Creating Task & Sending Push Notification...')">
             @csrf
             <div style="margin-bottom:12px">
                 <label>Client</label>
@@ -773,7 +773,7 @@
                 </div>
             </div>
 
-            <button class="btn" style="width:100%;background:#111;color:#fff;padding:12px"><i class="fa-solid fa-paper-plane"></i> Create Task & Send Push Notification</button>
+            <button type="submit" id="btnCreateTask" class="btn" style="width:100%;background:#111;color:#fff;padding:12px"><i class="fa-solid fa-paper-plane"></i> Create Task & Send Push Notification</button>
         </form>
 
         <!-- VIEW / EDIT TASK DETAILS MODE -->
@@ -835,7 +835,7 @@
                         </strong>
                         <span style="font-size:11px;color:#0284c7;font-weight:600">Extend / Resume</span>
                     </div>
-                    <form id="drawerDeadlineForm" method="post" action="">
+                    <form id="drawerDeadlineForm" method="post" action="" onsubmit="return handleFormSubmitDisable(this, 'Updating Deadline & Status...')">
                         @csrf
                         <div class="grid-2" style="margin-bottom:8px;gap:8px">
                             <div>
@@ -859,7 +859,7 @@
                             <label style="font-size:11px;font-weight:700;color:#334155;display:block;margin-bottom:2px">Reason / Remarks (Optional)</label>
                             <input type="text" name="remarks" id="dtlEditRemarks" placeholder="e.g. Work verification pending, deadline extended..." style="font-size:12px;padding:5px 8px;width:100%">
                         </div>
-                        <button type="submit" class="btn" style="width:100%;font-size:12px;padding:6px;background:#0284c7;color:#fff;border-radius:6px">
+                        <button type="submit" id="btnUpdateDeadline" class="btn" style="width:100%;font-size:12px;padding:6px;background:#0284c7;color:#fff;border-radius:6px">
                             <i class="fa-solid fa-floppy-disk"></i> Update Deadline & Status
                         </button>
                     </form>
@@ -927,7 +927,7 @@
                 <div id="repliesContainer" style="max-height:240px;overflow-y:auto;margin-bottom:14px;display:flex;flex-direction:column;gap:8px"></div>
 
                 <!-- Post Reply Form -->
-                <form id="postReplyForm" method="post" enctype="multipart/form-data" style="background:#f8fafc;padding:12px;border-radius:8px;border:1px solid #e2e8f0">
+                <form id="postReplyForm" method="post" enctype="multipart/form-data" onsubmit="return handleFormSubmitDisable(this, 'Posting Reply...')" style="background:#f8fafc;padding:12px;border-radius:8px;border:1px solid #e2e8f0">
                     @csrf
                     <textarea name="message" rows="2" placeholder="Write remark or progress update..." required style="margin-bottom:8px;width:100%"></textarea>
                     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
@@ -938,7 +938,7 @@
                             <input type="file" name="reply_attachments[]" id="replyAttachmentsInput" multiple style="font-size:11px;width:100%" onchange="previewReplyAttachments(this)" title="Hold Ctrl/Shift to select multiple files">
                             <div id="replyAttachmentsPreview" style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
-                        <button class="btn light" style="font-size:12px"><i class="fa-solid fa-paper-plane"></i> Post Reply</button>
+                        <button type="submit" id="btnPostReply" class="btn light" style="font-size:12px"><i class="fa-solid fa-paper-plane"></i> Post Reply</button>
                     </div>
                 </form>
             </div>
@@ -1048,7 +1048,7 @@
 
             <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:10px;border-top:1px solid #e2e8f0">
                 <button type="button" class="btn light" onclick="closeReassignModal()" style="padding:7px 16px;border-radius:8px">Cancel</button>
-                <button type="submit" class="btn" style="padding:7px 18px;border-radius:8px;display:flex;align-items:center;gap:6px">
+                <button type="submit" id="btnSubmitReassign" class="btn" style="padding:7px 18px;border-radius:8px;display:flex;align-items:center;gap:6px">
                     <i class="fa-solid fa-check"></i> Re-Assign & Notify
                 </button>
             </div>
@@ -1121,6 +1121,17 @@ function openNewTaskDrawer() {
     document.getElementById('drawerHeaderTitle').innerText = "New Task";
     document.getElementById('newTaskForm').style.display = 'block';
     document.getElementById('viewTaskDetails').style.display = 'none';
+
+    // Reset button state and form submitting flag
+    const newTaskForm = document.getElementById('newTaskForm');
+    if (newTaskForm) newTaskForm.dataset.submitting = 'false';
+    const btnCreate = document.getElementById('btnCreateTask');
+    if (btnCreate) {
+        btnCreate.disabled = false;
+        btnCreate.style.opacity = '1';
+        btnCreate.style.cursor = 'pointer';
+        btnCreate.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Create Task & Send Push Notification';
+    }
 
     // Reset department filter and show all company employees in primary assignee dropdown
     const deptSelect = document.getElementById('newTaskDeptSelect');
@@ -1283,10 +1294,33 @@ function openTaskDetailsDrawer(task, initialTab = 'details') {
         if (fileInput) fileInput.value = '';
     }
 
+    selectedReplyFiles = [];
     const replyFileInput = document.getElementById('replyAttachmentsInput');
     if (replyFileInput) replyFileInput.value = '';
     const replyPreview = document.getElementById('replyAttachmentsPreview');
     if (replyPreview) replyPreview.innerHTML = '';
+
+    // Reset button state and form submitting flag for deadline update form
+    const dlForm = document.getElementById('drawerDeadlineForm');
+    if (dlForm) dlForm.dataset.submitting = 'false';
+    const btnDl = document.getElementById('btnUpdateDeadline');
+    if (btnDl) {
+        btnDl.disabled = false;
+        btnDl.style.opacity = '1';
+        btnDl.style.cursor = 'pointer';
+        btnDl.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Update Deadline & Status';
+    }
+
+    // Reset button state and form submitting flag for post reply form
+    const rpForm = document.getElementById('postReplyForm');
+    if (rpForm) rpForm.dataset.submitting = 'false';
+    const btnRp = document.getElementById('btnPostReply');
+    if (btnRp) {
+        btnRp.disabled = false;
+        btnRp.style.opacity = '1';
+        btnRp.style.cursor = 'pointer';
+        btnRp.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Post Reply';
+    }
 
     // Render Attached Files of the Task
     const attContainer = document.getElementById('dtlAttachmentsList');
@@ -1354,6 +1388,10 @@ function renderReplies(replies) {
         container.innerHTML = '<div class="muted" style="font-size:12px">No replies yet.</div>';
         return;
     }
+    const currentUserId = {{ (int)auth()->id() }};
+    const isSuperAdmin = {{ (auth()->user() && auth()->user()->isSuperAdmin()) ? 'true' : 'false' }};
+    const isAdmin = {{ (auth()->user() && auth()->user()->isAdmin()) ? 'true' : 'false' }};
+
     replies.forEach(r => {
         let name = r.user ? (r.user.first_name + ' ' + (r.user.last_name || '')) : 'User';
         let atts = [];
@@ -1374,9 +1412,19 @@ function renderReplies(replies) {
         if (atts.length > 0) {
             fileHtml = '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">' + atts.map(attPath => {
                 const fName = attPath.split('/').pop();
-                return `<a href="/storage/${attPath}" target="_blank" style="background:#fff;border:1px solid #cbd5e1;padding:3px 8px;border-radius:5px;color:var(--accent);font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px;text-decoration:none">
-                    <i class="fa-solid fa-paperclip"></i> ${fName}
-                </a>`;
+                const canDelete = isSuperAdmin || isAdmin || (r.user_id && Number(r.user_id) === currentUserId) || (currentActiveTask && currentActiveTask.created_by && Number(currentActiveTask.created_by) === currentUserId);
+                const deleteBtnHtml = canDelete ? `
+                    <button type="button" onclick="deleteReplyAttachment(${r.id}, '${attPath}', this)" title="Delete attached file" style="border:none;background:rgba(239,68,68,0.1);color:#dc2626;cursor:pointer;padding:2px 5px;border-radius:4px;font-size:11px;line-height:1;display:inline-flex;align-items:center;justify-content:center" onmouseover="this.style.background='rgba(239,68,68,0.2)'" onmouseout="this.style.background='rgba(239,68,68,0.1)'">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                ` : '';
+
+                return `<div class="reply-att-badge" style="background:#fff;border:1px solid #cbd5e1;padding:3px 8px;border-radius:5px;display:inline-flex;align-items:center;gap:6px;max-width:100%">
+                    <a href="/storage/${attPath}" target="_blank" style="color:var(--accent);font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="View attachment: ${fName}">
+                        <i class="fa-solid fa-paperclip"></i> ${fName}
+                    </a>
+                    ${deleteBtnHtml}
+                </div>`;
             }).join('') + '</div>';
         }
 
@@ -1394,19 +1442,204 @@ function renderReplies(replies) {
     });
 }
 
-function previewReplyAttachments(input) {
-    const container = document.getElementById('replyAttachmentsPreview');
-    if (!container) return;
-    container.innerHTML = '';
-    if (input.files && input.files.length > 0) {
-        Array.from(input.files).forEach(f => {
-            const badge = document.createElement('span');
-            badge.style.cssText = 'background:#e0f2fe;color:#0369a1;font-size:10.5px;padding:2px 6px;border-radius:4px;border:1px solid #bae6fd;display:inline-flex;align-items:center;gap:3px';
-            badge.innerHTML = `<i class="fa-solid fa-paperclip" style="font-size:9px"></i> ${f.name}`;
-            container.appendChild(badge);
+async function deleteReplyAttachment(replyId, filePath, btn) {
+    if (!confirm('Are you sure you want to delete this attached image from this reply?')) {
+        return;
+    }
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+    try {
+        const token = '{{ csrf_token() }}';
+        const res = await fetch(`/tasks/replies/${replyId}/attachment/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': token,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ file_path: filePath, _token: token })
         });
+        const data = await res.json();
+        if (data.ok) {
+            const badge = btn.closest('.reply-att-badge');
+            if (badge) badge.remove();
+
+            if (currentActiveTask && Array.isArray(currentActiveTask.replies)) {
+                const rep = currentActiveTask.replies.find(r => Number(r.id) === Number(replyId));
+                if (rep) {
+                    rep.attachments = data.remaining;
+                    rep.attachments_list = data.remaining;
+                    rep.attachment = data.remaining.length > 0 ? data.remaining[0] : null;
+                }
+            }
+        } else {
+            alert(data.message || 'Failed to delete attachment.');
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    } catch (err) {
+        console.error('Delete reply attachment error:', err);
+        alert('An error occurred while deleting attachment.');
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
     }
 }
+
+let selectedReplyFiles = [];
+
+function previewReplyAttachments(input) {
+    if (input.files && input.files.length > 0) {
+        Array.from(input.files).forEach(newFile => {
+            const exists = selectedReplyFiles.some(f => f.name === newFile.name && f.size === newFile.size && f.lastModified === newFile.lastModified);
+            if (!exists) {
+                selectedReplyFiles.push(newFile);
+            }
+        });
+    }
+    renderReplyAttachmentPreviews();
+}
+
+function renderReplyAttachmentPreviews() {
+    const container = document.getElementById('replyAttachmentsPreview');
+    const input = document.getElementById('replyAttachmentsInput');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (input) {
+        try {
+            const dt = new DataTransfer();
+            selectedReplyFiles.forEach(f => dt.items.add(f));
+            input.files = dt.files;
+        } catch (e) {
+            console.warn('DataTransfer not supported:', e);
+        }
+    }
+
+    if (selectedReplyFiles.length === 0) return;
+
+    selectedReplyFiles.forEach((file, index) => {
+        const badge = document.createElement('div');
+        badge.style.cssText = 'background:#e0f2fe;color:#0369a1;font-size:11px;padding:3px 8px;border-radius:5px;border:1px solid #bae6fd;display:inline-flex;align-items:center;gap:6px;font-weight:600';
+
+        const isImg = file.type && file.type.startsWith('image/');
+        const iconClass = isImg ? 'fa-regular fa-image' : 'fa-solid fa-paperclip';
+
+        badge.innerHTML = `
+            <span style="display:inline-flex;align-items:center;gap:4px;overflow:hidden;text-overflow:ellipsis;max-width:180px;white-space:nowrap" title="${file.name}">
+                <i class="${iconClass}"></i> ${file.name}
+            </span>
+            <button type="button" onclick="removeSelectedReplyFile(${index})" title="Remove this file" style="border:none;background:none;color:#dc2626;cursor:pointer;padding:0 2px;font-size:13px;font-weight:700;line-height:1">&times;</button>
+        `;
+        container.appendChild(badge);
+    });
+}
+
+function removeSelectedReplyFile(index) {
+    if (index >= 0 && index < selectedReplyFiles.length) {
+        selectedReplyFiles.splice(index, 1);
+        renderReplyAttachmentPreviews();
+    }
+}
+
+// Universal submit handler that prevents duplicate form submissions and shows loading spinner
+function handleFormSubmitDisable(form, loadingText) {
+    if (!form) return true;
+
+    // Prevent duplicate submission if already submitting
+    if (form.dataset.submitting === 'true') {
+        return false;
+    }
+
+    // Check HTML5 validity
+    if (form.checkValidity && !form.checkValidity()) {
+        form.reportValidity();
+        return false;
+    }
+
+    form.dataset.submitting = 'true';
+    const btn = form.querySelector('button[type="submit"], button:not([type="button"]):not([type="reset"])');
+    if (btn) {
+        setTimeout(() => {
+            btn.disabled = true;
+            btn.style.opacity = '0.75';
+            btn.style.cursor = 'not-allowed';
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${loadingText}`;
+        }, 10);
+    }
+    return true;
+}
+
+// Helper functions for picker_others in New Task Form
+function toggleEmpPicker(pickerId) {
+    const dd = document.getElementById('dropdown_' + pickerId);
+    if (!dd) return;
+    const isShown = dd.style.display !== 'none';
+    dd.style.display = isShown ? 'none' : 'block';
+}
+
+function applyPickerFilters(pickerId) {
+    const picker = document.getElementById(pickerId);
+    if (!picker) return;
+    const checkedDepts = Array.from(picker.querySelectorAll('.dept-filter-chk:checked')).map(c => c.dataset.deptId);
+    const searchVal = (picker.querySelector('.picker-search-input')?.value || '').trim().toLowerCase();
+    const items = picker.querySelectorAll('.picker-emp-item');
+    items.forEach(item => {
+        const dId = item.dataset.deptId;
+        const name = (item.dataset.name || '').toLowerCase();
+        const matchesDept = checkedDepts.length === 0 || checkedDepts.includes(dId);
+        const matchesSearch = !searchVal || name.includes(searchVal);
+        item.style.display = (matchesDept && matchesSearch) ? 'flex' : 'none';
+    });
+}
+
+function onPickerSearch(pickerId, query) {
+    applyPickerFilters(pickerId);
+}
+
+function selectAllPickerEmployees(pickerId, check) {
+    const picker = document.getElementById(pickerId);
+    if (!picker) return;
+    const items = picker.querySelectorAll('.picker-emp-item');
+    items.forEach(item => {
+        if (item.style.display !== 'none') {
+            const chk = item.querySelector('.emp-select-chk');
+            if (chk) chk.checked = check;
+        }
+    });
+    onEmpPickerChange(pickerId, 'multiple', 'assignee_ids[]');
+}
+
+function onEmpPickerChange(pickerId, mode, inputName) {
+    const picker = document.getElementById(pickerId);
+    if (!picker) return;
+    const checked = Array.from(picker.querySelectorAll('.emp-select-chk:checked'));
+    const label = document.getElementById('picker_label_' + pickerId.replace('picker_', ''));
+    if (label) {
+        if (checked.length === 0) {
+            label.textContent = 'Select Additional Assignees (Optional)';
+            label.style.color = '#64748b';
+            label.style.fontWeight = 'normal';
+        } else if (checked.length === 1) {
+            label.textContent = checked[0].dataset.name;
+            label.style.color = '#1e293b';
+            label.style.fontWeight = '600';
+        } else {
+            label.textContent = `${checked.length} employees selected`;
+            label.style.color = '#2563eb';
+            label.style.fontWeight = '700';
+        }
+    }
+}
+
+document.addEventListener('click', function(e) {
+    const picker = document.getElementById('picker_others');
+    if (picker && !picker.contains(e.target)) {
+        const dd = document.getElementById('dropdown_picker_others');
+        if (dd) dd.style.display = 'none';
+    }
+});
 
 function renderHistories(histories) {
     const container = document.getElementById('historyContainer');
@@ -1462,6 +1695,17 @@ function openReassignModal() {
     closeTaskDrawer();
     document.getElementById('reassignForm').action = "/tasks/" + currentActiveTask.id + "/reassign";
     
+    // Reset submitting flag and button
+    const raForm = document.getElementById('reassignForm');
+    if (raForm) raForm.dataset.submitting = 'false';
+    const btnRa = document.getElementById('btnSubmitReassign');
+    if (btnRa) {
+        btnRa.disabled = false;
+        btnRa.style.opacity = '1';
+        btnRa.style.cursor = 'pointer';
+        btnRa.innerHTML = '<i class="fa-solid fa-check"></i> Re-Assign & Notify';
+    }
+
     // Set task info
     const infoBadge = document.getElementById('reassignTaskInfoBadge');
     if (infoBadge) {
@@ -1557,7 +1801,8 @@ function validateReassignForm() {
         alert('Please select at least one employee to re-assign this task.');
         return false;
     }
-    return true;
+    const form = document.getElementById('reassignForm');
+    return handleFormSubmitDisable(form, 'Re-assigning...');
 }
 
 function openReopenModal() {

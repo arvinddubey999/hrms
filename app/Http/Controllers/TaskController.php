@@ -8,6 +8,7 @@ use App\Models\Department;
 use App\Models\Task;
 use App\Models\TaskAttachment;
 use App\Models\TaskCategory;
+use App\Models\TaskReply;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -392,10 +393,9 @@ class TaskController extends Controller
             \App\Services\MailService::sendTaskUpdatedMail($notifyUser, $task, 'Task details were updated by ' . $request->user()->displayName(), $request->user());
         }
 
-        return redirect()->route('tasks.index', [
-            'open_task' => $task->id,
-            'tab' => 'details',
-        ])->with('ok', 'Task updated successfully and notifications dispatched.');
+        $redirectParams = $request->except(['open_task', 'tab', '_token']);
+        return redirect()->route('tasks.index', $redirectParams)
+            ->with('ok', 'Task updated successfully and notifications dispatched.');
     }
 
     public function reply(Request $request, Task $task)
@@ -459,10 +459,9 @@ class TaskController extends Controller
             ]);
         }
 
-        return redirect()->route('tasks.index', [
-            'open_task' => $task->id,
-            'tab' => 'reports',
-        ])->with('ok', 'Reply posted successfully and notifications dispatched via Push & Email.');
+        $redirectParams = $request->except(['open_task', 'tab', '_token', 'message', 'reply_attachment', 'reply_attachments', 'attachments']);
+        return redirect()->route('tasks.index', $redirectParams)
+            ->with('ok', 'Reply posted successfully and notifications dispatched via Push & Email.');
     }
 
     public function reassign(Request $request, Task $task)
@@ -601,10 +600,9 @@ class TaskController extends Controller
             }
         }
 
-        return redirect()->route('tasks.index', [
-            'open_task' => $task->id,
-            'tab' => 'details',
-        ])->with('ok', 'Task deadline and status updated successfully.');
+        $redirectParams = $request->except(['open_task', 'tab', '_token', 'due_date', 'due_time', 'status', 'remarks']);
+        return redirect()->route('tasks.index', $redirectParams)
+            ->with('ok', 'Task deadline and status updated successfully.');
     }
 
     public function updateStatus(Request $request, Task $task)
@@ -758,10 +756,9 @@ class TaskController extends Controller
             \App\Services\MailService::sendTaskUpdatedMail($notifyUser, $task, $msg, $u);
         }
 
-        return redirect()->route('tasks.index', [
-            'open_task' => $task->id,
-            'tab' => 'details',
-        ])->with('ok', 'Task re-opened successfully with updated deadline.');
+        $redirectParams = $request->except(['open_task', 'tab', '_token', 'due_date', 'due_time', 'remarks']);
+        return redirect()->route('tasks.index', $redirectParams)
+            ->with('ok', 'Task re-opened successfully with updated deadline.');
     }
 
     public function exportRepliesPdf(Task $task)
@@ -771,17 +768,96 @@ class TaskController extends Controller
         return view('tasks.replies-pdf', compact('task'));
     }
 
-    public function deleteAttachment(TaskAttachment $attachment)
+    public function deleteAttachment(Request $request, TaskAttachment $attachment)
     {
         $taskId = $attachment->task_id;
         if ($attachment->file_path) {
             \Illuminate\Support\Facades\Storage::disk('public')->delete($attachment->file_path);
         }
         $attachment->delete();
-        return redirect()->route('tasks.index', [
-            'open_task' => $taskId,
-            'tab' => 'details',
-        ])->with('ok', 'Attachment removed successfully.');
+        $redirectParams = $request->except(['open_task', 'tab', '_token']);
+        return redirect()->route('tasks.index', $redirectParams)->with('ok', 'Attachment removed successfully.');
+    }
+
+    public function deleteReplyAttachment(Request $request, TaskReply $reply)
+    {
+        $u = $request->user();
+        if (!$u) {
+            return response()->json(['ok' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
+        // Only author of reply, task creator, or Admin / Super Admin can delete
+        $isCreator = $reply->task && (int)$reply->task->created_by === (int)$u->id;
+        $isAuthor = (int)$reply->user_id === (int)$u->id;
+        $isAdmin = $u->isAdmin() || $u->isSuperAdmin();
+
+        if (!$isAuthor && !$isCreator && !$isAdmin) {
+            $msg = 'You do not have permission to delete this reply attachment.';
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['ok' => false, 'message' => $msg], 403);
+            }
+            return back()->with('error', $msg);
+        }
+
+        $filePath = $request->input('file_path');
+        if (empty($filePath)) {
+            $msg = 'Attachment file path is required.';
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['ok' => false, 'message' => $msg], 400);
+            }
+            return back()->with('error', $msg);
+        }
+
+        // Normalize path
+        $cleanPath = ltrim(str_replace('/storage/', '', $filePath), '/');
+
+        $allAtts = $reply->attachments_list;
+        $foundKey = false;
+        $matchedPath = null;
+
+        foreach ($allAtts as $k => $att) {
+            if ($att === $cleanPath || basename($att) === basename($cleanPath)) {
+                $foundKey = $k;
+                $matchedPath = $att;
+                break;
+            }
+        }
+
+        if ($foundKey === false) {
+            $msg = 'Attachment not found in this reply.';
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['ok' => false, 'message' => $msg], 404);
+            }
+            return back()->with('error', $msg);
+        }
+
+        // Delete physical file
+        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($matchedPath)) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($matchedPath);
+        }
+
+        unset($allAtts[$foundKey]);
+        $remaining = array_values($allAtts);
+
+        $reply->attachments = $remaining;
+        $reply->attachment = count($remaining) > 0 ? $remaining[0] : null;
+        $reply->save();
+
+        if ($reply->task) {
+            $fName = basename($matchedPath);
+            $reply->task->logHistory('attachment_deleted', "Reply attachment '{$fName}' deleted by " . $u->displayName(), $u->id);
+        }
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'Attachment deleted successfully.',
+                'remaining' => $remaining,
+            ]);
+        }
+
+        $redirectParams = $request->except(['open_task', 'tab', '_token', 'file_path']);
+        return redirect()->route('tasks.index', $redirectParams)->with('ok', 'Attachment deleted successfully.');
     }
 
     public function remind(Request $request, Task $task)
@@ -811,10 +887,9 @@ class TaskController extends Controller
 
         $task->logHistory('reminded', "Reminder notification and email sent by {$senderName}", $request->user()->id);
 
-        return redirect()->route('tasks.index', [
-            'open_task' => $task->id,
-            'tab' => 'reports',
-        ])->with('ok', 'Reminder notification and email sent to assigned team members.');
+        $redirectParams = $request->except(['open_task', 'tab', '_token']);
+        return redirect()->route('tasks.index', $redirectParams)
+            ->with('ok', 'Reminder notification and email sent to assigned team members.');
     }
 
     public function uploadAttachment(Request $request, Task $task)
@@ -866,10 +941,9 @@ class TaskController extends Controller
             ]);
         }
 
-        return redirect()->route('tasks.index', [
-            'open_task' => $task->id,
-            'tab' => 'details',
-        ])->with('ok', "{$count} attachment(s) uploaded successfully.");
+        $redirectParams = $request->except(['open_task', 'tab', '_token', 'attachment_files', 'files', 'file']);
+        return redirect()->route('tasks.index', $redirectParams)
+            ->with('ok', "{$count} attachment(s) uploaded successfully.");
     }
 
     public function updateDescription(Request $request, Task $task)
@@ -906,10 +980,9 @@ class TaskController extends Controller
             ]);
         }
 
-        return redirect()->route('tasks.index', [
-            'open_task' => $task->id,
-            'tab' => 'details',
-        ])->with('ok', 'Task description updated successfully.');
+        $redirectParams = $request->except(['open_task', 'tab', '_token', 'description']);
+        return redirect()->route('tasks.index', $redirectParams)
+            ->with('ok', 'Task description updated successfully.');
     }
 
     public function destroy(Request $request, Task $task)

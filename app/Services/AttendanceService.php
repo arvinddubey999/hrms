@@ -144,35 +144,74 @@ class AttendanceService
             ->exists();
     }
 
+    public function isApplicableHoliday(User $user, Carbon $date): ?Holiday
+    {
+        return Holiday::query()
+            ->whereDate('date', $date->toDateString())
+            ->get()
+            ->first(fn($h) => 
+                $h->isApplicableToCompany($user->company_id) &&
+                $h->isApplicableToDepartment($user->department_id) &&
+                $h->isApplicableToCategory($user->category_id)
+            );
+    }
+
+    public function isWeekOffDay(User $user, Carbon $date): bool
+    {
+        return (!empty($user->week_off_day) && strcasecmp($user->week_off_day, 'None') !== 0)
+            ? (strcasecmp($user->week_off_day, $date->format('l')) === 0)
+            : false;
+    }
+
+    public function isNonWorkingDay(User $user, Carbon $date): bool
+    {
+        return $this->isWeekOffDay($user, $date) || ($this->isApplicableHoliday($user, $date) !== null);
+    }
+
+    /**
+     * Find the preceding working day before a non-working cluster (skipping adjacent week-offs and holidays)
+     */
+    public function getPrecedingWorkingDay(User $user, Carbon $date): Carbon
+    {
+        $prev = $date->copy()->subDay();
+        while ($this->isNonWorkingDay($user, $prev) && $prev->gt($date->copy()->subDays(14))) {
+            $prev->subDay();
+        }
+        return $prev;
+    }
+
+    /**
+     * Check if employee was present or on approved leave on given date
+     */
+    public function isPresentOrOnLeave(User $user, Carbon $date): bool
+    {
+        if ($this->isPresentOnDate($user, $date)) {
+            return true;
+        }
+
+        return LeaveRequest::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->whereDate('from_date', '<=', $date)
+            ->whereDate('to_date', '>=', $date)
+            ->exists();
+    }
+
     public function isWeekOffQualified(User $user, Carbon $date): bool
     {
-        // Rule: WEEK OFF UNKO HI MILEGA JO SATURDAY YA MONDAY DONO ME SE KOI BHI EK DIN PRESENT HOGA
-        $saturday = $date->copy()->startOfWeek()->addDays(5); // Saturday of that week
-        $monday = $date->copy()->startOfWeek();              // Monday of that week
-
-        $presentSat = $this->isPresentOnDate($user, $saturday);
-        $presentMon = $this->isPresentOnDate($user, $monday);
-
-        return $presentSat || $presentMon;
+        // Client Rule:
+        // Week off / holiday credit requires presence on the preceding working day.
+        // E.g. If Saturday is working, Sunday is Week Off, Monday is Holiday:
+        // - Present on Saturday => Sunday (Week Off) and Monday (Holiday) are both credited.
+        // - Absent on Saturday => Sunday and Monday are both marked ABSENT.
+        $prevWorkingDay = $this->getPrecedingWorkingDay($user, $date);
+        return $this->isPresentOrOnLeave($user, $prevWorkingDay);
     }
 
     public function isHolidayQualified(User $user, Carbon $holidayDate): bool
     {
-        $userWeekOff = (!empty($user->week_off_day) && strcasecmp($user->week_off_day, 'None') !== 0) ? $user->week_off_day : null;
-
-        // Check preceding working day (skipping week-off days)
-        $prevDay = $holidayDate->copy()->subDay();
-        while ($userWeekOff && strcasecmp($userWeekOff, $prevDay->format('l')) === 0 && $prevDay->gt($holidayDate->copy()->subDays(7))) {
-            $prevDay->subDay();
-        }
-
-        // Check succeeding working day (skipping week-off days)
-        $nextDay = $holidayDate->copy()->addDay();
-        while ($userWeekOff && strcasecmp($userWeekOff, $nextDay->format('l')) === 0 && $nextDay->lt($holidayDate->copy()->addDays(7))) {
-            $nextDay->addDay();
-        }
-
-        return $this->isPresentOnDate($user, $prevDay) || $this->isPresentOnDate($user, $nextDay);
+        $prevWorkingDay = $this->getPrecedingWorkingDay($user, $holidayDate);
+        return $this->isPresentOrOnLeave($user, $prevWorkingDay);
     }
 
     public function dayStatus(User $user, Carbon $date): string
@@ -191,10 +230,7 @@ class AttendanceService
         }
 
         // Check Holiday
-        $holiday = Holiday::query()
-            ->whereDate('date', $date->toDateString())
-            ->get()
-            ->first(fn($h) => $h->isApplicableToCompany($user->company_id));
+        $holiday = $this->isApplicableHoliday($user, $date);
 
         if ($holiday) {
             if ($hasIn) {
@@ -203,14 +239,12 @@ class AttendanceService
             if ($date->isFuture() || $date->isToday() || $this->isHolidayQualified($user, $date)) {
                 return 'holiday';
             } else {
-                return 'absent'; // Not qualified for holiday credit
+                return 'absent'; // Not qualified for holiday credit as per sandwich rule
             }
         }
 
         // Check Week Off
-        $isWeekOffDay = (!empty($user->week_off_day) && strcasecmp($user->week_off_day, 'None') !== 0)
-            ? (strcasecmp($user->week_off_day, $date->format('l')) === 0)
-            : false;
+        $isWeekOffDay = $this->isWeekOffDay($user, $date);
 
         if ($isWeekOffDay) {
             if ($hasIn) {
@@ -235,15 +269,6 @@ class AttendanceService
                 ->where('type', 'in')
                 ->orderBy('punched_at')
                 ->first();
-            $lastOut = AttendancePunch::query()
-                ->where('user_id', $user->id)
-                ->whereDate('work_date', $date->toDateString())
-                ->where('type', 'out')
-                ->orderByDesc('punched_at')
-                ->first();
-
-            $shiftMinutes = $this->getShiftMinutes($user);
-            $workedMinutes = $this->getDayWorkedMinutes($user, $date);
 
             $isLate = false;
             $shiftStart = $user->shift?->start_time;
@@ -251,21 +276,7 @@ class AttendanceService
                 $isLate = true;
             }
 
-            // Half Day Rule:
-            // 1. If past date and only punched IN without OUT -> Half Day
-            // 2. If both IN and OUT exist, but worked minutes is less than standard full-day threshold
-            $isPastDate = $date->isPast() && !$date->isToday();
-            if ($isPastDate && !$lastOut) {
-                return 'half_day';
-            }
-
-            if ($lastOut && $workedMinutes > 0) {
-                $fullDayThreshold = max(360, $shiftMinutes - 60);
-                if ($workedMinutes < $fullDayThreshold) {
-                    return 'half_day';
-                }
-            }
-
+            // Punch exists -> Present (or Late if after shift start time). Never show '-' for present days.
             return $isLate ? 'late' : 'present';
         }
 
@@ -317,23 +328,29 @@ class AttendanceService
         return $minutes;
     }
 
-    public function monthSummary(User $user, int $year, int $month): array
+    public function monthSummary(User $user, int $year, int $month, ?array $dateRange = null): array
     {
-        $start = Carbon::create($year, $month, 1);
-        $days = $start->daysInMonth;
+        if ($dateRange && !empty($dateRange)) {
+            $days = count($dateRange);
+            $dates = $dateRange;
+        } else {
+            $start = Carbon::create($year, $month, 1);
+            $days = $start->daysInMonth;
+            $dates = [];
+            for ($d = 1; $d <= $days; $d++) {
+                $dates[] = Carbon::create($year, $month, $d);
+            }
+        }
+
         $present = $absent = $leave = $weekOff = $late = $holiday = $half = $wop = $hop = 0;
         $totalOtMinutes = $totalShortMinutes = 0;
         $rows = [];
         $shiftMinutes = $this->getShiftMinutes($user);
 
-        for ($d = 1; $d <= $days; $d++) {
-            $date = Carbon::create($year, $month, $d);
+        foreach ($dates as $date) {
             $status = $this->dayStatus($user, $date);
 
-            $holidayObj = Holiday::query()
-                ->whereDate('date', $date->toDateString())
-                ->get()
-                ->first(fn($h) => $h->isApplicableToCompany($user->company_id));
+            $holidayObj = $this->isApplicableHoliday($user, $date);
 
             $ins = AttendancePunch::query()
                 ->where('user_id', $user->id)
@@ -355,14 +372,10 @@ class AttendanceService
             } elseif ($status === 'late') {
                 $late++;
                 $present++;
-            } elseif ($status === 'half_day') {
-                $half++;
             } elseif ($status === 'wop') {
                 $wop++;
-                $present++;
             } elseif ($status === 'hop') {
                 $hop++;
-                $present++;
             } elseif ($status === 'absent') {
                 $absent++;
             } elseif ($status === 'leave') {
@@ -394,10 +407,18 @@ class AttendanceService
                 }
             }
 
+            $holidayTitle = null;
+            if ($holidayObj) {
+                $holidayTitle = $holidayObj->name;
+                if (!empty($holidayObj->description)) {
+                    $holidayTitle .= ' (' . $holidayObj->description . ')';
+                }
+            }
+
             $rows[] = [
                 'date' => $date->toDateString(),
                 'status' => $status,
-                'holiday_title' => $holidayObj ? ($holidayObj->title ?? $holidayObj->name) : null,
+                'holiday_title' => $holidayTitle,
                 'has_in_no_out' => $hasInNoOut,
                 'ins' => $ins,
                 'outs' => $outs,
@@ -410,11 +431,13 @@ class AttendanceService
             ];
         }
 
-        $payable = $present + ($half * 0.5) + $weekOff + $leave + $holiday;
+        // Payable formula: Regular Present + Week Off + Holiday + WOP + HOP + Leave
+        $payable = $present + $weekOff + $holiday + $wop + $hop + $leave;
+        $holidayPresent = $hop;
         $totalOtHoursFormatted = sprintf('%02d:%02d', intdiv($totalOtMinutes, 60), $totalOtMinutes % 60);
         $totalShortHoursFormatted = sprintf('%02d:%02d', intdiv($totalShortMinutes, 60), $totalShortMinutes % 60);
 
-        return compact('present', 'absent', 'leave', 'weekOff', 'late', 'holiday', 'half', 'wop', 'hop', 'days', 'rows', 'payable', 'totalOtMinutes', 'totalShortMinutes', 'totalOtHoursFormatted', 'totalShortHoursFormatted');
+        return compact('present', 'absent', 'leave', 'weekOff', 'late', 'holiday', 'half', 'wop', 'hop', 'holidayPresent', 'days', 'rows', 'payable', 'totalOtMinutes', 'totalShortMinutes', 'totalOtHoursFormatted', 'totalShortHoursFormatted');
     }
 
     private function fallbackLocation(?float $lat, ?float $lng, Setting $setting): string

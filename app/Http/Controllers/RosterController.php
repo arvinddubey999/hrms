@@ -80,7 +80,7 @@ class RosterController extends Controller
         }
 
         $query = $this->getScopedRosterQuery($request, $user);
-        $employees = $query->orderBy('first_name')->get();
+        $employees = $query->with(['category', 'shift'])->orderBy('first_name')->get();
 
         // Employees dropdown list for filters: also scoped!
         $allEmployeesQuery = User::where('status', 'active');
@@ -143,7 +143,7 @@ class RosterController extends Controller
 
         $user = auth()->user();
         $query = $this->getScopedRosterQuery($request, $user);
-        $employees = $query->orderBy('first_name')->get();
+        $employees = $query->with(['category', 'shift'])->orderBy('first_name')->get();
 
         if ($fromDate && $toDate) {
             $startDate = Carbon::parse($fromDate);
@@ -169,20 +169,34 @@ class RosterController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $callback = function () use ($employees, $dateRange, $attendance) {
+        $callback = function () use ($employees, $dateRange, $attendance, $year, $month) {
             $out = fopen('php://output', 'w');
-            $headerRow = ['Employee Code', 'Employee Name', 'Department'];
+            $headerRow = ['Employee Code', 'Employee Name', 'Category', 'Department', 'Shift Time'];
             foreach ($dateRange as $dt) {
                 $headerRow[] = $dt->format('d/m (D)');
             }
+            $headerRow = array_merge($headerRow, ['P', 'A', 'H', 'WO', 'WOP', 'HOP', 'TOTAL PAYABLE']);
             fputcsv($out, $headerRow);
 
             foreach ($employees as $emp) {
-                $row = [$emp->employee_code, $emp->displayName(), $emp->department ?: '-'];
+                $shiftTime = $emp->shift ? date('h:i A', strtotime($emp->shift->start_time)) . ' - ' . date('h:i A', strtotime($emp->shift->end_time)) : 'Not Assigned';
+                $row = [
+                    $emp->employee_code ?: '-',
+                    $emp->displayName(),
+                    $emp->category?->name ?? '-',
+                    $emp->department ?: '-',
+                    $shiftTime
+                ];
+
+                $sum = $attendance->monthSummary($emp, $year, $month, $dateRange);
+                $rowsByDate = collect($sum['rows'])->keyBy('date');
+
                 foreach ($dateRange as $date) {
-                    $st = $attendance->dayStatus($emp, $date);
-                    $ins = \App\Models\AttendancePunch::where('user_id', $emp->id)->whereDate('work_date', $date)->where('type', 'in')->orderBy('punched_at')->first();
-                    $outs = \App\Models\AttendancePunch::where('user_id', $emp->id)->whereDate('work_date', $date)->where('type', 'out')->orderByDesc('punched_at')->first();
+                    $dateStr = $date->toDateString();
+                    $dayData = $rowsByDate->get($dateStr);
+                    $st = $dayData['status'] ?? '-';
+                    $ins = $dayData['ins'] ?? collect();
+                    $outs = $dayData['outs'] ?? collect();
 
                     $stCode = match($st) {
                         'present' => 'P',
@@ -197,15 +211,27 @@ class RosterController extends Controller
                     };
 
                     $times = '';
-                    if ($ins) {
-                        $times .= ' IN:' . $ins->punched_at->format('H:i');
+                    $firstIn = $ins->first();
+                    $lastOut = $outs->last();
+                    if ($firstIn) {
+                        $times .= ' IN:' . $firstIn->punched_at->format('h:i A');
                     }
-                    if ($outs) {
-                        $times .= ' OUT:' . $outs->punched_at->format('H:i');
+                    if ($lastOut) {
+                        $times .= ' OUT:' . $lastOut->punched_at->format('h:i A');
                     }
 
                     $row[] = $stCode . ($times ? " ({$times})" : '');
                 }
+
+                // Append summary totals requested by client
+                $row[] = $sum['present'] ?? 0;
+                $row[] = $sum['absent'] ?? 0;
+                $row[] = $sum['holiday'] ?? 0;
+                $row[] = $sum['weekOff'] ?? 0;
+                $row[] = $sum['wop'] ?? 0;
+                $row[] = $sum['hop'] ?? 0;
+                $row[] = $sum['payable'] ?? 0;
+
                 fputcsv($out, $row);
             }
             fclose($out);
@@ -218,11 +244,32 @@ class RosterController extends Controller
     {
         $month = (int) $request->get('m', now()->month);
         $year = (int) $request->get('y', now()->year);
+        $fromDate = $request->get('from_date');
+        $toDate = $request->get('to_date');
+
         $user = auth()->user();
         $query = $this->getScopedRosterQuery($request, $user);
-        $employees = $query->orderBy('first_name')->get();
-        $days = Carbon::create($year, $month, 1)->daysInMonth;
+        $employees = $query->with(['category', 'shift'])->orderBy('first_name')->get();
 
-        return view('roster.pdf', compact('employees', 'month', 'year', 'days', 'attendance'));
+        if ($fromDate && $toDate) {
+            $startDate = Carbon::parse($fromDate);
+            $endDate = Carbon::parse($toDate);
+            $dateRange = [];
+            $curr = $startDate->copy();
+            while ($curr->lte($endDate)) {
+                $dateRange[] = $curr->copy();
+                $curr->addDay();
+            }
+            $days = count($dateRange);
+        } else {
+            $startDate = Carbon::create($year, $month, 1);
+            $days = $startDate->daysInMonth;
+            $dateRange = [];
+            for ($d = 1; $d <= $days; $d++) {
+                $dateRange[] = Carbon::create($year, $month, $d);
+            }
+        }
+
+        return view('roster.pdf', compact('employees', 'month', 'year', 'days', 'dateRange', 'fromDate', 'toDate', 'attendance'));
     }
 }

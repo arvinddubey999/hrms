@@ -9,7 +9,7 @@
     <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
             <h2 style="margin:0">{{ $staff->displayName() }}</h2>
-            <div class="muted">{{ $date }} | {{ $staff->department ?: ($staff->company->name ?? 'Staff') }}</div>
+            <div class="muted">{{ $date }} | {{ $staff->department ?: ($staff->company->name ?? 'Staff') }} | Code: {{ $staff->employee_code ?: '-' }}</div>
         </div>
     </div>
 
@@ -26,12 +26,35 @@
         </thead>
         <tbody>
             @forelse($punches as $p)
+                @php
+                    $isDD = str_contains(strtoupper($p->remarks ?? ''), 'DOUBLE_DUTY') || $p->type === 'double_duty';
+                    $isHD = str_contains(strtoupper($p->remarks ?? ''), 'HALF_DAY') || $p->type === 'half_day';
+                    $isWOP = str_contains(strtoupper($p->remarks ?? ''), 'WOP');
+                    $isHOP = str_contains(strtoupper($p->remarks ?? ''), 'HOP');
+
+                    $punchStatus = 'in';
+                    if ($isDD) {
+                        $punchStatus = 'double_duty';
+                    } elseif ($isHD) {
+                        $punchStatus = 'half_day';
+                    } elseif ($isWOP) {
+                        $punchStatus = 'wop';
+                    } elseif ($isHOP) {
+                        $punchStatus = 'hop';
+                    } else {
+                        $punchStatus = strtolower($p->type);
+                    }
+                @endphp
                 <tr>
                     <td><span class="chip" style="background:#f1f5f9;color:#475569">{{ strtoupper($p->source) }}</span></td>
                     <td>
-                        @if(str_contains(strtoupper($p->remarks ?? ''), 'WOP'))
+                        @if($isDD)
+                            <span class="chip" style="background:#e0e7ff;color:#4338ca;font-weight:700"><i class="fa-solid fa-bolt"></i> DOUBLE DUTY (2x)</span>
+                        @elseif($isHD)
+                            <span class="chip" style="background:#ffedd5;color:#c2410c;font-weight:700"><i class="fa-solid fa-hourglass-half"></i> HALF DAY (0.5)</span>
+                        @elseif($isWOP)
                             <span class="chip" style="background:#e0e7ff;color:#3730a3;font-weight:700"><i class="fa-solid fa-calendar-check"></i> WOP</span>
-                        @elseif(str_contains(strtoupper($p->remarks ?? ''), 'HOP'))
+                        @elseif($isHOP)
                             <span class="chip" style="background:#f3e8ff;color:#6b21a8;font-weight:700"><i class="fa-solid fa-gift"></i> HOP</span>
                         @elseif($p->type === 'in')
                             <span class="chip" style="background:#dcfce7;color:#166534;font-weight:700"><i class="fa-solid fa-arrow-right-to-bracket"></i> PUNCH IN</span>
@@ -54,7 +77,7 @@
                         @if(auth()->user()->isAdmin() || auth()->user()->isManager() || auth()->user()->hasPermission('attendance.edit'))
                             <button type="button" class="btn light" style="padding:4px 8px;font-size:11px" onclick="openEditPunchModal({{ json_encode([
                                 'id' => $p->id,
-                                'type' => strtoupper($p->type),
+                                'type' => $punchStatus,
                                 'time' => $p->punched_at->format('H:i'),
                                 'location' => $p->location_text ?: '',
                                 'remarks' => $p->remarks ?: '',
@@ -79,8 +102,8 @@
         </tbody>
     </table>
 
+    <!-- SECTION 1: SINGLE DAY MARK ATTENDANCE -->
     <hr style="margin:16px 0;border:0;border-top:1px solid #e2e8f0">
-    
     <h3 style="margin:0 0 10px 0"><i class="fa-solid fa-camera"></i> Mark Attendance & Photo Upload (Date: {{ $date }})</h3>
     <form method="post" action="{{ route('employees.mark', $staff) }}" enctype="multipart/form-data" class="grid-3" style="align-items:end;gap:12px;background:#f8fafc;padding:14px;border-radius:10px;border:1px solid #e2e8f0">
         @csrf
@@ -89,8 +112,10 @@
         <div>
             <label>Punch Type *</label>
             <select name="type" required style="font-weight:600">
-                <option value="in" style="color:#22c55e;font-weight:700" {{ optional($punches->last())->type === 'out' || $punches->isEmpty() ? 'selected' : '' }}>IN</option>
+                <option value="in" style="color:#22c55e;font-weight:700" {{ optional($punches->last())->type === 'out' || $punches->isEmpty() ? 'selected' : '' }}>IN (Present)</option>
                 <option value="out" style="color:#ef4444;font-weight:700" {{ optional($punches->last())->type === 'in' ? 'selected' : '' }}>OUT</option>
+                <option value="half_day" style="color:#f97316;font-weight:700">HALF DAY (0.5 Day)</option>
+                <option value="double_duty" style="color:#6366f1;font-weight:700">DOUBLE DUTY (2 Days)</option>
                 <option value="absent" style="color:#ef4444;font-weight:700">ABSENT</option>
                 <option value="leave" style="color:#f59e0b;font-weight:700">LEAVE</option>
                 <option value="holiday" style="color:#22c55e;font-weight:700">HOLIDAY</option>
@@ -115,6 +140,53 @@
             <button class="btn" style="white-space:nowrap"><i class="fa-solid fa-check"></i> Mark Attendance Punch</button>
         </div>
     </form>
+
+    <!-- SECTION 2: MULTIPLE DATES ATTENDANCE FOR THIS SINGLE EMPLOYEE -->
+    <hr style="margin:20px 0;border:0;border-top:1px solid #e2e8f0">
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px">
+        <h3 style="margin:0 0 6px 0;color:#166534;font-size:15px;display:flex;align-items:center;gap:8px">
+            <i class="fa-solid fa-calendar-days"></i> Mark Date Range Attendance for {{ $staff->displayName() }}
+        </h3>
+        <p class="muted" style="margin:0 0 12px 0;font-size:12px">
+            Select a date range to mark attendance across multiple days (e.g. 15 Oct to 30 Oct) for this employee at once:
+        </p>
+        <form method="post" action="{{ route('employees.mark-range', $staff) }}" class="grid-3" style="gap:12px;align-items:end">
+            @csrf
+            <div>
+                <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">From Date *</label>
+                <input type="date" name="from_date" value="{{ $date }}" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;background:#fff">
+            </div>
+            <div>
+                <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">To Date *</label>
+                <input type="date" name="to_date" value="{{ $date }}" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;background:#fff">
+            </div>
+            <div>
+                <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Status / Punch Type *</label>
+                <select name="type" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;font-weight:700;background:#fff">
+                    <option value="in" style="color:#16a34a;font-weight:700">PRESENT (IN)</option>
+                    <option value="half_day" style="color:#ea580c;font-weight:700">HALF DAY (0.5 Day)</option>
+                    <option value="double_duty" style="color:#4f46e5;font-weight:700">DOUBLE DUTY (2 Days)</option>
+                    <option value="absent" style="color:#dc2626;font-weight:700">ABSENT</option>
+                    <option value="leave" style="color:#d97706;font-weight:700">LEAVE</option>
+                    <option value="holiday" style="color:#16a34a;font-weight:700">HOLIDAY</option>
+                    <option value="week_off" style="color:#d97706;font-weight:700">WEEK OFF</option>
+                    <option value="wop" style="color:#0284c7;font-weight:700">WEEK OFF PRESENT (WOP)</option>
+                    <option value="hop" style="color:#9333ea;font-weight:700">HOLIDAY PRESENT (HOP)</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Punch Time (optional)</label>
+                <input type="time" name="time" value="09:30" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;background:#fff">
+            </div>
+            <div>
+                <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Remarks</label>
+                <input type="text" name="remarks" placeholder="e.g. Tour attendance / Range mark" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;background:#fff">
+            </div>
+            <div>
+                <button type="submit" class="btn" style="width:100%;padding:10px;background:#166534;justify-content:center"><i class="fa-solid fa-check"></i> Apply Date Range Attendance</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <!-- Modal: Edit Attendance (Matches Screenshot 4 & 5) -->
@@ -130,8 +202,10 @@
             <div style="margin-bottom:14px">
                 <label style="display:block;margin-bottom:6px;font-size:12px;font-weight:600;color:#9ca3af">Status</label>
                 <select id="punch_status" name="status" style="width:100%;background:#1f2937;border:1px solid #374151;color:#fff;border-radius:8px;padding:10px 12px">
-                    <option value="in" style="color:#22c55e;font-weight:700">IN</option>
+                    <option value="in" style="color:#22c55e;font-weight:700">IN (Present)</option>
                     <option value="out" style="color:#ef4444;font-weight:700">OUT</option>
+                    <option value="half_day" style="color:#f97316;font-weight:700">HALF DAY (0.5 Day)</option>
+                    <option value="double_duty" style="color:#6366f1;font-weight:700">DOUBLE DUTY (2 Days)</option>
                     <option value="absent" style="color:#ef4444;font-weight:700">ABSENT</option>
                     <option value="leave" style="color:#f59e0b;font-weight:700">LEAVE</option>
                     <option value="holiday" style="color:#22c55e;font-weight:700">HOLIDAY</option>
@@ -204,7 +278,7 @@ function openEditPunchModal(data) {
     var form = document.getElementById('editPunchForm');
     form.action = data.update_url;
     document.getElementById('deletePunchForm').action = data.delete_url;
-    document.getElementById('punch_status').value = data.type.toLowerCase();
+    document.getElementById('punch_status').value = (data.type || 'in').toLowerCase();
     document.getElementById('punch_time').value = data.time || '';
     document.getElementById('punch_location').value = data.location || '';
     document.getElementById('punch_remarks').value = data.remarks || '';

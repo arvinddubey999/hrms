@@ -35,7 +35,13 @@ class AttendanceService
         $workDate = $customWorkDate ?: ($customPunchedAt ? Carbon::parse($customPunchedAt)->toDateString() : $now->toDateString());
         $type = strtolower($type) === 'out' ? 'out' : 'in';
 
-        if ($user->punch_from === 'geofence' && ! $skipGeofence && $source === 'mobile') {
+        // Geofence / Location Mode Check:
+        // Rule: If employee has "anywhere" tour mode active for the work date, geofence restriction is skipped!
+        // Once the tour dates expire (or outside tour dates), normal office geofence validation strictly applies!
+        $isAnywhereActive = $user->isAnywherePunchValid(Carbon::parse($workDate));
+        $requiresGeofence = ($user->punch_from === 'geofence') || ($user->punch_from === 'anywhere' && !$isAnywhereActive);
+
+        if ($requiresGeofence && ! $skipGeofence && $source === 'mobile') {
             if (! GeoService::insideOffice($lat, $lng, $setting, $user)) {
                 throw ValidationException::withMessages(['lat' => 'You are outside the company location. Attendance can be marked only at office.']);
             }
@@ -181,6 +187,18 @@ class AttendanceService
     }
 
     /**
+     * Find the succeeding working day after a non-working cluster (skipping adjacent week-offs and holidays)
+     */
+    public function getSucceedingWorkingDay(User $user, Carbon $date): Carbon
+    {
+        $next = $date->copy()->addDay();
+        while ($this->isNonWorkingDay($user, $next) && $next->lt($date->copy()->addDays(14))) {
+            $next->addDay();
+        }
+        return $next;
+    }
+
+    /**
      * Check if employee was present or on approved leave on given date
      */
     public function isPresentOrOnLeave(User $user, Carbon $date): bool
@@ -197,21 +215,41 @@ class AttendanceService
             ->exists();
     }
 
+    /**
+     * Client Eligibility Policy (Weekly Off & Holiday Sandwich Rule):
+     * - Sunday Weekly Off Eligibility: Saturday Present OR Monday Present.
+     *   (If both Saturday & Monday are Absent => Sunday Weekly Off will NOT be granted -> Marked Continuous Absent).
+     * - Saturday Holiday + Sunday Weekly Off: Friday Present OR Monday Present.
+     *   (If both Friday & Monday are Absent => Saturday & Sunday both marked Continuous Absent).
+     */
+    public function isNonWorkingDayQualified(User $user, Carbon $date): bool
+    {
+        $prevWorkingDay = $this->getPrecedingWorkingDay($user, $date);
+        $nextWorkingDay = $this->getSucceedingWorkingDay($user, $date);
+
+        // Preceding working day presence / approved leave
+        $prevPresent = $this->isPresentOrOnLeave($user, $prevWorkingDay);
+        if ($prevPresent) {
+            return true;
+        }
+
+        // If succeeding working day is in the future or today, we cannot penalize employee in advance
+        if ($nextWorkingDay->isFuture() || $nextWorkingDay->isToday()) {
+            return true;
+        }
+
+        // Succeeding working day presence / approved leave
+        return $this->isPresentOrOnLeave($user, $nextWorkingDay);
+    }
+
     public function isWeekOffQualified(User $user, Carbon $date): bool
     {
-        // Client Rule:
-        // Week off / holiday credit requires presence on the preceding working day.
-        // E.g. If Saturday is working, Sunday is Week Off, Monday is Holiday:
-        // - Present on Saturday => Sunday (Week Off) and Monday (Holiday) are both credited.
-        // - Absent on Saturday => Sunday and Monday are both marked ABSENT.
-        $prevWorkingDay = $this->getPrecedingWorkingDay($user, $date);
-        return $this->isPresentOrOnLeave($user, $prevWorkingDay);
+        return $this->isNonWorkingDayQualified($user, $date);
     }
 
     public function isHolidayQualified(User $user, Carbon $holidayDate): bool
     {
-        $prevWorkingDay = $this->getPrecedingWorkingDay($user, $holidayDate);
-        return $this->isPresentOrOnLeave($user, $prevWorkingDay);
+        return $this->isNonWorkingDayQualified($user, $holidayDate);
     }
 
     public function dayStatus(User $user, Carbon $date): string
@@ -263,12 +301,28 @@ class AttendanceService
         }
 
         if ($hasIn) {
-            $firstIn = AttendancePunch::query()
+            $punchesOnDate = AttendancePunch::query()
                 ->where('user_id', $user->id)
                 ->whereDate('work_date', $date->toDateString())
-                ->where('type', 'in')
-                ->orderBy('punched_at')
-                ->first();
+                ->get();
+
+            // Check if explicitly marked as Double Duty (2 days salary)
+            $isDoubleDuty = $punchesOnDate->contains(function ($p) {
+                return $p->type === 'double_duty' || str_contains(strtoupper($p->remarks ?? ''), 'DOUBLE_DUTY');
+            });
+            if ($isDoubleDuty) {
+                return 'double_duty';
+            }
+
+            // Check if explicitly marked as Half Day (0.5 day salary)
+            $isHalfDay = $punchesOnDate->contains(function ($p) {
+                return $p->type === 'half_day' || str_contains(strtoupper($p->remarks ?? ''), 'HALF_DAY');
+            });
+            if ($isHalfDay) {
+                return 'half_day';
+            }
+
+            $firstIn = $punchesOnDate->where('type', 'in')->sortBy('punched_at')->first();
 
             $isLate = false;
             $shiftStart = $user->shift?->start_time;
@@ -342,7 +396,7 @@ class AttendanceService
             }
         }
 
-        $present = $absent = $leave = $weekOff = $late = $holiday = $half = $wop = $hop = 0;
+        $present = $absent = $leave = $weekOff = $late = $holiday = $half = $doubleDuty = $wop = $hop = 0;
         $totalOtMinutes = $totalShortMinutes = 0;
         $rows = [];
         $shiftMinutes = $this->getShiftMinutes($user);
@@ -372,6 +426,10 @@ class AttendanceService
             } elseif ($status === 'late') {
                 $late++;
                 $present++;
+            } elseif ($status === 'half_day') {
+                $half++;
+            } elseif ($status === 'double_duty') {
+                $doubleDuty++;
             } elseif ($status === 'wop') {
                 $wop++;
             } elseif ($status === 'hop') {
@@ -431,13 +489,13 @@ class AttendanceService
             ];
         }
 
-        // Payable formula: Regular Present + Week Off + Holiday + WOP + HOP + Leave
-        $payable = $present + $weekOff + $holiday + $wop + $hop + $leave;
+        // Payable formula: Regular Present + Half Day (0.5) + Double Duty (2.0) + Week Off + Holiday + WOP + HOP + Leave
+        $payable = $present + ($half * 0.5) + ($doubleDuty * 2.0) + $weekOff + $holiday + $wop + $hop + $leave;
         $holidayPresent = $hop;
         $totalOtHoursFormatted = sprintf('%02d:%02d', intdiv($totalOtMinutes, 60), $totalOtMinutes % 60);
         $totalShortHoursFormatted = sprintf('%02d:%02d', intdiv($totalShortMinutes, 60), $totalShortMinutes % 60);
 
-        return compact('present', 'absent', 'leave', 'weekOff', 'late', 'holiday', 'half', 'wop', 'hop', 'holidayPresent', 'days', 'rows', 'payable', 'totalOtMinutes', 'totalShortMinutes', 'totalOtHoursFormatted', 'totalShortHoursFormatted');
+        return compact('present', 'absent', 'leave', 'weekOff', 'late', 'holiday', 'half', 'doubleDuty', 'wop', 'hop', 'holidayPresent', 'days', 'rows', 'payable', 'totalOtMinutes', 'totalShortMinutes', 'totalOtHoursFormatted', 'totalShortHoursFormatted');
     }
 
     private function fallbackLocation(?float $lat, ?float $lng, Setting $setting): string

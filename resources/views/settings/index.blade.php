@@ -134,12 +134,11 @@
                     <input name="longitude" placeholder="72.8311">
                 </div>
                 <div>
-                    <label>Salary Calculation Rule</label>
-                    <select name="salary_calculation_days">
-                        <option value="actual">Actual Days in Month (e.g. 28, 30, 31)</option>
-                        <option value="30" selected>Fixed 30 Days (Salary / 30 * Present Days)</option>
-                        <option value="26">Fixed 26 Days (Salary / 26 * Present Days)</option>
-                        <option value="31">Fixed 31 Days (Salary / 31 * Present Days)</option>
+                    <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Salary Calculation Rule</label>
+                    <select name="salary_calculation_days" style="font-weight:600">
+                        <option value="actual">Actual (Current Month Days - 28/29/30/31)</option>
+                        <option value="30" selected>30 Days (Fixed 30 Days)</option>
+                        <option value="26">26 Days (Fixed 26 Days)</option>
                     </select>
                 </div>
                 <div>
@@ -806,12 +805,11 @@
             </div>
             <div class="grid-2" style="margin-bottom:10px">
                 <div>
-                    <label>Salary Calculation Rule</label>
-                    <select id="edit_comp_salary_days" name="salary_calculation_days">
-                        <option value="actual">Actual Days in Month (30000 / Days in Month * Present)</option>
-                        <option value="30">Fixed 30 Days (30000 / 30 * Present)</option>
-                        <option value="26">Fixed 26 Days (30000 / 26 * Present)</option>
-                        <option value="31">Fixed 31 Days (30000 / 31 * Present)</option>
+                    <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Salary Calculation Rule</label>
+                    <select id="edit_comp_salary_days" name="salary_calculation_days" style="font-weight:600">
+                        <option value="actual">Actual (Current Month Days - 28/29/30/31)</option>
+                        <option value="30">30 Days (Fixed 30 Days)</option>
+                        <option value="26">26 Days (Fixed 26 Days)</option>
                     </select>
                 </div>
                 <div>

@@ -17,26 +17,28 @@ class PayrollService
         $weekOffDays = $summary['weekOff'] ?? 0;
         $holidayDays = $summary['holiday'] ?? 0;
         $leaveDays   = $summary['leave'] ?? 0;
+        $halfDays    = $summary['half'] ?? 0;
+        $doubleDutyDays = $summary['doubleDuty'] ?? 0;
 
         // WOP & HOP applicability checked from Employee Master
         $wopCount = ($user->wop_applicable) ? ($summary['wop'] ?? 0) : 0;
         $hopCount = ($user->hop_applicable) ? ($summary['holidayPresent'] ?? 0) : 0;
 
-        if ($user->pay_type === 'daily') {
-            // Strictly Daily Basis from Employee Master (no company rules applicable)
-            $daily = (float) $user->salary;
-            $payableDays = max(0, $presentDays + $wopCount + $hopCount);
+        if ($user->pay_type === 'daily' || $user->pay_type === 'hourly') {
+            // Strictly Daily Basis from Employee Master (Settings & Master company rule does NOT apply!)
+            $daily = ($user->pay_type === 'hourly') ? ((float) $user->salary * 8) : (float) $user->salary;
+            $payableDays = max(0, $presentDays + ($halfDays * 0.5) + ($doubleDutyDays * 2.0) + $wopCount + $hopCount);
             $hopBonus = 0;
             $basic = round($daily * $payableDays, 2);
         } else {
             $daily = $user->dailyRate($daysInMonth);
             $basis = $user->company?->salary_calculation_days ?? \App\Models\Setting::current()->salary_day_basis ?? '30';
             if ($basis === '26') {
-                $payableDays = max(0, $presentDays + $wopCount);
+                $payableDays = max(0, $presentDays + ($halfDays * 0.5) + ($doubleDutyDays * 2.0) + $wopCount);
                 $hopBonus = round($daily * $hopCount, 2);
                 $basic = round(($daily * $payableDays) + $hopBonus, 2);
             } else {
-                $payableDays = max(0, $presentDays + $weekOffDays + $holidayDays + $leaveDays + $wopCount);
+                $payableDays = max(0, $presentDays + ($halfDays * 0.5) + ($doubleDutyDays * 2.0) + $weekOffDays + $holidayDays + $leaveDays + $wopCount);
                 $hopBonus = round($daily * $hopCount, 2);
                 $basic = round(($daily * $payableDays) + $hopBonus, 2);
             }
@@ -77,16 +79,16 @@ class PayrollService
         $totalDeductions = round($advanceTotal + $employeeEsi + $employeePf, 2);
         $net = max(0, round($gross - $totalDeductions, 2));
 
-        if ($user->pay_type === 'daily') {
+        if ($user->pay_type === 'daily' || $user->pay_type === 'hourly') {
             $remarksNote = sprintf(
-                "Month: %02d/%d (%d days). Daily Wage: Rs. %.2f/day (Daily Basis from Master). Present: %d. Basic: Rs. %.2f.",
-                $month, $year, $daysInMonth, $daily, $payableDays, $basic
+                "Month: %02d/%d (%d days). Daily Rate: Rs. %.2f/day (Daily Basis from Master). Present: %d, Half: %d, Double Duty: %d. Payable Units: %.1f. Basic: Rs. %.2f.",
+                $month, $year, $daysInMonth, $daily, $presentDays, $halfDays, $doubleDutyDays, $payableDays, $basic
             );
         } else {
             $basis = $user->company?->salary_calculation_days ?? \App\Models\Setting::current()->salary_day_basis ?? '30';
             $remarksNote = sprintf(
-                "Month: %02d/%d (%d days). Daily Rate: Rs. %.2f/day (Rule: %s days). Payable Days: %d. Basic: Rs. %.2f.",
-                $month, $year, $daysInMonth, $daily, $basis, $payableDays, $basic
+                "Month: %02d/%d (%d days). Daily Rate: Rs. %.2f/day (Rule: %s days). Present: %d, Half: %d, Double Duty: %d. Payable Units: %.1f. Basic: Rs. %.2f.",
+                $month, $year, $daysInMonth, $daily, $basis, $presentDays, $halfDays, $doubleDutyDays, $payableDays, $basic
             );
         }
 
@@ -95,6 +97,8 @@ class PayrollService
             'daily' => $daily,
             'days_in_month' => $daysInMonth,
             'payable_days' => $payableDays,
+            'half_days' => $halfDays,
+            'double_duty_days' => $doubleDutyDays,
             'basic' => $basic,
             'advances' => $advances,
             'incentives' => $incentives,

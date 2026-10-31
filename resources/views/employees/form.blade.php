@@ -57,13 +57,14 @@
             </div>
             <div>
                 <label>Add Profile Picture</label>
-                <input type="file" name="profile_photo" accept="image/*">
+                <input type="file" name="profile_photo" id="profile_photo_input" accept="image/*">
                 @if($staff->profile_photo)
-                    <div style="margin-top:6px;display:flex;align-items:center;gap:10px">
-                        <img src="{{ asset('storage/'.$staff->profile_photo) }}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid #cbd5e1">
-                        <label style="color:#ef4444;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px;cursor:pointer">
-                            <input type="checkbox" name="remove_profile_photo" value="1"> <i class="fa-solid fa-trash"></i> Remove Photo
-                        </label>
+                    <div id="existingProfilePhotoWrap" style="margin-top:6px;display:flex;align-items:center;gap:12px;background:#f8fafc;padding:6px 12px;border-radius:8px;border:1px solid #cbd5e1;width:fit-content">
+                        <img id="existingProfilePhotoImg" src="{{ asset('storage/'.$staff->profile_photo) }}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:1px solid #cbd5e1">
+                        <button type="button" onclick="removeStaffProfilePhoto({{ $staff->id }})" class="btn light" style="color:#ef4444;border-color:#fca5a5;padding:4px 10px;font-size:11.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;cursor:pointer">
+                            <i class="fa-solid fa-trash"></i> Remove Photo
+                        </button>
+                        <input type="hidden" name="remove_profile_photo" id="remove_profile_photo_flag" value="0">
                     </div>
                 @endif
             </div>
@@ -569,6 +570,32 @@
 </div>
 
 <script>
+function removeStaffProfilePhoto(empId) {
+    if (!confirm('Are you sure you want to remove this profile picture?')) return;
+
+    var flag = document.getElementById('remove_profile_photo_flag');
+    if (flag) flag.value = '1';
+
+    fetch('/employees/' + empId + '/delete-photo', {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        var wrap = document.getElementById('existingProfilePhotoWrap');
+        if (wrap) wrap.style.display = 'none';
+        alert('Profile picture removed successfully.');
+    })
+    .catch(err => {
+        var wrap = document.getElementById('existingProfilePhotoWrap');
+        if (wrap) wrap.style.display = 'none';
+    });
+}
+
 const rolePermissionsMap = @json($roles->mapWithKeys(function($r) {
     return [strtolower($r->name) => (array)($r->permissions ?? [])];
 }));

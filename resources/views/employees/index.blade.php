@@ -456,22 +456,30 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
 
 <!-- Modal: Bulk Attendance Mark -->
 <div id="bulkMarkModal" class="modal-bg">
-    <div class="modal">
-        <h3>Multiple Manually Mark Attendance</h3>
-        <p class="muted">Mark attendance for checked employees with remarks:</p>
+    <div class="modal" style="max-width:560px">
+        <h3><i class="fa-solid fa-calendar-check" style="color:var(--accent)"></i> Multiple Manually Mark Attendance</h3>
+        <p class="muted">Mark attendance for selected employees. Leave <b>Punch Date To</b> blank for single-day punch, or enter a date range to mark multiple days at once:</p>
         <form method="post" action="{{ route('employees.bulk-mark') }}" onsubmit="return validateBulkSubmit(this)">
             @csrf
             <div id="bulkMarkInputs"></div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
                 <div>
-                    <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Punch Date *</label>
-                    <input type="date" name="date" value="{{ $date->toDateString() }}" max="{{ now('Asia/Kolkata')->toDateString() }}" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px">
+                    <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Punch Date (From) *</label>
+                    <input type="date" name="date" id="bulk_mark_date_from" value="{{ $date->toDateString() }}" max="{{ now('Asia/Kolkata')->toDateString() }}" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px" onchange="var dt = document.getElementById('bulk_mark_date_to'); if(dt) dt.min = this.value;">
                 </div>
                 <div>
-                    <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Punch Type *</label>
+                    <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Punch Date To <span style="font-weight:normal;color:#6b7280">(Optional Range)</span></label>
+                    <input type="date" name="date_to" id="bulk_mark_date_to" min="{{ $date->toDateString() }}" max="{{ now('Asia/Kolkata')->toDateString() }}" placeholder="Optional end date" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px">
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+                <div>
+                    <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Punch Type / Status *</label>
                     <select name="type" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px;font-weight:600">
-                        <option value="in" style="color:#22c55e;font-weight:700" selected>IN</option>
+                        <option value="in" style="color:#22c55e;font-weight:700" selected>IN (Present)</option>
                         <option value="out" style="color:#ef4444;font-weight:700">OUT</option>
+                        <option value="half_day" style="color:#f97316;font-weight:700">HALF DAY (0.5)</option>
+                        <option value="double_duty" style="color:#0ea5e9;font-weight:700">DOUBLE DUTY (2x)</option>
                         <option value="absent" style="color:#ef4444;font-weight:700">ABSENT</option>
                         <option value="leave" style="color:#f59e0b;font-weight:700">LEAVE</option>
                         <option value="holiday" style="color:#22c55e;font-weight:700">HOLIDAY</option>
@@ -489,7 +497,7 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
             <textarea name="remarks" placeholder="Enter reason for manual marking..." style="width:100%;border-radius:8px;border:1px solid #d1d5db;padding:8px 10px;font-size:13px;min-height:70px"></textarea>
             <div class="row" style="margin-top:16px;justify-content:flex-end;gap:8px">
                 <button type="button" class="btn light" onclick="document.getElementById('bulkMarkModal').classList.remove('open')">Cancel</button>
-                <button class="btn">Mark Attendance</button>
+                <button class="btn"><i class="fa-solid fa-check-double"></i> Mark Attendance</button>
             </div>
         </form>
     </div>
@@ -577,6 +585,15 @@ function validateBulkSubmit(form) {
             alert('Please select at least one employee from the table using checkboxes, or select "All Employees Matching Current Filters".');
             return false;
         }
+    }
+
+    var dFrom = form.querySelector('input[name="date"]')?.value;
+    var dTo = form.querySelector('input[name="date_to"]')?.value;
+    if (dTo && dFrom && dTo < dFrom) {
+        alert('Punch Date To (' + dTo + ') must be greater than or equal to Punch Date From (' + dFrom + ').');
+        var dToEl = form.querySelector('input[name="date_to"]');
+        if (dToEl) dToEl.focus();
+        return false;
     }
     return true;
 }

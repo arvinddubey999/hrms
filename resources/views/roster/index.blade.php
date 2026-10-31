@@ -155,10 +155,10 @@
         <span class="badge ok" style="background:#dcfce7;color:#166534"><i class="fa-solid fa-circle" style="color:#16a34a"></i> P (Present)</span>
         <span class="badge no" style="background:#fee2e2;color:#991b1b"><i class="fa-solid fa-circle" style="color:#dc2626"></i> A (Absent)</span>
         <span class="badge warn" style="background:#fef3c7;color:#92400e"><i class="fa-solid fa-circle" style="color:#d97706"></i> L (Late / Leave)</span>
-        <span class="badge" style="background:#dbeafe;color:#1e40af"><i class="fa-solid fa-circle" style="color:#2563eb"></i> WOP (Week Off Present)</span>
+        <span class="badge" style="background:#dbeafe;color:#1e40af"><i class="fa-solid fa-circle" style="color:#2563eb"></i> WO-P (Week Off Present)</span>
         <span class="badge" style="background:#f3f4f6;color:#4b5563"><i class="fa-solid fa-circle" style="color:#9ca3af"></i> WO (Week Off)</span>
         <span class="badge" style="background:#fef08a;color:#854d0e"><i class="fa-solid fa-circle" style="color:#eab308"></i> H (Holiday)</span>
-        <span class="badge" style="background:#fbcfe8;color:#831843"><i class="fa-solid fa-circle" style="color:#db2777"></i> HOP (Holiday Present)</span>
+        <span class="badge" style="background:#fbcfe8;color:#831843"><i class="fa-solid fa-circle" style="color:#db2777"></i> H-P (Holiday Present)</span>
         <span class="badge" style="background:#f8fafc;color:#64748b;border:1px dashed #cbd5e1"><i class="fa-solid fa-minus" style="color:#94a3b8"></i> - (Upcoming / Not Marked)</span>
     </div>
 </div>
@@ -180,8 +180,8 @@
                 <th style="text-align:center;background:#fee2e2;color:#991b1b;min-width:50px">A</th>
                 <th style="text-align:center;background:#fef08a;color:#854d0e;min-width:50px">H</th>
                 <th style="text-align:center;background:#f3f4f6;color:#4b5563;min-width:50px">WO</th>
-                <th style="text-align:center;background:#dbeafe;color:#1e40af;min-width:50px">WOP</th>
-                <th style="text-align:center;background:#fbcfe8;color:#9d174d;min-width:50px">HOP</th>
+                <th style="text-align:center;background:#dbeafe;color:#1e40af;min-width:55px">WO-P</th>
+                <th style="text-align:center;background:#fbcfe8;color:#9d174d;min-width:55px">H-P</th>
                 <th style="text-align:center;background:#dcfce7;color:#166534;font-weight:bold;min-width:90px">TOTAL PAYABLE</th>
             </tr>
             </thead>
@@ -231,9 +231,9 @@
                             } elseif ($st === 'late') {
                                 $code = 'P(L)'; $bg = '#fef3c7'; $fg = '#92400e';
                             } elseif ($st === 'wop') {
-                                $code = 'WOP'; $bg = '#dbeafe'; $fg = '#1e40af';
+                                $code = 'WO-P'; $bg = '#dbeafe'; $fg = '#1e40af';
                             } elseif ($st === 'hop') {
-                                $code = 'HOP'; $bg = '#fbcfe8'; $fg = '#9d174d';
+                                $code = 'H-P'; $bg = '#fbcfe8'; $fg = '#9d174d';
                             } elseif ($st === 'absent') {
                                 $code = 'A'; $bg = '#fee2e2'; $fg = '#991b1b';
                             } elseif ($st === 'leave') {
@@ -255,10 +255,10 @@
                                 $tooltip = 'Late Punch';
                             } elseif ($code === 'WO') {
                                 $tooltip = 'Week Off';
-                            } elseif ($code === 'WOP') {
-                                $tooltip = 'Week Off Present';
-                            } elseif ($code === 'HOP') {
-                                $tooltip = 'Holiday Present';
+                            } elseif ($code === 'WO-P') {
+                                $tooltip = 'Week Off Present (WO-P)';
+                            } elseif ($code === 'H-P') {
+                                $tooltip = 'Holiday Present (H-P)';
                             } elseif ($code === 'A') {
                                 $tooltip = 'Absent';
                             } elseif ($code === 'L') {

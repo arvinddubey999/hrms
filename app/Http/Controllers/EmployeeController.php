@@ -329,7 +329,7 @@ class EmployeeController extends Controller
         }
 
         $data = $request->validate([
-            'type' => 'required|in:in,out,absent,leave,holiday,week_off,wop,hop',
+            'type' => 'required|in:in,out,half_day,double_duty,absent,leave,holiday,week_off,wop,hop',
             'date' => 'nullable|date|before_or_equal:today',
             'time' => 'nullable',
             'remarks' => 'nullable|string',
@@ -365,7 +365,13 @@ class EmployeeController extends Controller
         }
 
         $remarks = $data['remarks'] ?? null;
-        if (in_array($type, ['wop', 'hop'])) {
+        if ($type === 'half_day') {
+            $remarks = trim(($remarks ? $remarks . ' | ' : '') . 'HALF_DAY');
+            $type = 'in';
+        } elseif ($type === 'double_duty') {
+            $remarks = trim(($remarks ? $remarks . ' | ' : '') . 'DOUBLE_DUTY');
+            $type = 'in';
+        } elseif (in_array($type, ['wop', 'hop'])) {
             $remarks = trim(($remarks ? $remarks . ' | ' : '') . strtoupper($type));
             $type = 'in';
         }
@@ -399,70 +405,89 @@ class EmployeeController extends Controller
         $data = $request->validate([
             'employee_ids' => 'required|array',
             'employee_ids.*' => 'exists:users,id',
-            'type' => 'required|in:in,out,absent,leave,holiday,week_off,wop,hop',
+            'type' => 'required|in:in,out,half_day,double_duty,absent,leave,holiday,week_off,wop,hop',
             'time' => 'nullable',
             'remarks' => 'nullable|string',
-            'date' => 'nullable|date|before_or_equal:today',
+            'date' => 'required|date',
+            'date_to' => 'nullable|date|after_or_equal:date',
         ], [
-            'date.before_or_equal' => 'Attendance cannot be marked for a future date.',
+            'date_to.after_or_equal' => 'Punch Date To must be greater than or equal to Punch Date From.',
         ]);
 
-        $workDate = !empty($data['date']) ? Carbon::parse($data['date'])->toDateString() : now('Asia/Kolkata')->toDateString();
-        $targetTime = !empty($data['time']) ? $data['time'] : ($data['type'] === 'out' ? '18:00:00' : '09:30:00');
-        $targetPunchedAt = Carbon::parse($workDate.' '.$targetTime)->toDateTimeString();
+        $startDate = Carbon::parse($data['date']);
+        $endDate = !empty($data['date_to']) ? Carbon::parse($data['date_to']) : $startDate->copy();
+        $dateList = [];
+        $curr = $startDate->copy();
+        while ($curr->lte($endDate)) {
+            $dateList[] = $curr->toDateString();
+            $curr->addDay();
+        }
+
         $type = strtolower($data['type']);
+        $targetTime = !empty($data['time']) ? $data['time'] : ($type === 'out' ? '18:00:00' : '09:30:00');
 
-        if (in_array($type, ['absent', 'week_off', 'holiday', 'leave'])) {
-            AttendancePunch::query()
-                ->whereIn('user_id', $data['employee_ids'])
-                ->whereDate('work_date', $workDate)
-                ->delete();
+        foreach ($dateList as $workDate) {
+            $targetPunchedAt = Carbon::parse($workDate.' '.$targetTime)->toDateTimeString();
 
-            if ($type === 'leave') {
+            if (in_array($type, ['absent', 'week_off', 'holiday', 'leave'])) {
+                AttendancePunch::query()
+                    ->whereIn('user_id', $data['employee_ids'])
+                    ->whereDate('work_date', $workDate)
+                    ->delete();
+
+                if ($type === 'leave') {
+                    foreach ($data['employee_ids'] as $id) {
+                        \App\Models\LeaveRequest::updateOrCreate([
+                            'user_id' => $id,
+                            'from_date' => $workDate,
+                            'to_date' => $workDate,
+                        ], [
+                            'leave_type' => 'Manual Leave',
+                            'reason' => $data['remarks'] ?? 'Bulk marked as LEAVE',
+                            'status' => 'approved',
+                        ]);
+                    }
+                }
+            } else {
+                $remarks = $data['remarks'] ?? null;
+                $punchType = $type;
+
+                if ($type === 'half_day') {
+                    $remarks = trim(($remarks ? $remarks . ' | ' : '') . 'HALF_DAY');
+                    $punchType = 'in';
+                } elseif ($type === 'double_duty') {
+                    $remarks = trim(($remarks ? $remarks . ' | ' : '') . 'DOUBLE_DUTY');
+                    $punchType = 'in';
+                } elseif (in_array($type, ['wop', 'hop'])) {
+                    $remarks = trim(($remarks ? $remarks . ' | ' : '') . strtoupper($type));
+                    $punchType = 'in';
+                }
+
                 foreach ($data['employee_ids'] as $id) {
-                    \App\Models\LeaveRequest::updateOrCreate([
-                        'user_id' => $id,
-                        'from_date' => $workDate,
-                        'to_date' => $workDate,
-                    ], [
-                        'leave_type' => 'Manual Leave',
-                        'reason' => $data['remarks'] ?? 'Bulk marked as LEAVE',
-                        'status' => 'approved',
-                    ]);
+                    $user = User::find($id);
+                    if ($user) {
+                        $attendance->punch(
+                            $user,
+                            $punchType,
+                            (float) Setting::current()->office_lat,
+                            (float) Setting::current()->office_lng,
+                            'Admin Manual Bulk Mark',
+                            null,
+                            true,
+                            'admin',
+                            $request->user(),
+                            true,
+                            $remarks,
+                            $workDate,
+                            $targetPunchedAt
+                        );
+                    }
                 }
             }
-
-            return back()->with('ok', 'Bulk attendance status set to ' . strtoupper($type) . ' for ' . $workDate);
         }
 
-        $remarks = $data['remarks'] ?? null;
-        if (in_array($type, ['wop', 'hop'])) {
-            $remarks = trim(($remarks ? $remarks . ' | ' : '') . strtoupper($type));
-            $type = 'in';
-        }
-
-        foreach ($data['employee_ids'] as $id) {
-            $user = User::find($id);
-            if ($user) {
-                $punch = $attendance->punch(
-                    $user,
-                    $type,
-                    (float) Setting::current()->office_lat,
-                    (float) Setting::current()->office_lng,
-                    'Admin Manual Bulk Mark',
-                    null,
-                    true,
-                    'admin',
-                    $request->user(),
-                    true,
-                    $remarks,
-                    $workDate,
-                    $targetPunchedAt
-                );
-            }
-        }
-
-        return back()->with('ok', 'Bulk attendance marked successfully for ' . $workDate);
+        $dateMsg = count($dateList) > 1 ? ("from {$data['date']} to {$data['date_to']} (" . count($dateList) . " days)") : ("for {$data['date']}");
+        return back()->with('ok', 'Bulk attendance marked successfully ' . $dateMsg);
     }
 
     public function bulkShift(Request $request)
@@ -698,13 +723,26 @@ class EmployeeController extends Controller
         }
 
         $updates = [
-            'type' => in_array($status, ['wop', 'hop']) ? 'in' : $status,
+            'type' => 'in',
             'location_text' => $data['location_text'] ?? $punch->location_text,
             'remarks' => $data['remarks'] ?? $punch->remarks,
         ];
 
-        if (in_array($status, ['wop', 'hop'])) {
-            $updates['remarks'] = trim(($updates['remarks'] ? $updates['remarks'] . ' | ' : '') . strtoupper($status));
+        if ($status === 'half_day') {
+            $updates['type'] = 'in';
+            $cleanedRemarks = trim(str_ireplace(['DOUBLE_DUTY', 'HALF_DAY'], '', $data['remarks'] ?? $punch->remarks ?? ''));
+            $updates['remarks'] = trim(($cleanedRemarks ? $cleanedRemarks . ' | ' : '') . 'HALF_DAY');
+        } elseif ($status === 'double_duty') {
+            $updates['type'] = 'in';
+            $cleanedRemarks = trim(str_ireplace(['DOUBLE_DUTY', 'HALF_DAY'], '', $data['remarks'] ?? $punch->remarks ?? ''));
+            $updates['remarks'] = trim(($cleanedRemarks ? $cleanedRemarks . ' | ' : '') . 'DOUBLE_DUTY');
+        } elseif (in_array($status, ['wop', 'hop'])) {
+            $updates['type'] = 'in';
+            $cleanedRemarks = trim(str_ireplace(['DOUBLE_DUTY', 'HALF_DAY'], '', $data['remarks'] ?? $punch->remarks ?? ''));
+            $updates['remarks'] = trim(($cleanedRemarks ? $cleanedRemarks . ' | ' : '') . strtoupper($status));
+        } else {
+            $updates['type'] = $status;
+            $updates['remarks'] = trim(str_ireplace(['DOUBLE_DUTY', 'HALF_DAY', 'WOP', 'HOP'], '', $data['remarks'] ?? $punch->remarks ?? ''));
         }
 
         if (!empty($data['time'])) {
@@ -718,6 +756,111 @@ class EmployeeController extends Controller
         }
 
         return back()->with('ok', 'Attendance punch updated successfully.');
+    }
+
+    public function markRange(Request $request, User $employee, AttendanceService $attendance)
+    {
+        $actor = $request->user();
+        if (!$actor->isAdmin() && !$actor->isManager() && !$actor->hasPermission('attendance.mark') && !$actor->hasPermission('attendance.bulk')) {
+            return back()->with('error', 'You do not have permission to mark attendance.');
+        }
+
+        $data = $request->validate([
+            'from_date' => 'required|date',
+            'to_date' => 'required|date|after_or_equal:from_date',
+            'type' => 'required|string|in:in,out,half_day,double_duty,absent,leave,holiday,week_off,wop,hop',
+            'time' => 'nullable',
+            'remarks' => 'nullable|string',
+        ], [
+            'to_date.after_or_equal' => 'To Date must be greater than or equal to From Date.',
+        ]);
+
+        $startDate = Carbon::parse($data['from_date']);
+        $endDate = Carbon::parse($data['to_date']);
+        $type = strtolower($data['type']);
+        $time = !empty($data['time']) ? $data['time'] : ($type === 'out' ? '18:00:00' : '09:30:00');
+        $remarks = $data['remarks'] ?? null;
+        $count = 0;
+
+        $curr = $startDate->copy();
+        while ($curr->lte($endDate)) {
+            $workDate = $curr->toDateString();
+            $targetPunchedAt = Carbon::parse($workDate . ' ' . $time)->toDateTimeString();
+
+            if (in_array($type, ['absent', 'week_off', 'holiday', 'leave'])) {
+                AttendancePunch::query()
+                    ->where('user_id', $employee->id)
+                    ->whereDate('work_date', $workDate)
+                    ->delete();
+
+                if ($type === 'leave') {
+                    \App\Models\LeaveRequest::updateOrCreate([
+                        'user_id' => $employee->id,
+                        'from_date' => $workDate,
+                        'to_date' => $workDate,
+                    ], [
+                        'leave_type' => 'Manual Leave',
+                        'reason' => $remarks ?? 'Manual date range leave',
+                        'status' => 'approved',
+                    ]);
+                }
+            } else {
+                $dayRemarks = $remarks;
+                $punchType = $type;
+
+                if ($type === 'half_day') {
+                    $dayRemarks = trim(($dayRemarks ? $dayRemarks . ' | ' : '') . 'HALF_DAY');
+                    $punchType = 'in';
+                } elseif ($type === 'double_duty') {
+                    $dayRemarks = trim(($dayRemarks ? $dayRemarks . ' | ' : '') . 'DOUBLE_DUTY');
+                    $punchType = 'in';
+                } elseif (in_array($type, ['wop', 'hop'])) {
+                    $dayRemarks = trim(($dayRemarks ? $dayRemarks . ' | ' : '') . strtoupper($type));
+                    $punchType = 'in';
+                }
+
+                $attendance->punch(
+                    $employee,
+                    $punchType,
+                    (float) Setting::current()->office_lat,
+                    (float) Setting::current()->office_lng,
+                    'Manual Date Range Mark',
+                    null,
+                    true,
+                    'admin',
+                    $actor,
+                    true,
+                    $dayRemarks,
+                    $workDate,
+                    $targetPunchedAt
+                );
+            }
+
+            $count++;
+            $curr->addDay();
+        }
+
+        return back()->with('ok', "Attendance marked from {$data['from_date']} to {$data['to_date']} ({$count} days) successfully for {$employee->displayName()}.");
+    }
+
+    public function deleteProfilePhoto(User $employee, Request $request)
+    {
+        $actor = $request->user();
+        if (!$actor || !$actor->hasPermission('employee.edit')) {
+            return response()->json(['success' => false, 'message' => 'Permission denied.'], 403);
+        }
+
+        if ($employee->profile_photo) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($employee->profile_photo);
+            $employee->profile_photo = null;
+            $employee->save();
+        }
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(['success' => true, 'message' => 'Profile picture removed successfully.']);
+        }
+
+        return back()->with('ok', 'Profile picture removed successfully.');
     }
 
     public function destroyPunch(Request $request, AttendancePunch $punch)
@@ -1179,13 +1322,18 @@ class EmployeeController extends Controller
         }
 
         // Profile Photo handling
-        if ($request->boolean('remove_profile_photo')) {
+        if ($request->boolean('remove_profile_photo') || $request->input('remove_profile_photo') == '1') {
             if ($staff->profile_photo) {
                 \Illuminate\Support\Facades\Storage::disk('public')->delete($staff->profile_photo);
             }
+            $staff->profile_photo = null;
             $data['profile_photo'] = null;
         } elseif ($request->hasFile('profile_photo')) {
+            if ($staff->profile_photo) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($staff->profile_photo);
+            }
             $data['profile_photo'] = $request->file('profile_photo')->store('profiles', 'public');
+            $staff->profile_photo = $data['profile_photo'];
         }
 
         // PAN Document handling

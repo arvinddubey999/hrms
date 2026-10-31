@@ -206,7 +206,11 @@ class AuthController extends Controller
             'self_odometer' => $user->self_odometer,
             'esi_applicable' => $user->esi_applicable,
             'overtime_applicable' => $user->overtime_applicable,
-            'punch_from' => $user->punch_from,
+            'punch_from' => $user->isAnywherePunchValid() ? 'anywhere' : 'geofence',
+            'punch_from_setting' => $user->punch_from,
+            'is_anywhere_active' => $user->isAnywherePunchValid(),
+            'anywhere_from_date' => $user->anywhere_from_date?->format('Y-m-d'),
+            'anywhere_to_date' => $user->anywhere_to_date?->format('Y-m-d'),
             'view_self_salary' => $user->view_self_salary,
             'photo' => $user->profile_photo ? url('storage/'.$user->profile_photo) : null,
         ];

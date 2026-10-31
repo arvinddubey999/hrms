@@ -508,9 +508,12 @@
 
                             <!-- Search Location Group (visible when Away is selected) -->
                             <div id="searchLocationGroup" style="display: none; margin-bottom: 12px; position: relative;">
-                                <div style="font-size: 12px; font-weight: 600; color: #2563eb; margin-bottom: 5px;">Search Location / Landmark</div>
-                                <input type="text" id="locationSearchInput" class="modal-form-input" placeholder="Type place name (e.g. Surat)..." oninput="searchLocationQuery(this.value)">
-                                <div id="locationSuggestList" style="position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); max-height: 160px; overflow-y: auto; z-index: 1000; display: none;"></div>
+                                <div style="font-size: 12px; font-weight: 600; color: #2563eb; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
+                                    <span>Search Location / Landmark (India / Surat)</span>
+                                    <span style="font-size: 11px; font-weight: normal; color: #64748b"><i class="fa-solid fa-location-crosshairs"></i> India & Local Markets</span>
+                                </div>
+                                <input type="text" id="locationSearchInput" class="modal-form-input" placeholder="Type market, landmark, or area (e.g. Kohinoor Market, Ring Road, Surat)..." oninput="searchLocationQuery(this.value)">
+                                <div id="locationSuggestList" style="position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.18); max-height: 220px; overflow-y: auto; z-index: 1000; display: none;"></div>
                             </div>
 
                             <!-- Geofence Address -->
@@ -824,44 +827,142 @@
     let suggestTimeout = null;
     function searchLocationQuery(query) {
         clearTimeout(suggestTimeout);
-        if (!query || query.length < 3) {
-            document.getElementById('locationSuggestList').style.display = 'none';
+        const list = document.getElementById('locationSuggestList');
+        if (!query || query.trim().length < 2) {
+            if (list) list.style.display = 'none';
             return;
         }
 
-        suggestTimeout = setTimeout(() => {
-            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`)
-                .then(res => res.json())
-                .then(results => {
-                    const list = document.getElementById('locationSuggestList');
-                    list.innerHTML = '';
-                    if (results && results.length > 0) {
-                        results.forEach(r => {
-                            const item = document.createElement('div');
-                            item.style.padding = '8px 12px';
-                            item.style.fontSize = '12px';
-                            item.style.cursor = 'pointer';
-                            item.style.borderBottom = '1px solid #f1f5f9';
-                            item.innerHTML = `<i class="fa-solid fa-location-dot" style="color:#ef4444;margin-right:6px"></i> ${r.display_name}`;
-                            item.onclick = function () {
-                                const lat = parseFloat(r.lat).toFixed(6);
-                                const lon = parseFloat(r.lon).toFixed(6);
-                                document.getElementById('fieldLatitude').value = lat;
-                                document.getElementById('fieldLongitude').value = lon;
-                                document.getElementById('dispLat').textContent = lat;
-                                document.getElementById('dispLng').textContent = lon;
-                                document.getElementById('fieldAddress').value = r.display_name;
-                                list.style.display = 'none';
-                            };
-                            list.appendChild(item);
+        suggestTimeout = setTimeout(async () => {
+            const q = query.trim();
+            list.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#64748b"><i class="fa-solid fa-spinner fa-spin" style="color:#2563eb;margin-right:6px"></i> Searching Indian places & Surat markets for "' + escapeHtml(q) + '"...</div>';
+            list.style.display = 'block';
+
+            let items = [];
+
+            // 1. Photon (Komoot OSM) geocoder with Surat, Gujarat, India geo-bias (Lat: 21.1702, Lon: 72.8311)
+            try {
+                const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lat=21.1702&lon=72.8311&limit=10`;
+                const pRes = await fetch(photonUrl);
+                if (pRes.ok) {
+                    const data = await pRes.json();
+                    if (data && data.features) {
+                        data.features.forEach(f => {
+                            const p = f.properties || {};
+                            const coords = f.geometry ? f.geometry.coordinates : null;
+                            if (coords && coords.length >= 2) {
+                                const nameParts = [p.name, p.street, p.district, p.city, p.state, p.country].filter(Boolean);
+                                const label = nameParts.join(', ');
+                                items.push({
+                                    lat: parseFloat(coords[1]).toFixed(6),
+                                    lon: parseFloat(coords[0]).toFixed(6),
+                                    title: p.name || 'Location',
+                                    label: label || p.name || 'Location'
+                                });
+                            }
                         });
-                        list.style.display = 'block';
-                    } else {
-                        list.style.display = 'none';
                     }
-                })
-                .catch(() => {});
+                }
+            } catch (e) {}
+
+            // 2. OpenStreetMap Nominatim with India countrycode filter and Surat/Gujarat viewbox priority
+            if (items.length < 5) {
+                try {
+                    const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&viewbox=72.6,21.0,73.1,21.4&bounded=0&q=${encodeURIComponent(q)}&limit=8&addressdetails=1`;
+                    const nRes = await fetch(nomUrl);
+                    if (nRes.ok) {
+                        const data = await nRes.json();
+                        if (Array.isArray(data)) {
+                            data.forEach(r => {
+                                const title = r.display_name.split(',')[0] || r.display_name;
+                                items.push({
+                                    lat: parseFloat(r.lat).toFixed(6),
+                                    lon: parseFloat(r.lon).toFixed(6),
+                                    title: title,
+                                    label: r.display_name
+                                });
+                            });
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            // 3. Fallback: If still few results and user did not type "surat", search with "${q} Surat"
+            if (items.length === 0 && !q.toLowerCase().includes('surat')) {
+                try {
+                    const retryUrl = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&q=${encodeURIComponent(q + ' surat')}&limit=8`;
+                    const rRes = await fetch(retryUrl);
+                    if (rRes.ok) {
+                        const data = await rRes.json();
+                        if (Array.isArray(data)) {
+                            data.forEach(r => {
+                                const title = r.display_name.split(',')[0] || r.display_name;
+                                items.push({
+                                    lat: parseFloat(r.lat).toFixed(6),
+                                    lon: parseFloat(r.lon).toFixed(6),
+                                    title: title,
+                                    label: r.display_name
+                                });
+                            });
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            // Deduplicate items based on coordinates
+            const uniqueItems = [];
+            const seen = new Set();
+            items.forEach(it => {
+                const key = it.lat.substring(0, 6) + '_' + it.lon.substring(0, 6);
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    uniqueItems.push(it);
+                }
+            });
+
+            list.innerHTML = '';
+            if (uniqueItems.length > 0) {
+                uniqueItems.slice(0, 10).forEach(it => {
+                    const item = document.createElement('div');
+                    item.style.padding = '8px 12px';
+                    item.style.fontSize = '12px';
+                    item.style.cursor = 'pointer';
+                    item.style.borderBottom = '1px solid #f1f5f9';
+                    item.style.lineHeight = '1.35';
+                    item.innerHTML = `<div style="display:flex;align-items:flex-start;gap:8px">
+                        <i class="fa-solid fa-location-dot" style="color:#ef4444;font-size:13px;margin-top:2px"></i>
+                        <div>
+                            <b style="color:#0f172a">${escapeHtml(it.title)}</b>
+                            <div style="font-size:11px;color:#64748b;margin-top:1px">${escapeHtml(it.label)}</div>
+                        </div>
+                    </div>`;
+                    item.onmouseover = function() { this.style.background = '#f8fafc'; };
+                    item.onmouseout = function() { this.style.background = '#fff'; };
+                    item.onclick = function () {
+                        document.getElementById('fieldLatitude').value = it.lat;
+                        document.getElementById('fieldLongitude').value = it.lon;
+                        document.getElementById('dispLat').textContent = it.lat;
+                        document.getElementById('dispLng').textContent = it.lon;
+                        document.getElementById('fieldAddress').value = it.label;
+                        if (typeof overviewMap !== 'undefined' && overviewMap) {
+                            overviewMap.setView([parseFloat(it.lat), parseFloat(it.lon)], 16);
+                        }
+                        list.style.display = 'none';
+                    };
+                    list.appendChild(item);
+                });
+                list.style.display = 'block';
+            } else {
+                list.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#94a3b8;text-align:center">No location found for "' + escapeHtml(q) + '". Try searching with specific market name or Surat area.</div>';
+                list.style.display = 'block';
+            }
         }, 300);
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+        return text.toString().replace(/[&<>"']/g, m => map[m]);
     }
 
     // Company selection automatically checks all employees of that company

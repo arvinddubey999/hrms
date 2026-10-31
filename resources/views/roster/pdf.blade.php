@@ -100,9 +100,9 @@
             <span class="legend-item late">P(L): Late</span>
             <span class="legend-item absent">A: Absent</span>
             <span class="legend-item week_off">WO: Week Off</span>
-            <span class="legend-item wop">WOP: Week Off Present</span>
+            <span class="legend-item wop">WO-P: Week Off Present</span>
             <span class="legend-item holiday">H: Holiday</span>
-            <span class="legend-item hop">HOP: Holiday Present</span>
+            <span class="legend-item hop">H-P: Holiday Present</span>
             <span class="legend-item" style="border:1px dashed #cbd5e1">-: Upcoming</span>
         </div>
     </div>
@@ -121,8 +121,8 @@
                 <th style="background:#fee2e2;color:#991b1b">A</th>
                 <th style="background:#fef08a;color:#854d0e">H</th>
                 <th style="background:#f3f4f6;color:#4b5563">WO</th>
-                <th style="background:#dbeafe;color:#1e40af">WOP</th>
-                <th style="background:#fbcfe8;color:#9d174d">HOP</th>
+                <th style="background:#dbeafe;color:#1e40af">WO-P</th>
+                <th style="background:#fbcfe8;color:#9d174d">H-P</th>
                 <th style="background:#dcfce7;color:#166534">PAYABLE</th>
             </tr>
         </thead>
@@ -150,8 +150,8 @@
                             $code = match($st) {
                                 'present' => 'P',
                                 'late' => 'P(L)',
-                                'wop' => 'WOP',
-                                'hop' => 'HOP',
+                                'wop' => 'WO-P',
+                                'hop' => 'H-P',
                                 'absent' => 'A',
                                 'leave' => 'L',
                                 'week_off' => 'WO',

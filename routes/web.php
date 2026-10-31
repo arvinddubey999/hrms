@@ -56,8 +56,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
     Route::post('/employees/{employee}/restore', [EmployeeController::class, 'restore'])->name('employees.restore');
     Route::post('/employees/{employee}/mark', [EmployeeController::class, 'mark'])->name('employees.mark');
+    Route::post('/employees/{employee}/mark-range', [EmployeeController::class, 'markRange'])->name('employees.mark-range');
     Route::get('/employees/{employee}/day', [EmployeeController::class, 'dayPunches'])->name('employees.day');
     Route::get('/employees/{employee}/monthly', [EmployeeController::class, 'monthlyPrint'])->name('employees.monthly');
+    Route::post('/employees/{employee}/delete-photo', [EmployeeController::class, 'deleteProfilePhoto'])->name('employees.delete-photo');
     Route::delete('/employees/face-images/{faceImage}', [EmployeeController::class, 'deleteFaceImage'])->name('employees.face-images.destroy');
     Route::post('/employees/face-images/{faceImage}/delete', [EmployeeController::class, 'deleteFaceImage']);
 

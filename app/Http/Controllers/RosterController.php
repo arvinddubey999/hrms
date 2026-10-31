@@ -175,7 +175,7 @@ class RosterController extends Controller
             foreach ($dateRange as $dt) {
                 $headerRow[] = $dt->format('d/m (D)');
             }
-            $headerRow = array_merge($headerRow, ['P', 'A', 'H', 'WO', 'WOP', 'HOP', 'TOTAL PAYABLE']);
+            $headerRow = array_merge($headerRow, ['P', 'A', 'H', 'WO', 'WO-P', 'H-P', 'TOTAL PAYABLE']);
             fputcsv($out, $headerRow);
 
             foreach ($employees as $emp) {
@@ -201,8 +201,8 @@ class RosterController extends Controller
                     $stCode = match($st) {
                         'present' => 'P',
                         'late' => 'P(L)',
-                        'wop' => 'WOP',
-                        'hop' => 'HOP',
+                        'wop' => 'WO-P',
+                        'hop' => 'H-P',
                         'absent' => 'A',
                         'leave' => 'L',
                         'week_off' => 'WO',

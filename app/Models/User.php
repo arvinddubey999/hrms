@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\UserFactory;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -190,7 +191,7 @@ class User extends Authenticatable
         return $this->belongsToMany(Task::class);
     }
 
-    public function isAnywherePunchValid(?Carbon $date = null): bool
+    public function isAnywherePunchValid(?\Carbon\Carbon $date = null): bool
     {
         if ($this->punch_from !== 'anywhere') {
             return false;

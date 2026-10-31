@@ -338,61 +338,66 @@ class EmployeeController extends Controller
             'date.before_or_equal' => 'Attendance cannot be marked for a future date.',
         ]);
 
-        $targetDate = $data['date'] ?? now('Asia/Kolkata')->toDateString();
-        $targetTime = !empty($data['time']) ? $data['time'] : now('Asia/Kolkata')->format('H:i:s');
-        $customPunchedAt = Carbon::parse($targetDate.' '.$targetTime)->toDateTimeString();
-        $type = strtolower($data['type']);
+        try {
+            $targetDate = $data['date'] ?? now('Asia/Kolkata')->toDateString();
+            $targetTime = !empty($data['time']) ? $data['time'] : now('Asia/Kolkata')->format('H:i:s');
+            $customPunchedAt = Carbon::parse($targetDate.' '.$targetTime)->toDateTimeString();
+            $type = strtolower($data['type']);
 
-        if (in_array($type, ['absent', 'week_off', 'holiday', 'leave'])) {
-            AttendancePunch::query()
-                ->where('user_id', $employee->id)
-                ->whereDate('work_date', $targetDate)
-                ->delete();
+            if (in_array($type, ['absent', 'week_off', 'holiday', 'leave'])) {
+                AttendancePunch::query()
+                    ->where('user_id', $employee->id)
+                    ->whereDate('work_date', $targetDate)
+                    ->delete();
 
-            if ($type === 'leave') {
-                \App\Models\LeaveRequest::updateOrCreate([
-                    'user_id' => $employee->id,
-                    'from_date' => $targetDate,
-                    'to_date' => $targetDate,
-                ], [
-                    'leave_type' => 'Manual Leave',
-                    'reason' => $data['remarks'] ?? 'Manually marked as LEAVE',
-                    'status' => 'approved',
-                ]);
+                if ($type === 'leave') {
+                    \App\Models\LeaveRequest::updateOrCreate([
+                        'user_id' => $employee->id,
+                        'from_date' => $targetDate,
+                        'to_date' => $targetDate,
+                    ], [
+                        'leave_type' => 'Manual Leave',
+                        'reason' => $data['remarks'] ?? 'Manually marked as LEAVE',
+                        'status' => 'approved',
+                    ]);
+                }
+
+                return back()->with('ok', 'Attendance status updated to ' . strtoupper($type) . ' for ' . $targetDate);
             }
 
-            return back()->with('ok', 'Attendance status updated to ' . strtoupper($type) . ' for ' . $targetDate);
+            $remarks = $data['remarks'] ?? null;
+            if ($type === 'half_day') {
+                $remarks = trim(($remarks ? $remarks . ' | ' : '') . 'HALF_DAY');
+                $type = 'in';
+            } elseif ($type === 'double_duty') {
+                $remarks = trim(($remarks ? $remarks . ' | ' : '') . 'DOUBLE_DUTY');
+                $type = 'in';
+            } elseif (in_array($type, ['wop', 'hop'])) {
+                $remarks = trim(($remarks ? $remarks . ' | ' : '') . strtoupper($type));
+                $type = 'in';
+            }
+
+            $punch = $attendance->punch(
+                $employee,
+                $type,
+                (float) Setting::current()->office_lat,
+                (float) Setting::current()->office_lng,
+                Setting::current()->company_name.' office',
+                $request->file('photo'),
+                true,
+                'admin',
+                $request->user(),
+                true,
+                $remarks,
+                $targetDate,
+                $customPunchedAt
+            );
+
+            return back()->with('ok', 'Attendance punch recorded successfully for ' . $targetDate);
+        } catch (\Throwable $e) {
+            \Log::error("Mark single attendance error for employee {$employee->id}: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            return back()->with('error', 'Error recording attendance punch: ' . $e->getMessage());
         }
-
-        $remarks = $data['remarks'] ?? null;
-        if ($type === 'half_day') {
-            $remarks = trim(($remarks ? $remarks . ' | ' : '') . 'HALF_DAY');
-            $type = 'in';
-        } elseif ($type === 'double_duty') {
-            $remarks = trim(($remarks ? $remarks . ' | ' : '') . 'DOUBLE_DUTY');
-            $type = 'in';
-        } elseif (in_array($type, ['wop', 'hop'])) {
-            $remarks = trim(($remarks ? $remarks . ' | ' : '') . strtoupper($type));
-            $type = 'in';
-        }
-
-        $punch = $attendance->punch(
-            $employee,
-            $type,
-            (float) Setting::current()->office_lat,
-            (float) Setting::current()->office_lng,
-            Setting::current()->company_name.' office',
-            $request->file('photo'),
-            true,
-            'admin',
-            $request->user(),
-            true,
-            $remarks,
-            $targetDate,
-            $customPunchedAt
-        );
-
-        return back()->with('ok', 'Attendance punch recorded successfully for ' . $targetDate);
     }
 
     public function bulkMark(Request $request, AttendanceService $attendance)

@@ -475,7 +475,7 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
                 <div>
                     <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Punch Type / Status *</label>
-                    <select name="type" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px;font-weight:600">
+                    <select name="type" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px;font-weight:600" onchange="var t = document.getElementById('bulk_mark_time'); if(t){ if(this.value === 'out'){ t.value = '18:30'; } else if(this.value === 'in'){ t.value = '09:30'; } }">
                         <option value="in" style="color:#22c55e;font-weight:700" selected>IN (Present)</option>
                         <option value="out" style="color:#ef4444;font-weight:700">OUT</option>
                         <option value="half_day" style="color:#f97316;font-weight:700">HALF DAY (0.5)</option>
@@ -490,7 +490,7 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
                 </div>
                 <div>
                     <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Time (optional)</label>
-                    <input type="time" name="time" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px">
+                    <input type="time" name="time" id="bulk_mark_time" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px">
                 </div>
             </div>
             <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Reason / Remarks (Mandatory/Optional)</label>

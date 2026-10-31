@@ -366,20 +366,38 @@ class EmployeeController extends Controller
             }
 
             $remarks = $data['remarks'] ?? null;
+            $punchType = $type;
+
             if ($type === 'half_day') {
                 $remarks = trim(($remarks ? $remarks . ' | ' : '') . 'HALF_DAY');
-                $type = 'in';
+                $punchType = 'in';
             } elseif ($type === 'double_duty') {
                 $remarks = trim(($remarks ? $remarks . ' | ' : '') . 'DOUBLE_DUTY');
-                $type = 'in';
+                $punchType = 'in';
             } elseif (in_array($type, ['wop', 'hop'])) {
                 $remarks = trim(($remarks ? $remarks . ' | ' : '') . strtoupper($type));
-                $type = 'in';
+                $punchType = 'in';
+            }
+
+            // If marking OUT, delete only previous OUT punch, strictly preserving IN punch!
+            // If marking IN (or half_day, double_duty, wop, hop), delete only previous IN punch, strictly preserving OUT punch!
+            if ($punchType === 'out') {
+                AttendancePunch::query()
+                    ->where('user_id', $employee->id)
+                    ->whereDate('work_date', $targetDate)
+                    ->where('type', 'out')
+                    ->delete();
+            } else {
+                AttendancePunch::query()
+                    ->where('user_id', $employee->id)
+                    ->whereDate('work_date', $targetDate)
+                    ->where('type', 'in')
+                    ->delete();
             }
 
             $punch = $attendance->punch(
                 $employee,
-                $type,
+                $punchType,
                 (float) Setting::current()->office_lat,
                 (float) Setting::current()->office_lng,
                 Setting::current()->company_name.' office',
@@ -446,13 +464,13 @@ class EmployeeController extends Controller
             foreach ($dateList as $workDate) {
                 $targetPunchedAt = Carbon::parse($workDate.' '.$targetTime)->toDateTimeString();
 
-                // Clean prior punches for selected employees on this date to avoid duplicate conflicting rows
-                AttendancePunch::query()
-                    ->whereIn('user_id', $data['employee_ids'])
-                    ->whereDate('work_date', $workDate)
-                    ->delete();
-
                 if ($type === 'leave') {
+                    // Clean punches for this date when marking as leave
+                    AttendancePunch::query()
+                        ->whereIn('user_id', $data['employee_ids'])
+                        ->whereDate('work_date', $workDate)
+                        ->delete();
+
                     foreach ($data['employee_ids'] as $id) {
                         \App\Models\LeaveRequest::updateOrCreate([
                             'user_id' => $id,
@@ -465,6 +483,12 @@ class EmployeeController extends Controller
                         ]);
                     }
                 } elseif (in_array($type, ['absent', 'week_off', 'holiday'])) {
+                    // Clean punches and conflicting leave requests when marking absent/week_off/holiday
+                    AttendancePunch::query()
+                        ->whereIn('user_id', $data['employee_ids'])
+                        ->whereDate('work_date', $workDate)
+                        ->delete();
+
                     \App\Models\LeaveRequest::query()
                         ->whereIn('user_id', $data['employee_ids'])
                         ->whereDate('from_date', '<=', $workDate)
@@ -489,6 +513,23 @@ class EmployeeController extends Controller
                     } elseif (in_array($type, ['wop', 'hop'])) {
                         $remarks = trim(($remarks ? $remarks . ' | ' : '') . strtoupper($type));
                         $punchType = 'in';
+                    }
+
+                    // CRITICAL FIX: Only delete previous punch of the SAME type (in or out)
+                    // If marking OUT, delete only previous OUT punches, strictly PRESERVING existing IN punch!
+                    // If marking IN (or half_day/double_duty/wop/hop), delete only previous IN punches, strictly PRESERVING existing OUT punch!
+                    if ($punchType === 'out') {
+                        AttendancePunch::query()
+                            ->whereIn('user_id', $data['employee_ids'])
+                            ->whereDate('work_date', $workDate)
+                            ->where('type', 'out')
+                            ->delete();
+                    } else {
+                        AttendancePunch::query()
+                            ->whereIn('user_id', $data['employee_ids'])
+                            ->whereDate('work_date', $workDate)
+                            ->where('type', 'in')
+                            ->delete();
                     }
 
                     foreach ($data['employee_ids'] as $id) {
@@ -716,16 +757,22 @@ class EmployeeController extends Controller
 
     public function dayPunches(User $employee, Request $request)
     {
-        $date = $request->get('date', now()->toDateString());
-        $punches = AttendancePunch::query()
-            ->where('user_id', $employee->id)
-            ->whereDate('work_date', $date)
-            ->orderBy('punched_at')
-            ->get();
+        $fromDate = $request->get('from_date', $request->get('date', now()->toDateString()));
+        $toDate = $request->get('to_date', $fromDate);
+
+        $query = AttendancePunch::query()->where('user_id', $employee->id);
+        if ($fromDate === $toDate) {
+            $query->whereDate('work_date', $fromDate);
+        } else {
+            $query->whereDate('work_date', '>=', $fromDate)->whereDate('work_date', '<=', $toDate);
+        }
+        $punches = $query->orderBy('work_date', 'desc')->orderBy('punched_at', 'asc')->get();
 
         return view('employees.day-modal', [
             'staff' => $employee,
-            'date' => $date,
+            'date' => $fromDate,
+            'fromDate' => $fromDate,
+            'toDate' => $toDate,
             'punches' => $punches,
             'shifts' => Shift::orderBy('name')->get(),
         ]);
@@ -822,13 +869,13 @@ class EmployeeController extends Controller
                 $workDate = $curr->toDateString();
                 $targetPunchedAt = Carbon::parse($workDate . ' ' . $time)->toDateTimeString();
 
-                // Clean existing punches for this date to avoid duplicate conflicting rows
-                AttendancePunch::query()
-                    ->where('user_id', $employee->id)
-                    ->whereDate('work_date', $workDate)
-                    ->delete();
-
                 if ($type === 'leave') {
+                    // Clean punches for this date when marking as leave
+                    AttendancePunch::query()
+                        ->where('user_id', $employee->id)
+                        ->whereDate('work_date', $workDate)
+                        ->delete();
+
                     \App\Models\LeaveRequest::updateOrCreate([
                         'user_id' => $employee->id,
                         'from_date' => $workDate,
@@ -839,6 +886,12 @@ class EmployeeController extends Controller
                         'status' => 'approved',
                     ]);
                 } elseif (in_array($type, ['absent', 'week_off', 'holiday'])) {
+                    // Clean punches and conflicting leaves when marking absent/week_off/holiday
+                    AttendancePunch::query()
+                        ->where('user_id', $employee->id)
+                        ->whereDate('work_date', $workDate)
+                        ->delete();
+
                     \App\Models\LeaveRequest::query()
                         ->where('user_id', $employee->id)
                         ->whereDate('from_date', '<=', $workDate)
@@ -865,6 +918,23 @@ class EmployeeController extends Controller
                         $punchType = 'in';
                     }
 
+                    // CRITICAL FIX: Only delete previous punch of the SAME type (in or out)
+                    // If marking OUT, delete only previous OUT punches, strictly PRESERVING existing IN punch!
+                    // If marking IN (or half_day/double_duty/wop/hop), delete only previous IN punches, strictly PRESERVING existing OUT punch!
+                    if ($punchType === 'out') {
+                        AttendancePunch::query()
+                            ->where('user_id', $employee->id)
+                            ->whereDate('work_date', $workDate)
+                            ->where('type', 'out')
+                            ->delete();
+                    } else {
+                        AttendancePunch::query()
+                            ->where('user_id', $employee->id)
+                            ->whereDate('work_date', $workDate)
+                            ->where('type', 'in')
+                            ->delete();
+                    }
+
                     $attendance->punch(
                         $employee,
                         $punchType,
@@ -886,7 +956,8 @@ class EmployeeController extends Controller
                 $curr->addDay();
             }
 
-            return back()->with('ok', "Attendance marked from {$data['from_date']} to {$data['to_date']} ({$count} days) successfully for {$employee->displayName()}.");
+            return redirect()->route('employees.day', ['employee' => $employee, 'from_date' => $data['from_date'], 'to_date' => $data['to_date']])
+                ->with('ok', "Attendance marked from {$data['from_date']} to {$data['to_date']} ({$count} days) successfully for {$employee->displayName()}.");
         } catch (\Throwable $e) {
             \Log::error("Mark date range attendance error for user {$employee->id}: " . $e->getMessage() . "\n" . $e->getTraceAsString());
             return back()->with('error', 'Error marking date range attendance: ' . $e->getMessage());

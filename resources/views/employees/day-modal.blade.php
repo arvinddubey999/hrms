@@ -6,16 +6,31 @@
 </div>
 
 <div class="card" style="margin-bottom:16px">
-    <div style="display:flex;justify-content:space-between;align-items:center">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
         <div>
             <h2 style="margin:0">{{ $staff->displayName() }}</h2>
-            <div class="muted">{{ $date }} | {{ $staff->department ?: ($staff->company->name ?? 'Staff') }} | Code: {{ $staff->employee_code ?: '-' }}</div>
+            <div class="muted">
+                @if(isset($fromDate) && isset($toDate) && $fromDate !== $toDate)
+                    Date Range: <b>{{ $fromDate }}</b> to <b>{{ $toDate }}</b>
+                @else
+                    Date: <b>{{ $date }}</b>
+                @endif
+                | {{ $staff->department ?: ($staff->company->name ?? 'Staff') }} | Code: {{ $staff->employee_code ?: '-' }}
+            </div>
         </div>
+        <form method="get" action="{{ route('employees.day', $staff) }}" style="display:flex;align-items:center;gap:8px">
+            <label style="font-size:12px;font-weight:600">From:</label>
+            <input type="date" name="from_date" value="{{ $fromDate ?? $date }}" style="padding:6px 10px;border-radius:6px;border:1px solid #cbd5e1;font-size:12.5px">
+            <label style="font-size:12px;font-weight:600">To:</label>
+            <input type="date" name="to_date" value="{{ $toDate ?? $date }}" style="padding:6px 10px;border-radius:6px;border:1px solid #cbd5e1;font-size:12.5px">
+            <button type="submit" class="btn light" style="padding:6px 12px;font-size:12px"><i class="fa-solid fa-filter"></i> Filter</button>
+        </form>
     </div>
 
     <table class="table" style="margin-top:14px">
         <thead>
             <tr>
+                <th>Date</th>
                 <th>Action Source</th>
                 <th>Punch Type</th>
                 <th>Time</th>
@@ -46,6 +61,7 @@
                     }
                 @endphp
                 <tr>
+                    <td><b>{{ \Carbon\Carbon::parse($p->work_date)->format('d M Y') }}</b> <span class="muted" style="font-size:11px">({{ \Carbon\Carbon::parse($p->work_date)->format('D') }})</span></td>
                     <td><span class="chip" style="background:#f1f5f9;color:#475569">{{ strtoupper($p->source) }}</span></td>
                     <td>
                         @if($isDD)
@@ -97,7 +113,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="6" class="muted" style="text-align:center;padding:20px">No punches recorded for this date.</td></tr>
+                <tr><td colspan="7" class="muted" style="text-align:center;padding:20px">No punches recorded for this date.</td></tr>
             @endforelse
         </tbody>
     </table>
@@ -111,7 +127,7 @@
 
         <div>
             <label>Punch Type *</label>
-            <select name="type" required style="font-weight:600">
+            <select name="type" required style="font-weight:600" onchange="var t = this.form.time; if(t){ if(this.value === 'out'){ t.value = '18:30'; } else if(this.value === 'in'){ t.value = '09:30'; } }">
                 <option value="in" style="color:#22c55e;font-weight:700" {{ optional($punches->last())->type === 'out' || $punches->isEmpty() ? 'selected' : '' }}>IN (Present)</option>
                 <option value="out" style="color:#ef4444;font-weight:700" {{ optional($punches->last())->type === 'in' ? 'selected' : '' }}>OUT</option>
                 <option value="half_day" style="color:#f97316;font-weight:700">HALF DAY (0.5 Day)</option>
@@ -162,8 +178,9 @@
             </div>
             <div>
                 <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Status / Punch Type *</label>
-                <select name="type" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;font-weight:700;background:#fff">
+                <select name="type" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;font-weight:700;background:#fff" onchange="var t = document.getElementById('range_punch_time'); if(t){ if(this.value === 'out'){ t.value = '18:30'; } else if(this.value === 'in'){ t.value = '09:30'; } }">
                     <option value="in" style="color:#16a34a;font-weight:700">PRESENT (IN)</option>
+                    <option value="out" style="color:#ef4444;font-weight:700">PUNCH OUT (OUT)</option>
                     <option value="half_day" style="color:#ea580c;font-weight:700">HALF DAY (0.5 Day)</option>
                     <option value="double_duty" style="color:#4f46e5;font-weight:700">DOUBLE DUTY (2 Days)</option>
                     <option value="absent" style="color:#dc2626;font-weight:700">ABSENT</option>
@@ -176,7 +193,7 @@
             </div>
             <div>
                 <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Punch Time (optional)</label>
-                <input type="time" name="time" value="09:30" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;background:#fff">
+                <input type="time" name="time" id="range_punch_time" value="09:30" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;background:#fff">
             </div>
             <div>
                 <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Remarks</label>

@@ -465,11 +465,11 @@ $colors = ['#7c3aed','#2563eb','#059669','#db2777','#ea580c','#4f46e5'];
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
                 <div>
                     <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Punch Date (From) *</label>
-                    <input type="date" name="date" id="bulk_mark_date_from" value="{{ $date->toDateString() }}" max="{{ now('Asia/Kolkata')->toDateString() }}" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px" onchange="var dt = document.getElementById('bulk_mark_date_to'); if(dt) dt.min = this.value;">
+                    <input type="date" name="date" id="bulk_mark_date_from" value="{{ $date->toDateString() }}" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px" onchange="var dt = document.getElementById('bulk_mark_date_to'); if(dt && this.value) dt.min = this.value;">
                 </div>
                 <div>
                     <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Punch Date To <span style="font-weight:normal;color:#6b7280">(Optional Range)</span></label>
-                    <input type="date" name="date_to" id="bulk_mark_date_to" min="{{ $date->toDateString() }}" max="{{ now('Asia/Kolkata')->toDateString() }}" placeholder="Optional end date" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px">
+                    <input type="date" name="date_to" id="bulk_mark_date_to" placeholder="Leave empty for single day" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px">
                 </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">

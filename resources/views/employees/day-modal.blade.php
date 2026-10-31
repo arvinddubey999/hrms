@@ -148,17 +148,17 @@
             <i class="fa-solid fa-calendar-days"></i> Mark Date Range Attendance for {{ $staff->displayName() }}
         </h3>
         <p class="muted" style="margin:0 0 12px 0;font-size:12px">
-            Select a date range to mark attendance across multiple days (e.g. 15 Oct to 30 Oct) for this employee at once:
+            Select a date range to mark attendance across multiple days for this employee at once:
         </p>
-        <form method="post" action="{{ route('employees.mark-range', $staff) }}" class="grid-3" style="gap:12px;align-items:end">
+        <form method="post" action="{{ route('employees.mark-range', $staff) }}" class="grid-3" style="gap:12px;align-items:end" onsubmit="var f = this.from_date.value; var t = this.to_date.value; if(t < f){ alert('To Date (' + t + ') must be greater than or equal to From Date (' + f + ').'); return false; }">
             @csrf
             <div>
                 <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">From Date *</label>
-                <input type="date" name="from_date" value="{{ $date }}" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;background:#fff">
+                <input type="date" name="from_date" id="range_from_date" value="{{ $date }}" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;background:#fff" onchange="var td = document.getElementById('range_to_date'); if(td && this.value) td.min = this.value;">
             </div>
             <div>
                 <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">To Date *</label>
-                <input type="date" name="to_date" value="{{ $date }}" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;background:#fff">
+                <input type="date" name="to_date" id="range_to_date" value="{{ $date }}" required style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;background:#fff">
             </div>
             <div>
                 <label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px">Status / Punch Type *</label>

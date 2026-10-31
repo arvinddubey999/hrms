@@ -98,7 +98,10 @@ class AttendanceService
             'remarks' => $remarks,
         ]);
 
-        FirebaseNotificationService::sendPunchNotification($user, $type, $punch->location_text);
+        // Push notifications are strictly for live mobile punches, never during administrative/bulk entry
+        if ($source !== 'admin') {
+            FirebaseNotificationService::sendPunchNotification($user, $type, $punch->location_text);
+        }
 
         return $punch;
     }

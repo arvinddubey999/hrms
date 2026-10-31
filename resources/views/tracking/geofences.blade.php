@@ -824,6 +824,39 @@
         }
     }
 
+    const SURAT_LANDMARKS = [
+        { title: 'Kohinoor Textile Market', address: 'Ring Road, Sahara Darwaja, Begumpura, Surat, Gujarat 395002', lat: '21.191200', lon: '72.846800', keywords: ['kohinoor', 'kohinoor market', 'kohinoor textile market', 'textile market', 'ring road', 'sahara darwaja'] },
+        { title: 'Kohinoor AC Market', address: 'Opp. JJ Market, Ring Road, Surat, Gujarat 395002', lat: '21.191800', lon: '72.847500', keywords: ['kohinoor', 'kohinoor ac market', 'kohinoor market', 'ring road'] },
+        { title: 'Millennium Textile Market', address: 'Ring Road, Sahara Darwaja, Surat, Gujarat 395002', lat: '21.192500', lon: '72.848200', keywords: ['millennium', 'millennium market', 'ring road'] },
+        { title: 'Millennium 2 Textile Market', address: 'B/h Millennium Market, Ring Road, Surat, Gujarat 395002', lat: '21.193000', lon: '72.849000', keywords: ['millennium 2', 'millennium market', 'ring road'] },
+        { title: 'Bombay Textile Market', address: 'Umarwada, Surat, Gujarat 395010', lat: '21.195000', lon: '72.852000', keywords: ['bombay', 'bombay market', 'umarwada'] },
+        { title: 'Surat Textile Market (STM)', address: 'Ring Road, Surat, Gujarat 395002', lat: '21.190500', lon: '72.845500', keywords: ['stm', 'surat textile market', 'ring road'] },
+        { title: 'Radharaman Textile Market', address: 'Saroli, Surat, Gujarat 395010', lat: '21.196000', lon: '72.875000', keywords: ['radharaman', 'radha raman', 'saroli'] },
+        { title: 'J.J. Textile Market', address: 'Ring Road, Surat, Gujarat 395002', lat: '21.191500', lon: '72.846000', keywords: ['jj market', 'jj textile market', 'ring road'] },
+        { title: 'Raghukul Textile Market', address: 'Ring Road, Surat, Gujarat 395002', lat: '21.190800', lon: '72.845000', keywords: ['raghukul', 'raghukul market', 'ring road'] },
+        { title: 'Avadh Textile Market', address: 'Sahara Darwaja, Ring Road, Surat, Gujarat 395002', lat: '21.193500', lon: '72.850500', keywords: ['avadh', 'avadh market', 'sahara darwaja'] },
+        { title: 'Shree Kuberji Textile Market', address: 'Delhi Gate, Ring Road, Surat, Gujarat 395003', lat: '21.198000', lon: '72.841000', keywords: ['kuberji', 'kuberji market', 'delhi gate'] },
+        { title: 'Universal Textile Market', address: 'Ring Road, Surat, Gujarat 395002', lat: '21.192000', lon: '72.847000', keywords: ['universal', 'universal market', 'ring road'] },
+        { title: 'Japan Market', address: 'Ring Road, Delhi Gate, Surat, Gujarat 395003', lat: '21.197500', lon: '72.840500', keywords: ['japan market', 'delhi gate'] },
+        { title: 'New TT Market', address: 'Ring Road, Surat, Gujarat 395002', lat: '21.191000', lon: '72.846500', keywords: ['tt market', 'new tt market', 'ring road'] },
+        { title: 'Kamla Market', address: 'Ring Road, Begumpura, Surat, Gujarat 395002', lat: '21.190000', lon: '72.844500', keywords: ['kamla market', 'ring road'] },
+        { title: 'Tirupati Textile Market', address: 'Ring Road, Surat, Gujarat 395002', lat: '21.191500', lon: '72.846200', keywords: ['tirupati', 'tirupati market', 'ring road'] },
+        { title: 'Shree Mahavir Textile Market', address: 'Ring Road, Surat, Gujarat 395002', lat: '21.192200', lon: '72.847800', keywords: ['mahavir', 'mahavir market', 'ring road'] },
+        { title: 'Sahara Darwaja Market Area', address: 'Sahara Darwaja, Surat, Gujarat 395002', lat: '21.194000', lon: '72.851000', keywords: ['sahara darwaja', 'sahara market'] },
+        { title: 'Varachha Main Road Diamond Market', address: 'Varachha Road, Surat, Gujarat 395006', lat: '21.211000', lon: '72.857000', keywords: ['varachha', 'diamond market', 'mini bazar'] },
+        { title: 'Katargam GIDC Industrial Area', address: 'Katargam, Surat, Gujarat 395004', lat: '21.228000', lon: '72.835000', keywords: ['katargam', 'katargam gidc'] },
+        { title: 'Pandesara GIDC Industrial Estate', address: 'Pandesara, Surat, Gujarat 394221', lat: '21.135000', lon: '72.825000', keywords: ['pandesara', 'pandesara gidc'] },
+        { title: 'Sachin GIDC Industrial Area', address: 'Sachin, Surat, Gujarat 394230', lat: '21.075000', lon: '72.865000', keywords: ['sachin', 'sachin gidc'] },
+        { title: 'Udhna Udyog Nagar', address: 'Udhna, Surat, Gujarat 394210', lat: '21.162000', lon: '72.838000', keywords: ['udhna', 'udhna udyog nagar'] },
+        { title: 'Adajan Gam / L.P. Savani Road', address: 'Adajan, Surat, Gujarat 395009', lat: '21.198000', lon: '72.795000', keywords: ['adajan', 'lp savani'] },
+        { title: 'Vesu / VIP Road', address: 'Vesu, Surat, Gujarat 395007', lat: '21.145000', lon: '72.785000', keywords: ['vesu', 'vip road'] },
+        { title: 'Ghod Dod Road', address: 'Athwa, Surat, Gujarat 395007', lat: '21.175000', lon: '72.805000', keywords: ['ghod dod road', 'athwa'] },
+        { title: 'Majura Gate', address: 'Ring Road, Majura, Surat, Gujarat 395002', lat: '21.178000', lon: '72.821000', keywords: ['majura gate', 'majura'] },
+        { title: 'Delhi Gate', address: 'Ring Road, Surat, Gujarat 395003', lat: '21.199000', lon: '72.839000', keywords: ['delhi gate'] },
+        { title: 'Surat Railway Station', address: 'Station Road, Surat, Gujarat 395003', lat: '21.205000', lon: '72.841000', keywords: ['railway station', 'station road', 'surat station'] },
+        { title: 'Saroli Textile Hub', address: 'Saroli, Surat, Gujarat 395010', lat: '21.197000', lon: '72.879000', keywords: ['saroli', 'saroli market'] }
+    ];
+
     let suggestTimeout = null;
     function searchLocationQuery(query) {
         clearTimeout(suggestTimeout);
@@ -834,52 +867,82 @@
         }
 
         suggestTimeout = setTimeout(async () => {
-            const q = query.trim();
-            list.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#64748b"><i class="fa-solid fa-spinner fa-spin" style="color:#2563eb;margin-right:6px"></i> Searching Indian places & Surat markets for "' + escapeHtml(q) + '"...</div>';
+            const q = query.trim().toLowerCase();
+            list.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#64748b"><i class="fa-solid fa-spinner fa-spin" style="color:#2563eb;margin-right:6px"></i> Searching Surat markets & Indian places for "' + escapeHtml(query) + '"...</div>';
             list.style.display = 'block';
 
             let items = [];
 
-            // 1. Photon (Komoot OSM) geocoder with Surat, Gujarat, India geo-bias (Lat: 21.1702, Lon: 72.8311)
+            // 1. SURAT VERIFIED LOCAL CATALOG SEARCH (Priority #1)
+            SURAT_LANDMARKS.forEach(lm => {
+                const titleLower = lm.title.toLowerCase();
+                const addrLower = lm.address.toLowerCase();
+                const matchesKeyword = lm.keywords.some(k => q.includes(k) || k.includes(q));
+                if (titleLower.includes(q) || addrLower.includes(q) || matchesKeyword) {
+                    items.push({
+                        lat: lm.lat,
+                        lon: lm.lon,
+                        title: lm.title,
+                        label: lm.address,
+                        isSuratVerified: true,
+                        priorityScore: 1000
+                    });
+                }
+            });
+
+            // 2. OpenStreetMap Nominatim strictly filtered for India and Surat
             try {
-                const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lat=21.1702&lon=72.8311&limit=10`;
-                const pRes = await fetch(photonUrl);
-                if (pRes.ok) {
-                    const data = await pRes.json();
-                    if (data && data.features) {
-                        data.features.forEach(f => {
-                            const p = f.properties || {};
-                            const coords = f.geometry ? f.geometry.coordinates : null;
-                            if (coords && coords.length >= 2) {
-                                const nameParts = [p.name, p.street, p.district, p.city, p.state, p.country].filter(Boolean);
-                                const label = nameParts.join(', ');
-                                items.push({
-                                    lat: parseFloat(coords[1]).toFixed(6),
-                                    lon: parseFloat(coords[0]).toFixed(6),
-                                    title: p.name || 'Location',
-                                    label: label || p.name || 'Location'
-                                });
+                const nomSuratUrl = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&viewbox=72.65,21.05,73.05,21.35&bounded=0&q=${encodeURIComponent(query + ' Surat')}&limit=8&addressdetails=1`;
+                const sRes = await fetch(nomSuratUrl);
+                if (sRes.ok) {
+                    const data = await sRes.json();
+                    if (Array.isArray(data)) {
+                        data.forEach(r => {
+                            const label = r.display_name || '';
+                            const labelLower = label.toLowerCase();
+                            // Reject foreign results immediately
+                            if (labelLower.includes('bangladesh') || labelLower.includes('pakistan') || labelLower.includes('dhaka')) {
+                                return;
                             }
+                            const isSurat = labelLower.includes('surat');
+                            const isGujarat = labelLower.includes('gujarat');
+                            items.push({
+                                lat: parseFloat(r.lat).toFixed(6),
+                                lon: parseFloat(r.lon).toFixed(6),
+                                title: r.display_name.split(',')[0] || r.display_name,
+                                label: r.display_name,
+                                isSuratVerified: isSurat,
+                                priorityScore: isSurat ? 900 : (isGujarat ? 400 : 100)
+                            });
                         });
                     }
                 }
             } catch (e) {}
 
-            // 2. OpenStreetMap Nominatim with India countrycode filter and Surat/Gujarat viewbox priority
+            // 3. Fallback Nominatim query without appending 'Surat' if still few items
             if (items.length < 5) {
                 try {
-                    const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&viewbox=72.6,21.0,73.1,21.4&bounded=0&q=${encodeURIComponent(q)}&limit=8&addressdetails=1`;
+                    const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&q=${encodeURIComponent(query)}&limit=8&addressdetails=1`;
                     const nRes = await fetch(nomUrl);
                     if (nRes.ok) {
                         const data = await nRes.json();
                         if (Array.isArray(data)) {
                             data.forEach(r => {
-                                const title = r.display_name.split(',')[0] || r.display_name;
+                                const label = r.display_name || '';
+                                const labelLower = label.toLowerCase();
+                                // Strictly reject foreign countries
+                                if (labelLower.includes('bangladesh') || labelLower.includes('pakistan') || labelLower.includes('dhaka')) {
+                                    return;
+                                }
+                                const isSurat = labelLower.includes('surat');
+                                const isGujarat = labelLower.includes('gujarat');
                                 items.push({
                                     lat: parseFloat(r.lat).toFixed(6),
                                     lon: parseFloat(r.lon).toFixed(6),
-                                    title: title,
-                                    label: r.display_name
+                                    title: r.display_name.split(',')[0] || r.display_name,
+                                    label: r.display_name,
+                                    isSuratVerified: isSurat,
+                                    priorityScore: isSurat ? 900 : (isGujarat ? 400 : 100)
                                 });
                             });
                         }
@@ -887,29 +950,7 @@
                 } catch (e) {}
             }
 
-            // 3. Fallback: If still few results and user did not type "surat", search with "${q} Surat"
-            if (items.length === 0 && !q.toLowerCase().includes('surat')) {
-                try {
-                    const retryUrl = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&q=${encodeURIComponent(q + ' surat')}&limit=8`;
-                    const rRes = await fetch(retryUrl);
-                    if (rRes.ok) {
-                        const data = await rRes.json();
-                        if (Array.isArray(data)) {
-                            data.forEach(r => {
-                                const title = r.display_name.split(',')[0] || r.display_name;
-                                items.push({
-                                    lat: parseFloat(r.lat).toFixed(6),
-                                    lon: parseFloat(r.lon).toFixed(6),
-                                    title: title,
-                                    label: r.display_name
-                                });
-                            });
-                        }
-                    }
-                } catch (e) {}
-            }
-
-            // Deduplicate items based on coordinates
+            // Deduplicate items based on coordinates and sort by priorityScore (Surat top)
             const uniqueItems = [];
             const seen = new Set();
             items.forEach(it => {
@@ -920,20 +961,31 @@
                 }
             });
 
+            // Strict sort: Surat #1, then Gujarat, then rest of India
+            uniqueItems.sort((a, b) => (b.priorityScore || 0) - (a.priorityScore || 0));
+
             list.innerHTML = '';
             if (uniqueItems.length > 0) {
                 uniqueItems.slice(0, 10).forEach(it => {
                     const item = document.createElement('div');
-                    item.style.padding = '8px 12px';
+                    item.style.padding = '9px 12px';
                     item.style.fontSize = '12px';
                     item.style.cursor = 'pointer';
                     item.style.borderBottom = '1px solid #f1f5f9';
                     item.style.lineHeight = '1.35';
+
+                    const badgeHtml = it.isSuratVerified 
+                        ? `<span style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px;border:1px solid #bbf7d0"><i class="fa-solid fa-location-dot"></i> Surat Verified</span>` 
+                        : '';
+
                     item.innerHTML = `<div style="display:flex;align-items:flex-start;gap:8px">
-                        <i class="fa-solid fa-location-dot" style="color:#ef4444;font-size:13px;margin-top:2px"></i>
-                        <div>
-                            <b style="color:#0f172a">${escapeHtml(it.title)}</b>
-                            <div style="font-size:11px;color:#64748b;margin-top:1px">${escapeHtml(it.label)}</div>
+                        <i class="fa-solid fa-location-dot" style="color:${it.isSuratVerified ? '#16a34a' : '#ef4444'};font-size:13px;margin-top:2px"></i>
+                        <div style="flex:1">
+                            <div style="display:flex;align-items:center;justify-content:space-between">
+                                <b style="color:#0f172a">${escapeHtml(it.title)}</b>
+                                ${badgeHtml}
+                            </div>
+                            <div style="font-size:11px;color:#64748b;margin-top:2px">${escapeHtml(it.label)}</div>
                         </div>
                     </div>`;
                     item.onmouseover = function() { this.style.background = '#f8fafc'; };
@@ -943,7 +995,7 @@
                         document.getElementById('fieldLongitude').value = it.lon;
                         document.getElementById('dispLat').textContent = it.lat;
                         document.getElementById('dispLng').textContent = it.lon;
-                        document.getElementById('fieldAddress').value = it.label;
+                        document.getElementById('fieldAddress').value = it.title + ' — ' + it.label;
                         if (typeof overviewMap !== 'undefined' && overviewMap) {
                             overviewMap.setView([parseFloat(it.lat), parseFloat(it.lon)], 16);
                         }
@@ -953,10 +1005,10 @@
                 });
                 list.style.display = 'block';
             } else {
-                list.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#94a3b8;text-align:center">No location found for "' + escapeHtml(q) + '". Try searching with specific market name or Surat area.</div>';
+                list.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#94a3b8;text-align:center">No location found for "' + escapeHtml(query) + '". Try searching with specific market name or Surat area.</div>';
                 list.style.display = 'block';
             }
-        }, 300);
+        }, 250);
     }
 
     function escapeHtml(text) {

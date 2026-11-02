@@ -272,4 +272,44 @@ class RosterController extends Controller
 
         return view('roster.pdf', compact('employees', 'month', 'year', 'days', 'dateRange', 'fromDate', 'toDate', 'attendance'));
     }
+
+    public function exportPrintableExcel(Request $request, AttendanceService $attendance)
+    {
+        $month = (int) $request->get('m', now()->month);
+        $year = (int) $request->get('y', now()->year);
+        $fromDate = $request->get('from_date');
+        $toDate = $request->get('to_date');
+
+        $user = auth()->user();
+        $query = $this->getScopedRosterQuery($request, $user);
+        $employees = $query->with(['category', 'shift'])->orderBy('first_name')->get();
+
+        if ($fromDate && $toDate) {
+            $startDate = Carbon::parse($fromDate);
+            $endDate = Carbon::parse($toDate);
+            $dateRange = [];
+            $curr = $startDate->copy();
+            while ($curr->lte($endDate)) {
+                $dateRange[] = $curr->copy();
+                $curr->addDay();
+            }
+            $days = count($dateRange);
+        } else {
+            $startDate = Carbon::create($year, $month, 1);
+            $days = $startDate->daysInMonth;
+            $dateRange = [];
+            for ($d = 1; $d <= $days; $d++) {
+                $dateRange[] = Carbon::create($year, $month, $d);
+            }
+            $days = count($dateRange);
+        }
+
+        $filename = "monthly-roster-printable-{$year}-{$month}.xls";
+        $html = view('roster.printable_excel', compact('employees', 'month', 'year', 'days', 'dateRange', 'fromDate', 'toDate', 'attendance'))->render();
+
+        return response($html, 200, [
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
 }

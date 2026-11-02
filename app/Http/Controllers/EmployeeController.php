@@ -515,26 +515,39 @@ class EmployeeController extends Controller
                         $punchType = 'in';
                     }
 
-                    // CRITICAL FIX: Only delete previous punch of the SAME type (in or out)
-                    // If marking OUT, delete only previous OUT punches, strictly PRESERVING existing IN punch!
-                    // If marking IN (or half_day/double_duty/wop/hop), delete only previous IN punches, strictly PRESERVING existing OUT punch!
-                    if ($punchType === 'out') {
-                        AttendancePunch::query()
-                            ->whereIn('user_id', $data['employee_ids'])
-                            ->whereDate('work_date', $workDate)
-                            ->where('type', 'out')
-                            ->delete();
-                    } else {
-                        AttendancePunch::query()
-                            ->whereIn('user_id', $data['employee_ids'])
-                            ->whereDate('work_date', $workDate)
-                            ->where('type', 'in')
-                            ->delete();
-                    }
-
                     foreach ($data['employee_ids'] as $id) {
                         $user = User::find($id);
                         if ($user) {
+                            $workDateCarbon = Carbon::parse($workDate);
+                            $isWeekOff = $attendance->isWeekOffDay($user, $workDateCarbon);
+                            $isHoliday = (bool)$attendance->isApplicableHoliday($user, $workDateCarbon);
+
+                            // Requirement: If date is employee's Week-Off Day or Holiday, do NOT mark Present!
+                            // Keep as Week Off (WO) or Holiday (H). If Week-Off Day is 'None', isWeekOffDay returns false, so P is marked.
+                            if (in_array($type, ['in', 'out', 'half_day', 'double_duty']) && ($isWeekOff || $isHoliday)) {
+                                AttendancePunch::query()
+                                    ->where('user_id', $user->id)
+                                    ->whereDate('work_date', $workDate)
+                                    ->where('type', $punchType === 'out' ? 'out' : 'in')
+                                    ->delete();
+                                continue;
+                            }
+
+                            // Only delete prior punch of the same type for this employee
+                            if ($punchType === 'out') {
+                                AttendancePunch::query()
+                                    ->where('user_id', $user->id)
+                                    ->whereDate('work_date', $workDate)
+                                    ->where('type', 'out')
+                                    ->delete();
+                            } else {
+                                AttendancePunch::query()
+                                    ->where('user_id', $user->id)
+                                    ->whereDate('work_date', $workDate)
+                                    ->where('type', 'in')
+                                    ->delete();
+                            }
+
                             $attendance->punch(
                                 $user,
                                 $punchType,
@@ -918,9 +931,23 @@ class EmployeeController extends Controller
                         $punchType = 'in';
                     }
 
-                    // CRITICAL FIX: Only delete previous punch of the SAME type (in or out)
-                    // If marking OUT, delete only previous OUT punches, strictly PRESERVING existing IN punch!
-                    // If marking IN (or half_day/double_duty/wop/hop), delete only previous IN punches, strictly PRESERVING existing OUT punch!
+                    $workDateCarbon = Carbon::parse($workDate);
+                    $isWeekOff = $attendance->isWeekOffDay($employee, $workDateCarbon);
+                    $isHoliday = (bool)$attendance->isApplicableHoliday($employee, $workDateCarbon);
+
+                    // Requirement: If date is employee's Week-Off Day or Holiday, do NOT mark Present!
+                    // Keep as Week Off (WO) or Holiday (H). If Week-Off Day is 'None', isWeekOffDay returns false, so P is marked.
+                    if (in_array($type, ['in', 'out', 'half_day', 'double_duty']) && ($isWeekOff || $isHoliday)) {
+                        AttendancePunch::query()
+                            ->where('user_id', $employee->id)
+                            ->whereDate('work_date', $workDate)
+                            ->where('type', $punchType === 'out' ? 'out' : 'in')
+                            ->delete();
+                        $curr->addDay();
+                        continue;
+                    }
+
+                    // Only delete previous punch of the SAME type (in or out)
                     if ($punchType === 'out') {
                         AttendancePunch::query()
                             ->where('user_id', $employee->id)

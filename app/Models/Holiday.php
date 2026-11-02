@@ -9,11 +9,16 @@ class Holiday extends Model
     protected $fillable = ['name', 'date', 'description', 'company_ids', 'department_ids', 'category_ids'];
 
     protected $casts = [
-        'date' => 'date',
+        'date' => 'date:Y-m-d',
         'company_ids' => 'array',
         'department_ids' => 'array',
         'category_ids' => 'array',
     ];
+
+    protected function serializeDate(\DateTimeInterface $date)
+    {
+        return $date->format('Y-m-d');
+    }
 
     public function isApplicableToCompany(?int $companyId): bool
     {

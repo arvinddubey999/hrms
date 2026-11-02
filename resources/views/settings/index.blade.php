@@ -488,7 +488,15 @@
                         </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-                        <button type="button" class="btn light" onclick="openEditHolidayModal({{ json_encode($hol) }})" style="padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer" title="Edit Holiday">
+                        <button type="button" class="btn light" onclick="openEditHolidayModal({{ json_encode([
+                            'id' => $hol->id,
+                            'name' => $hol->name,
+                            'date' => $hol->date ? $hol->date->format('Y-m-d') : '',
+                            'description' => $hol->description,
+                            'company_ids' => $hol->company_ids,
+                            'department_ids' => $hol->department_ids,
+                            'category_ids' => $hol->category_ids,
+                        ]) }})" style="padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer" title="Edit Holiday">
                             <i class="fa-solid fa-pencil" style="font-size:13px;color:#475569"></i>
                         </button>
                         <form method="post" action="{{ route('settings.holidays.destroy', $hol) }}" style="display:inline;margin:0" onsubmit="return confirm('Delete this holiday?')">
@@ -527,17 +535,26 @@
         <form id="holidayForm" method="post" action="{{ route('settings.holidays.store') }}" style="padding:18px 20px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px;margin:0">
             @csrf
             <input type="hidden" name="_method" id="holiday_form_method" value="post">
-            <input type="hidden" name="date" id="holiday_date" value="{{ now()->toDateString() }}">
 
             <!-- 1. Holiday Name -->
             <div>
                 <label style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:6px">Holiday Name</label>
-                <input name="name" id="holiday_name" placeholder="Enter holiday name" required style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;outline:none;box-sizing:border-box">
+                <input name="name" id="holiday_name" placeholder="Enter holiday name (e.g. Diwali / New Year)" required style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;outline:none;box-sizing:border-box">
             </div>
 
-            <!-- 2. Holiday Date (Interactive Calendar matching Screenshots 2 & 3) -->
+            <!-- 2. Holiday Date (Interactive Calendar & Multi-Day Range Support) -->
             <div>
                 <label style="display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:6px">Holiday Date</label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                    <div>
+                        <label style="font-size:11.5px;font-weight:600;color:#475569;display:block;margin-bottom:4px">From Date *</label>
+                        <input type="date" name="date" id="holiday_date" value="{{ now()->toDateString() }}" required style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:7px 10px;font-size:12.5px;box-sizing:border-box" onchange="selectedHolidayDateStr = this.value; var td = document.getElementById('holiday_to_date'); if(td) td.min = this.value; if(this.value){ const p = this.value.split('-'); holidayCalYear = parseInt(p[0],10); holidayCalMonth = parseInt(p[1],10)-1; renderHolidayCalendar(); }">
+                    </div>
+                    <div id="holidayToDateWrapper">
+                        <label style="font-size:11.5px;font-weight:600;color:#475569;display:block;margin-bottom:4px">To Date <span style="font-size:10.5px;color:#64748b;font-weight:normal">(Optional - for multi-day e.g. Diwali)</span></label>
+                        <input type="date" name="to_date" id="holiday_to_date" placeholder="Leave blank for single day" style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:7px 10px;font-size:12.5px;box-sizing:border-box">
+                    </div>
+                </div>
                 <div style="border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;background:#fff">
                     <!-- Calendar Header (Month Year Nav) -->
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -936,9 +953,17 @@ function closeEditDeptModal() {
 }
 
 /* Holiday Modal & Interactive Calendar matching Screenshots 2 & 3 */
+function getLocalDateString(d) {
+    d = d || new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 let holidayCalYear = new Date().getFullYear();
 let holidayCalMonth = new Date().getMonth(); // 0-indexed
-let selectedHolidayDateStr = new Date().toISOString().substring(0, 10);
+let selectedHolidayDateStr = getLocalDateString();
 const monthNamesList = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 function renderHolidayCalendar() {
@@ -984,6 +1009,8 @@ function renderHolidayCalendar() {
         dayBtn.onclick = function() {
             selectedHolidayDateStr = thisDateStr;
             document.getElementById('holiday_date').value = thisDateStr;
+            var td = document.getElementById('holiday_to_date');
+            if (td) td.min = thisDateStr;
             renderHolidayCalendar();
         };
 
@@ -1015,8 +1042,16 @@ function openAddHolidayModal() {
     const today = new Date();
     holidayCalYear = today.getFullYear();
     holidayCalMonth = today.getMonth();
-    selectedHolidayDateStr = today.toISOString().substring(0, 10);
+    selectedHolidayDateStr = getLocalDateString(today);
     document.getElementById('holiday_date').value = selectedHolidayDateStr;
+
+    var toEl = document.getElementById('holiday_to_date');
+    if (toEl) {
+        toEl.value = '';
+        toEl.min = selectedHolidayDateStr;
+    }
+    var toWrap = document.getElementById('holidayToDateWrapper');
+    if (toWrap) toWrap.style.display = 'block';
 
     document.querySelectorAll('.hol-cat-chk').forEach(c => c.checked = false);
     document.querySelectorAll('.hol-comp-chk').forEach(c => c.checked = true);
@@ -1034,6 +1069,11 @@ function openEditHolidayModal(hol) {
 
     document.getElementById('holiday_name').value = hol.name || '';
     document.getElementById('holiday_description').value = hol.description || '';
+
+    var toWrap = document.getElementById('holidayToDateWrapper');
+    if (toWrap) toWrap.style.display = 'none';
+    var toEl = document.getElementById('holiday_to_date');
+    if (toEl) toEl.value = '';
 
     // Date setup
     const dateStr = (hol.date || '').substring(0, 10);

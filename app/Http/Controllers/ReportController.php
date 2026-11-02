@@ -89,12 +89,18 @@ class ReportController extends Controller
         
         $catIds = $request->get('category_ids');
         if (!empty($catIds) && !in_array('all', (array)$catIds)) {
-            $query->whereIn('category_id', (array)$catIds);
+            $filteredCats = array_values(array_filter((array)$catIds, fn($val) => $val !== '' && $val !== null));
+            if (!empty($filteredCats)) {
+                $query->whereIn('category_id', $filteredCats);
+            }
         }
 
         $empIds = $request->get('employee_ids');
         if (!empty($empIds) && !in_array('all', (array)$empIds)) {
-            $query->whereIn('id', (array)$empIds);
+            $filteredEmps = array_values(array_filter((array)$empIds, fn($val) => $val !== '' && $val !== null));
+            if (!empty($filteredEmps)) {
+                $query->whereIn('id', $filteredEmps);
+            }
         }
 
         if ($request->get('company_id')) {
@@ -153,6 +159,107 @@ class ReportController extends Controller
                 'to' => $to,
                 'employees' => $employees,
                 'attendance' => $attendance,
+            ]);
+        }
+
+        // 1.5 Monthly Payroll Summary Register (Matches client screenshot format)
+        if ($type === 'payroll_summary_register') {
+            $month = $from->month;
+            $year = $from->year;
+            $payrollService = app(\App\Services\PayrollService::class);
+
+            // Group employees by department
+            $groupedEmployees = $employees->groupBy(function ($emp) {
+                return $emp->department ?: ($emp->department_id ? \App\Models\Department::find($emp->department_id)?->name : 'Unassigned');
+            });
+
+            $departmentsData = [];
+            $grandGross = 0;
+            $grandIncentive = 0;
+            $grandNet = 0;
+
+            foreach ($groupedEmployees as $deptName => $deptEmployees) {
+                $rows = [];
+                $deptGross = 0;
+                $deptIncentive = 0;
+                $deptNet = 0;
+
+                foreach ($deptEmployees as $emp) {
+                    $pay = $payrollService->compute($emp, $year, $month);
+                    $sum = $pay['summary'];
+
+                    $cntP = $sum['present'] ?? 0;
+                    $cntA = $sum['absent'] ?? 0;
+                    $cntWO = $sum['weekOff'] ?? 0;
+                    $cntWOP = $sum['wop'] ?? 0;
+                    $cntH = $sum['holiday'] ?? 0;
+                    $cntHOP = $sum['hop'] ?? ($sum['holidayPresent'] ?? 0);
+                    $totPrDays = $cntP + $cntWO + $cntWOP + $cntH + $cntHOP;
+
+                    $salaryRate = (float) $emp->salary;
+                    $gross = round($pay['gross'], 1);
+                    $incentive = round($pay['incentive_total'], 1);
+                    $net = round($pay['net'], 1);
+
+                    $deptGross += $gross;
+                    $deptIncentive += $incentive;
+                    $deptNet += $net;
+
+                    $rows[] = [
+                        'user' => $emp,
+                        'name' => $emp->displayName(),
+                        'p' => $cntP,
+                        'a' => $cntA,
+                        'wo' => $cntWO,
+                        'wop' => $cntWOP,
+                        'h' => $cntH,
+                        'hop' => $cntHOP,
+                        'total_pr_days' => $totPrDays,
+                        'salary_rate' => $salaryRate,
+                        'gross' => $gross,
+                        'incentive' => $incentive,
+                        'net' => $net,
+                    ];
+                }
+
+                $grandGross += $deptGross;
+                $grandIncentive += $deptIncentive;
+                $grandNet += $deptNet;
+
+                $departmentsData[] = [
+                    'department' => $deptName,
+                    'rows' => $rows,
+                    'dept_gross' => $deptGross,
+                    'dept_incentive' => $deptIncentive,
+                    'dept_net' => $deptNet,
+                ];
+            }
+
+            $setting = Setting::current();
+            $companyAddress = $setting->office_address ?? ($setting->company_address ?? 'Surat, Gujarat');
+
+            $viewData = [
+                'companyName' => $companyName,
+                'companyAddress' => $companyAddress,
+                'from' => $from,
+                'to' => $to,
+                'month' => $month,
+                'year' => $year,
+                'departmentsData' => $departmentsData,
+                'grandGross' => $grandGross,
+                'grandIncentive' => $grandIncentive,
+                'grandNet' => $grandNet,
+                'isExcel' => ($format === 'excel'),
+            ];
+
+            if ($format === 'pdf' || $format === 'html') {
+                return view('reports.excel_payroll_summary_register', $viewData);
+            }
+
+            $filename = "Monthly_Payroll_Summary_Register_" . $from->format('F_Y') . ".xls";
+            return response(view('reports.excel_payroll_summary_register', $viewData)->render(), 200, [
+                'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
+                'Content-Disposition' => "attachment; filename=\"{$filename}\"",
             ]);
         }
 

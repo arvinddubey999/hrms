@@ -184,6 +184,11 @@ class SettingsController extends Controller
     // Holiday Master CRUD
     public function storeHoliday(Request $request)
     {
+        $rawToDate = $request->input('to_date');
+        if (is_string($rawToDate) && trim($rawToDate) === '') {
+            $rawToDate = null;
+        }
+
         $data = $request->validate([
             'name' => 'required|string',
             'date' => 'required|date',
@@ -193,9 +198,38 @@ class SettingsController extends Controller
             'category_ids' => 'nullable|array',
         ]);
 
-        Holiday::create($data);
+        if (!empty($rawToDate) && $rawToDate < $data['date']) {
+            return back()->with('error', 'Holiday To Date must be greater than or equal to From Date.');
+        }
 
-        return back()->with('ok', 'Holiday added.');
+        $startDate = \Carbon\Carbon::parse($data['date']);
+        $endDate = !empty($rawToDate) ? \Carbon\Carbon::parse($rawToDate) : $startDate->copy();
+
+        $count = 0;
+        $curr = $startDate->copy();
+        while ($curr->lte($endDate)) {
+            $currDate = $curr->toDateString();
+            Holiday::updateOrCreate(
+                [
+                    'date' => $currDate,
+                    'name' => $data['name'],
+                ],
+                [
+                    'description' => $data['description'] ?? null,
+                    'company_ids' => $data['company_ids'] ?? null,
+                    'department_ids' => $data['department_ids'] ?? null,
+                    'category_ids' => $data['category_ids'] ?? null,
+                ]
+            );
+            $count++;
+            $curr->addDay();
+        }
+
+        $msg = $count > 1 
+            ? "Holiday '{$data['name']}' created successfully for {$count} days ({$startDate->toDateString()} to {$endDate->toDateString()})." 
+            : "Holiday '{$data['name']}' added successfully for {$startDate->toDateString()}.";
+
+        return back()->with('ok', $msg);
     }
 
     public function updateHoliday(Request $request, Holiday $holiday)

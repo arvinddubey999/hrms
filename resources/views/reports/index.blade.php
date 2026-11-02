@@ -87,6 +87,15 @@
                 <i class="fa-solid fa-sliders"></i> Generate
             </button>
         </div>
+
+        <div class="report-card" style="border:2px solid #bbf7d0;background:#f0fdf4">
+            <div class="report-icon" style="background:#16a34a;color:#fff"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+            <h3 style="color:#166534">Monthly Payroll Summary Register</h3>
+            <p>Generate department-wise monthly payroll register with P, A, WO, WOP, H, HOP, Total PR.Days, Salary Rate, Gross Salary &amp; Net Payable.</p>
+            <button class="btn" style="background:#166534" onclick="openReportModal('payroll_summary_register', 'Monthly Payroll Summary Register', 'Generate Payroll Register')">
+                <i class="fa-solid fa-sliders"></i> Generate
+            </button>
+        </div>
     </div>
 </div>
 
@@ -134,6 +143,15 @@
 <!-- TAB 3: FINANCE & PAYROLL -->
 <div id="tab-finance" class="tab-pane" style="display:none">
     <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(310px, 1fr));gap:16px">
+        <div class="report-card" style="border:2px solid #bbf7d0;background:#f0fdf4">
+            <div class="report-icon" style="background:#16a34a;color:#fff"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+            <h3 style="color:#166534">Monthly Payroll Summary Register</h3>
+            <p>Generate department-wise monthly payroll register with P, A, WO, WOP, H, HOP, Total PR.Days, Salary Rate, Gross Salary &amp; Net Payable.</p>
+            <button class="btn" style="background:#166534" onclick="openReportModal('payroll_summary_register', 'Monthly Payroll Summary Register', 'Generate Payroll Register')">
+                <i class="fa-solid fa-sliders"></i> Generate
+            </button>
+        </div>
+
         <div class="report-card">
             <div class="report-icon"><i class="fa-solid fa-money-bill-wave"></i></div>
             <h3>Salary Sheet Report</h3>
@@ -281,7 +299,7 @@
                         </label>
                         @foreach($categories as $cat)
                             <label class="cat-item" style="display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;color:#374151">
-                                <input type="checkbox" name="category_ids[]" value="{{ $cat->id }}" class="cat-cb" checked> {{ $cat->name }}
+                                <input type="checkbox" name="category_ids[]" value="{{ $cat->id }}" class="cat-cb" onchange="syncEmployeesByCategory()" checked> {{ $cat->name }}
                             </label>
                         @endforeach
                     </div>
@@ -294,11 +312,13 @@
                     
                     <div style="max-height:180px;overflow-y:auto" id="empChecklist">
                         <label style="display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px solid #f3f4f6;font-weight:600">
-                            <input type="checkbox" id="selectAllEmpCheckbox" onchange="toggleSelectAllEmployees(this)" checked> Select All ({{ $employees->count() }}) Employees
+                            <input type="checkbox" id="selectAllEmpCheckbox" onchange="toggleSelectAllEmployees(this)" checked> <span id="selectAllEmpLabel">Select All ({{ $employees->count() }}) Employees</span>
                         </label>
                         @foreach($employees as $emp)
-                            <label class="emp-item" style="display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;color:#374151">
-                                <input type="checkbox" name="employee_ids[]" value="{{ $emp->id }}" class="emp-cb" checked> {{ $emp->displayName() }}
+                            <label class="emp-item" data-category-id="{{ $emp->category_id ?: 0 }}" style="display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;color:#374151">
+                                <input type="checkbox" name="employee_ids[]" value="{{ $emp->id }}" class="emp-cb" onchange="syncSelectAllEmpState()" checked>
+                                <span>{{ $emp->displayName() }}</span>
+                                <small style="color:#64748b;font-size:10.5px">({{ $emp->category?->name ?? 'Unassigned' }})</small>
                             </label>
                         @endforeach
                     </div>
@@ -393,6 +413,7 @@ function openReportModal(type, title, btnLabel) {
     document.getElementById('reportTypeInput').value = type;
     document.getElementById('reportModalTitle').innerText = title;
     document.getElementById('reportSubmitBtn').innerText = btnLabel || 'Generate Report';
+    syncEmployeesByCategory();
     document.getElementById('reportModal').classList.add('open');
 }
 
@@ -415,19 +436,73 @@ function filterCategoriesList() {
 }
 
 function filterEmployeesList() {
-    const q = document.getElementById('empSearchInput').value.toLowerCase();
-    document.querySelectorAll('.emp-item').forEach(item => {
-        const txt = item.innerText.toLowerCase();
-        item.style.display = txt.includes(q) ? 'flex' : 'none';
-    });
+    syncEmployeesByCategory();
 }
 
 function toggleSelectAllCategories(master) {
     document.querySelectorAll('.cat-cb').forEach(cb => cb.checked = master.checked);
+    syncEmployeesByCategory();
 }
 
 function toggleSelectAllEmployees(master) {
-    document.querySelectorAll('.emp-cb').forEach(cb => cb.checked = master.checked);
+    document.querySelectorAll('.emp-item').forEach(item => {
+        if (item.style.display !== 'none') {
+            const cb = item.querySelector('.emp-cb');
+            if (cb && !cb.disabled) cb.checked = master.checked;
+        }
+    });
+    syncSelectAllEmpState();
+}
+
+function syncSelectAllEmpState() {
+    const visibleItems = Array.from(document.querySelectorAll('.emp-item')).filter(i => i.style.display !== 'none');
+    const checkedVisible = visibleItems.filter(i => i.querySelector('.emp-cb')?.checked);
+    const selectAllEmpCb = document.getElementById('selectAllEmpCheckbox');
+    if (selectAllEmpCb) {
+        selectAllEmpCb.checked = (checkedVisible.length === visibleItems.length && visibleItems.length > 0);
+    }
+}
+
+function syncEmployeesByCategory() {
+    const checkedCats = Array.from(document.querySelectorAll('.cat-cb:checked')).map(cb => String(cb.value));
+    const allCatCbs = document.querySelectorAll('.cat-cb');
+    const selectAllCat = document.getElementById('selectAllCatCheckbox');
+    if (selectAllCat) {
+        selectAllCat.checked = (checkedCats.length === allCatCbs.length && allCatCbs.length > 0);
+    }
+
+    let visibleCount = 0;
+    const empSearch = (document.getElementById('empSearchInput')?.value || '').toLowerCase();
+
+    document.querySelectorAll('.emp-item').forEach(item => {
+        const catId = String(item.getAttribute('data-category-id') || '');
+        const cb = item.querySelector('.emp-cb');
+        const txt = item.innerText.toLowerCase();
+        const matchesSearch = !empSearch || txt.includes(empSearch);
+        const matchesCategory = checkedCats.includes(catId);
+
+        if (matchesCategory && matchesSearch) {
+            item.style.display = 'flex';
+            if (cb) {
+                cb.disabled = false;
+            }
+            visibleCount++;
+        } else if (!matchesCategory) {
+            item.style.display = 'none';
+            if (cb) {
+                cb.checked = false;
+                cb.disabled = true;
+            }
+        } else {
+            item.style.display = 'none';
+        }
+    });
+
+    const selectAllEmpLabel = document.getElementById('selectAllEmpLabel');
+    if (selectAllEmpLabel) {
+        selectAllEmpLabel.textContent = `Select All (${visibleCount}) Employees`;
+    }
+    syncSelectAllEmpState();
 }
 </script>
 @endsection

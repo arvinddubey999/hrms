@@ -118,6 +118,7 @@ Route::middleware('auth')->group(function () {
     // Monthly Roster
     Route::get('/roster', [RosterController::class, 'index'])->name('roster.index');
     Route::get('/roster/export/excel', [RosterController::class, 'exportExcel'])->name('roster.export.excel');
+    Route::get('/roster/export/printable-excel', [RosterController::class, 'exportPrintableExcel'])->name('roster.export.printable-excel');
     Route::get('/roster/export/pdf', [RosterController::class, 'exportPdf'])->name('roster.export.pdf');
 
     // Settings & Masters

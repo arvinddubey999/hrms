@@ -95,6 +95,7 @@
     <h1>Monthly Roster Report</h1>
     <div class="row">
         <a class="btn light" href="{{ route('roster.export.excel', ['m'=>$month,'y'=>$year, 'from_date'=>$fromDate, 'to_date'=>$toDate, 'employee_id'=>$employeeId, 'department_id'=>$departmentId, 'company_id'=>$companyId]) }}"><i class="fa-solid fa-file-excel" style="color:#16a34a"></i> Excel</a>
+        <a class="btn light" href="{{ route('roster.export.printable-excel', ['m'=>$month,'y'=>$year, 'from_date'=>$fromDate, 'to_date'=>$toDate, 'employee_id'=>$employeeId, 'department_id'=>$departmentId, 'company_id'=>$companyId]) }}" style="font-weight:700;color:#15803d;border:1px solid #16a34a" title="Download Formatted / Printable Excel"><i class="fa-solid fa-file-excel" style="color:#15803d"></i> Printable Excel</a>
         <a class="btn light" href="{{ route('roster.export.pdf', ['m'=>$month,'y'=>$year, 'from_date'=>$fromDate, 'to_date'=>$toDate, 'employee_id'=>$employeeId, 'department_id'=>$departmentId, 'company_id'=>$companyId]) }}" target="_blank"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> PDF</a>
     </div>
 </div>

@@ -103,11 +103,18 @@ class ReportController extends Controller
             }
         }
 
-        if ($request->get('company_id')) {
+        if ($request->filled('company_id')) {
             $query->where('company_id', $request->get('company_id'));
         }
-        if ($request->get('department_id')) {
-            $query->where('department_id', $request->get('department_id'));
+        if ($request->filled('department_id')) {
+            $deptId = $request->get('department_id');
+            $deptObj = Department::find($deptId);
+            $query->where(function($q) use ($deptId, $deptObj) {
+                $q->where('department_id', $deptId);
+                if ($deptObj) {
+                    $q->orWhere('department', $deptObj->name);
+                }
+            });
         }
 
         $employees = $query->orderBy('first_name')->get();
@@ -194,7 +201,8 @@ class ReportController extends Controller
                     $cntWOP = $sum['wop'] ?? 0;
                     $cntH = $sum['holiday'] ?? 0;
                     $cntHOP = $sum['hop'] ?? ($sum['holidayPresent'] ?? 0);
-                    $totPrDays = $cntP + $cntWO + $cntWOP + $cntH + $cntHOP;
+                    // Total Present Days is the employee's payable days computed strictly as per WOP / HOP rules
+                    $totPrDays = $pay['payable_days'];
 
                     $salaryRate = (float) $emp->salary;
                     $gross = round($pay['gross'], 1);
@@ -237,6 +245,15 @@ class ReportController extends Controller
 
             $setting = Setting::current();
             $companyAddress = $setting->office_address ?? ($setting->company_address ?? 'Surat, Gujarat');
+            if ($request->filled('company_id')) {
+                $selCompany = Company::find($request->get('company_id'));
+                if ($selCompany) {
+                    $companyName = $selCompany->name;
+                    if (!empty($selCompany->address)) {
+                        $companyAddress = $selCompany->address;
+                    }
+                }
+            }
 
             $viewData = [
                 'companyName' => $companyName,

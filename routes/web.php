@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RequestController;
@@ -120,6 +121,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/roster/export/excel', [RosterController::class, 'exportExcel'])->name('roster.export.excel');
     Route::get('/roster/export/printable-excel', [RosterController::class, 'exportPrintableExcel'])->name('roster.export.printable-excel');
     Route::get('/roster/export/pdf', [RosterController::class, 'exportPdf'])->name('roster.export.pdf');
+
+    // Holidays
+    Route::get('/holidays', [HolidayController::class, 'index'])->name('holidays.index');
 
     // Settings & Masters
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');

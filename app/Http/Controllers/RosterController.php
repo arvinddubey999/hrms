@@ -96,8 +96,14 @@ class RosterController extends Controller
         $allEmployees = $allEmployeesQuery->orderBy('first_name')->get();
 
         if ($fromDate && $toDate) {
-            $startDate = Carbon::parse($fromDate);
-            $endDate = Carbon::parse($toDate);
+            $startDate = Carbon::parse($fromDate)->startOfDay();
+            $endDate = Carbon::parse($toDate)->endOfDay();
+            if ($request->has('m') && $startDate->month !== $month) {
+                $startDate = Carbon::create($year, $month, 1)->startOfDay();
+                $endDate = $startDate->copy()->endOfMonth()->endOfDay();
+                $fromDate = $startDate->toDateString();
+                $toDate = $endDate->toDateString();
+            }
             $dateRange = [];
             $curr = $startDate->copy();
             while ($curr->lte($endDate)) {
@@ -146,8 +152,12 @@ class RosterController extends Controller
         $employees = $query->with(['category', 'shift'])->orderBy('first_name')->get();
 
         if ($fromDate && $toDate) {
-            $startDate = Carbon::parse($fromDate);
-            $endDate = Carbon::parse($toDate);
+            $startDate = Carbon::parse($fromDate)->startOfDay();
+            $endDate = Carbon::parse($toDate)->endOfDay();
+            if ($request->has('m') && $startDate->month !== $month) {
+                $startDate = Carbon::create($year, $month, 1)->startOfDay();
+                $endDate = $startDate->copy()->endOfMonth()->endOfDay();
+            }
             $dateRange = [];
             $curr = $startDate->copy();
             while ($curr->lte($endDate)) {
@@ -252,8 +262,14 @@ class RosterController extends Controller
         $employees = $query->with(['category', 'shift'])->orderBy('first_name')->get();
 
         if ($fromDate && $toDate) {
-            $startDate = Carbon::parse($fromDate);
-            $endDate = Carbon::parse($toDate);
+            $startDate = Carbon::parse($fromDate)->startOfDay();
+            $endDate = Carbon::parse($toDate)->endOfDay();
+            if ($request->has('m') && $startDate->month !== $month) {
+                $startDate = Carbon::create($year, $month, 1)->startOfDay();
+                $endDate = $startDate->copy()->endOfMonth()->endOfDay();
+                $fromDate = $startDate->toDateString();
+                $toDate = $endDate->toDateString();
+            }
             $dateRange = [];
             $curr = $startDate->copy();
             while ($curr->lte($endDate)) {
@@ -285,8 +301,14 @@ class RosterController extends Controller
         $employees = $query->with(['category', 'shift'])->orderBy('first_name')->get();
 
         if ($fromDate && $toDate) {
-            $startDate = Carbon::parse($fromDate);
-            $endDate = Carbon::parse($toDate);
+            $startDate = Carbon::parse($fromDate)->startOfDay();
+            $endDate = Carbon::parse($toDate)->endOfDay();
+            if ($request->has('m') && $startDate->month !== $month) {
+                $startDate = Carbon::create($year, $month, 1)->startOfDay();
+                $endDate = $startDate->copy()->endOfMonth()->endOfDay();
+                $fromDate = $startDate->toDateString();
+                $toDate = $endDate->toDateString();
+            }
             $dateRange = [];
             $curr = $startDate->copy();
             while ($curr->lte($endDate)) {

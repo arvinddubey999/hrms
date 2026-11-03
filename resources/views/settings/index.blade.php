@@ -715,6 +715,7 @@
                         'attendance.bulk' => 'Bulk Mark Attendance',
                         'attendance.edit' => 'Edit Punches & Shifts',
                         'roster.view' => 'Monthly Roster',
+                        'holiday.view' => 'View Holidays',
                     ],
                     'Leave Management' => [
                         'leave.view' => 'View Leave Requests',

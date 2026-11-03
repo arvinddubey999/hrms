@@ -101,9 +101,9 @@
 </div>
 
 <div class="card" style="margin-bottom:14px;padding:12px 18px">
-    <form method="get" class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
+    <form id="rosterFilterForm" method="get" class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
         @if($companies->count() > 1 || (auth()->user() && auth()->user()->isSuperAdmin()))
-        <select name="company_id" onchange="this.form.submit()" style="width:160px">
+        <select name="company_id" id="rosterCompanySelect" style="width:160px">
             <option value="">All Companies</option>
             @foreach($companies as $comp)
                 <option value="{{ $comp->id }}" {{ $companyId==$comp->id?'selected':'' }}>{{ $comp->name }}</option>
@@ -116,36 +116,42 @@
         </div>
         @endif
 
-        <select name="department_id" onchange="this.form.submit()" style="width:160px">
+        <select name="department_id" id="rosterDeptSelect" style="width:160px">
             <option value="">All Departments</option>
             @foreach($departments as $dept)
                 <option value="{{ $dept->id }}" {{ $departmentId==$dept->id?'selected':'' }}>{{ $dept->name }}</option>
             @endforeach
         </select>
 
-        <select name="employee_id" onchange="this.form.submit()" style="width:180px">
+        <select name="employee_id" id="rosterEmpSelect" style="width:180px">
             <option value="">All Employees</option>
             @foreach($allEmployees as $e)
                 <option value="{{ $e->id }}" {{ $employeeId==$e->id?'selected':'' }}>{{ $e->displayName() }}</option>
             @endforeach
         </select>
 
-        <select name="m" onchange="this.form.submit()" style="width:130px">
+        <select name="m" id="rosterMonthSelect" onchange="updateRosterDateRange()" style="width:130px">
             @for($i=1;$i<=12;$i++)
                 <option value="{{ $i }}" {{ $month==$i?'selected':'' }}>{{ date('F', mktime(0,0,0,$i,1)) }}</option>
             @endfor
         </select>
 
-        <input type="number" name="y" value="{{ $year }}" style="width:90px" onchange="this.form.submit()">
+        <input type="number" name="y" id="rosterYearInput" value="{{ $year }}" style="width:90px" onchange="updateRosterDateRange()">
 
         <div style="display:flex;align-items:center;gap:6px">
             <span style="font-size:12px;color:#6b7280">From:</span>
-            <input type="date" name="from_date" value="{{ $fromDate }}" style="width:135px" onchange="this.form.submit()">
+            <input type="date" name="from_date" id="rosterFromDate" value="{{ $fromDate }}" style="width:135px">
             <span style="font-size:12px;color:#6b7280">To:</span>
-            <input type="date" name="to_date" value="{{ $toDate }}" style="width:135px" onchange="this.form.submit()">
+            <input type="date" name="to_date" id="rosterToDate" value="{{ $toDate }}" style="width:135px">
         </div>
 
-        <a class="btn light" href="{{ route('roster.index') }}">Reset Filters</a>
+        <button type="submit" id="rosterSubmitBtn" class="btn" style="background:#1e293b;color:#fff;padding:8px 18px;border-radius:8px;font-weight:700;display:inline-flex;align-items:center;gap:6px">
+            <i class="fa-solid fa-filter"></i> Get Report
+        </button>
+
+        <a class="btn light" href="{{ route('roster.index') }}" style="padding:8px 14px;border-radius:8px">
+            <i class="fa-solid fa-rotate-left"></i> Reset
+        </a>
     </form>
 </div>
 
@@ -296,7 +302,7 @@
                         $cntWO = $sum['weekOff'] ?? 0;
                         $cntWOP = $sum['wop'] ?? 0;
                         $cntHOP = $sum['hop'] ?? 0;
-                        $totPayable = $sum['payable'] ?? ($cntP + $cntH + $cntWO + $cntWOP + $cntHOP);
+                        $totPayable = $sum['payable'] ?? 0;
                     @endphp
                     <td style="text-align:center;background:#e0f2fe;font-weight:bold;border-bottom:1px solid #f1f5f9">{{ $cntP }}</td>
                     <td style="text-align:center;background:#fee2e2;font-weight:bold;color:#dc2626;border-bottom:1px solid #f1f5f9">{{ $cntA }}</td>
@@ -311,4 +317,45 @@
         </table>
     </div>
 </div>
+
+<!-- FULLSCREEN ROSTER LOADER OVERLAY -->
+<div id="rosterLoadingOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.65);backdrop-filter:blur(4px);z-index:99999;flex-direction:column;align-items:center;justify-content:center;color:#fff">
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:18px;padding:26px 36px;display:flex;flex-direction:column;align-items:center;box-shadow:0 20px 40px rgba(0,0,0,0.4)">
+        <div class="roster-spinner" style="width:44px;height:44px;border:4px solid #334155;border-top-color:#38bdf8;border-radius:50%;animation:rosterSpin 0.75s linear infinite;margin-bottom:14px"></div>
+        <div style="font-size:16px;font-weight:700;color:#f8fafc">Loading Monthly Roster...</div>
+        <div style="font-size:12.5px;color:#94a3b8;margin-top:4px">Fetching attendance &amp; shift logs for the selected criteria</div>
+    </div>
+</div>
+
+<style>
+@keyframes rosterSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+
+<script>
+function updateRosterDateRange() {
+    const m = parseInt(document.getElementById('rosterMonthSelect')?.value, 10);
+    const y = parseInt(document.getElementById('rosterYearInput')?.value, 10);
+    if (m && y) {
+        const padM = String(m).padStart(2, '0');
+        const lastDay = new Date(y, m, 0).getDate();
+        const fromEl = document.getElementById('rosterFromDate');
+        const toEl = document.getElementById('rosterToDate');
+        if (fromEl) fromEl.value = `${y}-${padM}-01`;
+        if (toEl) toEl.value = `${y}-${padM}-${String(lastDay).padStart(2, '0')}`;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('rosterFilterForm');
+    if (form) {
+        form.addEventListener('submit', function() {
+            const overlay = document.getElementById('rosterLoadingOverlay');
+            if (overlay) overlay.style.display = 'flex';
+        });
+    }
+});
+</script>
 @endsection

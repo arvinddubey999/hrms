@@ -136,6 +136,10 @@ $setting = \App\Models\Setting::current();
                 <a class="{{ $nav==='roster'?'active':'' }}" href="{{ route('roster.index') }}"><i class="fa-solid fa-calendar-days" style="width:18px"></i> Monthly Roster</a>
             @endif
 
+            @if(!$u || $u->hasPermission('holiday.view') || $u->hasPermission('settings.view') || $u->isSuperAdmin())
+                <a class="{{ ($nav ?? '') === 'holidays' ? 'active' : '' }}" href="{{ route('holidays.index') }}"><i class="fa-regular fa-calendar-check" style="width:18px"></i> Holidays</a>
+            @endif
+
             @if(!$u || $u->hasPermission('settings.view') || $u->hasPermission('settings.roles'))
                 <a class="{{ $nav==='settings'?'active':'' }}" href="{{ route('settings.index') }}"><i class="fa-solid fa-gear" style="width:18px"></i> Settings & Masters</a>
             @endif

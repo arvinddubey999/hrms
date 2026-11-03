@@ -10,7 +10,7 @@
         <button type="button" class="tab-btn active" onclick="switchReportTab('attendance', this)" style="padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;border:0;background:#f3f4f6;color:#111;cursor:pointer">
             Attendance & Hours
         </button>
-        <button type="button" class="tab-btn" onclick="switchReportTab('tracking', this)" style="padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;border:0;background:transparent;color:#6b7280;cursor:pointer">
+        <!-- <button type="button" class="tab-btn" onclick="switchReportTab('tracking', this)" style="padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;border:0;background:transparent;color:#6b7280;cursor:pointer">
             Field Tracking
         </button>
         <button type="button" class="tab-btn" onclick="switchReportTab('finance', this)" style="padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;border:0;background:transparent;color:#6b7280;cursor:pointer">
@@ -18,21 +18,21 @@
         </button>
         <button type="button" class="tab-btn" onclick="switchReportTab('master', this)" style="padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;border:0;background:transparent;color:#6b7280;cursor:pointer">
             HR & Master Data
-        </button>
+        </button> -->
     </div>
 </div>
 
 <!-- TAB 1: ATTENDANCE & HOURS -->
 <div id="tab-attendance" class="tab-pane">
     <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(310px, 1fr));gap:16px">
-        <div class="report-card">
+        <!-- <div class="report-card">
             <div class="report-icon"><i class="fa-regular fa-calendar-days"></i></div>
             <h3>Daywise Attendance Report</h3>
             <p>Generate day-by-day attendance reports with full in/out logs.</p>
             <button class="btn" onclick="openReportModal('daywise', 'Daywise Attendance Report', 'Generate Daywise Attendance Report')">
                 <i class="fa-solid fa-sliders"></i> Generate
             </button>
-        </div>
+        </div> 
 
         <div class="report-card">
             <div class="report-icon"><i class="fa-solid fa-user-clock"></i></div>
@@ -50,7 +50,7 @@
             <button class="btn" onclick="openReportModal('overall', 'Overall Attendance Report', 'Generate Overall Report')">
                 <i class="fa-solid fa-sliders"></i> Generate
             </button>
-        </div>
+        </div> -->
 
         <div class="report-card">
             <div class="report-icon"><i class="fa-solid fa-file-contract"></i></div>
@@ -61,6 +61,7 @@
             </button>
         </div>
 
+        <!--
         <div class="report-card">
             <div class="report-icon"><i class="fa-regular fa-clock"></i></div>
             <h3>Working Hours Report</h3>
@@ -70,7 +71,7 @@
             </button>
         </div>
 
-        <div class="report-card">
+         <div class="report-card">
             <div class="report-icon"><i class="fa-regular fa-clock"></i></div>
             <h3>Overtime Hours Report</h3>
             <p>Track extra hours put in by employees beyond shift timings.</p>
@@ -86,7 +87,7 @@
             <button class="btn" onclick="openReportModal('monthly_zip', 'Monthly Summary Sheet Download', 'Generate Attendance Sheets')">
                 <i class="fa-solid fa-sliders"></i> Generate
             </button>
-        </div>
+        </div> -->
 
         <div class="report-card" style="border:2px solid #bbf7d0;background:#f0fdf4">
             <div class="report-icon" style="background:#16a34a;color:#fff"><i class="fa-solid fa-file-invoice-dollar"></i></div>
@@ -242,6 +243,32 @@
         <form method="get" action="{{ route('reports.generate') }}" target="_blank">
             <input type="hidden" name="type" id="reportTypeInput" value="daywise">
 
+            <!-- Company & Department Filter Dropdowns Requested by Client -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;background:#f8fafc;padding:12px 14px;border-radius:12px;border:1px solid #e2e8f0">
+                <div>
+                    <label style="font-size:12.5px;font-weight:700;color:#334155;margin-bottom:5px;display:flex;align-items:center;gap:6px">
+                        <i class="fa-solid fa-building" style="color:var(--accent)"></i> Select Company :
+                    </label>
+                    <select name="company_id" id="reportCompanySelect" onchange="syncEmployeesByFilters()" style="width:100%;font-size:12.5px;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#fff">
+                        <option value="">All Companies</option>
+                        @foreach($companies as $comp)
+                            <option value="{{ $comp->id }}">{{ $comp->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:12.5px;font-weight:700;color:#334155;margin-bottom:5px;display:flex;align-items:center;gap:6px">
+                        <i class="fa-solid fa-sitemap" style="color:var(--accent)"></i> Select Department :
+                    </label>
+                    <select name="department_id" id="reportDepartmentSelect" onchange="syncEmployeesByFilters()" style="width:100%;font-size:12.5px;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#fff">
+                        <option value="">All Departments</option>
+                        @foreach($departments as $dept)
+                            <option value="{{ $dept->id }}">{{ $dept->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+
             <div style="display:grid;grid-template-columns:260px 1fr 1fr;gap:16px;align-items:flex-start">
                 
                 <!-- LEFT BOX: Date Selection Options -->
@@ -315,7 +342,7 @@
                             <input type="checkbox" id="selectAllEmpCheckbox" onchange="toggleSelectAllEmployees(this)" checked> <span id="selectAllEmpLabel">Select All ({{ $employees->count() }}) Employees</span>
                         </label>
                         @foreach($employees as $emp)
-                            <label class="emp-item" data-category-id="{{ $emp->category_id ?: 0 }}" style="display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;color:#374151">
+                            <label class="emp-item" data-category-id="{{ $emp->category_id ?: 0 }}" data-company-id="{{ $emp->company_id ?: 0 }}" data-department-id="{{ $emp->department_id ?: 0 }}" style="display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;color:#374151">
                                 <input type="checkbox" name="employee_ids[]" value="{{ $emp->id }}" class="emp-cb" onchange="syncSelectAllEmpState()" checked>
                                 <span>{{ $emp->displayName() }}</span>
                                 <small style="color:#64748b;font-size:10.5px">({{ $emp->category?->name ?? 'Unassigned' }})</small>
@@ -413,7 +440,7 @@ function openReportModal(type, title, btnLabel) {
     document.getElementById('reportTypeInput').value = type;
     document.getElementById('reportModalTitle').innerText = title;
     document.getElementById('reportSubmitBtn').innerText = btnLabel || 'Generate Report';
-    syncEmployeesByCategory();
+    syncEmployeesByFilters();
     document.getElementById('reportModal').classList.add('open');
 }
 
@@ -436,12 +463,12 @@ function filterCategoriesList() {
 }
 
 function filterEmployeesList() {
-    syncEmployeesByCategory();
+    syncEmployeesByFilters();
 }
 
 function toggleSelectAllCategories(master) {
     document.querySelectorAll('.cat-cb').forEach(cb => cb.checked = master.checked);
-    syncEmployeesByCategory();
+    syncEmployeesByFilters();
 }
 
 function toggleSelectAllEmployees(master) {
@@ -463,7 +490,9 @@ function syncSelectAllEmpState() {
     }
 }
 
-function syncEmployeesByCategory() {
+function syncEmployeesByFilters() {
+    const selCompany = document.getElementById('reportCompanySelect')?.value || '';
+    const selDepartment = document.getElementById('reportDepartmentSelect')?.value || '';
     const checkedCats = Array.from(document.querySelectorAll('.cat-cb:checked')).map(cb => String(cb.value));
     const allCatCbs = document.querySelectorAll('.cat-cb');
     const selectAllCat = document.getElementById('selectAllCatCheckbox');
@@ -476,25 +505,28 @@ function syncEmployeesByCategory() {
 
     document.querySelectorAll('.emp-item').forEach(item => {
         const catId = String(item.getAttribute('data-category-id') || '');
+        const compId = String(item.getAttribute('data-company-id') || '');
+        const deptId = String(item.getAttribute('data-department-id') || '');
         const cb = item.querySelector('.emp-cb');
         const txt = item.innerText.toLowerCase();
+
         const matchesSearch = !empSearch || txt.includes(empSearch);
         const matchesCategory = checkedCats.includes(catId);
+        const matchesCompany = !selCompany || compId === selCompany;
+        const matchesDepartment = !selDepartment || deptId === selDepartment;
 
-        if (matchesCategory && matchesSearch) {
+        if (matchesCategory && matchesCompany && matchesDepartment && matchesSearch) {
             item.style.display = 'flex';
             if (cb) {
                 cb.disabled = false;
             }
             visibleCount++;
-        } else if (!matchesCategory) {
+        } else {
             item.style.display = 'none';
             if (cb) {
                 cb.checked = false;
                 cb.disabled = true;
             }
-        } else {
-            item.style.display = 'none';
         }
     });
 
@@ -504,5 +536,7 @@ function syncEmployeesByCategory() {
     }
     syncSelectAllEmpState();
 }
+// Alias for backwards-compatibility
+const syncEmployeesByCategory = syncEmployeesByFilters;
 </script>
 @endsection

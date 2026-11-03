@@ -21,26 +21,30 @@ class PayrollService
         $doubleDutyDays = $summary['doubleDuty'] ?? 0;
 
         // WOP & HOP applicability checked from Employee Master
-        $wopCount = ($user->wop_applicable) ? ($summary['wop'] ?? 0) : 0;
-        $hopCount = ($user->hop_applicable) ? ($summary['holidayPresent'] ?? 0) : 0;
+        $wopCount = $summary['wop'] ?? 0;
+        $hopCount = $summary['holidayPresent'] ?? ($summary['hop'] ?? 0);
+
+        // Extra day salary only if employee has WOP / HOP applicable flag checked in Master
+        $extraWop = (!empty($user->wop_applicable)) ? $wopCount : 0;
+        $extraHop = (!empty($user->hop_applicable)) ? $hopCount : 0;
 
         if ($user->pay_type === 'daily' || $user->pay_type === 'hourly') {
             // Strictly Daily Basis from Employee Master (Settings & Master company rule does NOT apply!)
             $daily = ($user->pay_type === 'hourly') ? ((float) $user->salary * 8) : (float) $user->salary;
-            $payableDays = max(0, $presentDays + ($halfDays * 0.5) + ($doubleDutyDays * 2.0) + $wopCount + $hopCount);
+            $payableDays = max(0, $presentDays + ($halfDays * 0.5) + ($doubleDutyDays * 2.0) + $wopCount + $hopCount + $extraWop + $extraHop);
             $hopBonus = 0;
             $basic = round($daily * $payableDays, 2);
         } else {
             $daily = $user->dailyRate($daysInMonth);
             $basis = $user->company?->salary_calculation_days ?? \App\Models\Setting::current()->salary_day_basis ?? '30';
             if ($basis === '26') {
-                $payableDays = max(0, $presentDays + ($halfDays * 0.5) + ($doubleDutyDays * 2.0) + $wopCount);
-                $hopBonus = round($daily * $hopCount, 2);
-                $basic = round(($daily * $payableDays) + $hopBonus, 2);
+                $payableDays = max(0, $presentDays + ($halfDays * 0.5) + ($doubleDutyDays * 2.0) + $extraWop + $extraHop);
+                $hopBonus = 0;
+                $basic = round($daily * $payableDays, 2);
             } else {
-                $payableDays = max(0, $presentDays + ($halfDays * 0.5) + ($doubleDutyDays * 2.0) + $weekOffDays + $holidayDays + $leaveDays + $wopCount);
-                $hopBonus = round($daily * $hopCount, 2);
-                $basic = round(($daily * $payableDays) + $hopBonus, 2);
+                $payableDays = max(0, $presentDays + ($halfDays * 0.5) + ($doubleDutyDays * 2.0) + $weekOffDays + $holidayDays + $leaveDays + $extraWop + $extraHop);
+                $hopBonus = 0;
+                $basic = round($daily * $payableDays, 2);
             }
         }
         

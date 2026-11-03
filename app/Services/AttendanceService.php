@@ -492,13 +492,28 @@ class AttendanceService
             ];
         }
 
-        // Payable formula: Regular Present + Half Day (0.5) + Double Duty (2.0) + Week Off + Holiday + WOP + HOP + Leave
-        $payable = $present + ($half * 0.5) + ($doubleDuty * 2.0) + $weekOff + $holiday + $wop + $hop + $leave;
+        // Total Qualified Week Offs and Holidays (including days where employee physically worked)
+        // For display in WO and H columns so counts do not appear 1 short when employee works on WO / Holiday:
+        $totalWeekOff = $weekOff + $wop;
+        $totalHoliday = $holiday + $hop;
+
+        // Extra day salary only if employee has WOP / HOP applicable flag checked in Master:
+        $extraWop = (!empty($user->wop_applicable)) ? $wop : 0;
+        $extraHop = (!empty($user->hop_applicable)) ? $hop : 0;
+
+        // Payable formula: Regular Present + Half Day (0.5) + Double Duty (2.0) + Qualified Week Offs + Qualified Holidays + Leave + Extra WOP Day + Extra HOP Day
+        $payable = $present + ($half * 0.5) + ($doubleDuty * 2.0) + $totalWeekOff + $totalHoliday + $leave + $extraWop + $extraHop;
         $holidayPresent = $hop;
         $totalOtHoursFormatted = sprintf('%02d:%02d', intdiv($totalOtMinutes, 60), $totalOtMinutes % 60);
         $totalShortHoursFormatted = sprintf('%02d:%02d', intdiv($totalShortMinutes, 60), $totalShortMinutes % 60);
 
-        return compact('present', 'absent', 'leave', 'weekOff', 'late', 'holiday', 'half', 'doubleDuty', 'wop', 'hop', 'holidayPresent', 'days', 'rows', 'payable', 'totalOtMinutes', 'totalShortMinutes', 'totalOtHoursFormatted', 'totalShortHoursFormatted');
+        // weekOff and holiday hold total counts for display; rawWeekOff and rawHoliday hold unattended counts
+        $rawWeekOff = $weekOff;
+        $rawHoliday = $holiday;
+        $weekOff = $totalWeekOff;
+        $holiday = $totalHoliday;
+
+        return compact('present', 'absent', 'leave', 'weekOff', 'rawWeekOff', 'late', 'holiday', 'rawHoliday', 'half', 'doubleDuty', 'wop', 'hop', 'holidayPresent', 'days', 'rows', 'payable', 'totalOtMinutes', 'totalShortMinutes', 'totalOtHoursFormatted', 'totalShortHoursFormatted');
     }
 
     private function fallbackLocation(?float $lat, ?float $lng, Setting $setting): string

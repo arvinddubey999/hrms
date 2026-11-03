@@ -237,6 +237,7 @@
                         'attendance.bulk' => 'Bulk Mark Attendance',
                         'attendance.edit' => 'Edit Punches & Shifts',
                         'roster.view' => 'Monthly Roster',
+                        'holiday.view' => 'View Holidays',
                     ],
                     'Leave Management' => [
                         'leave.view' => 'View Leave Requests',
@@ -531,8 +532,8 @@
         <div class="grid-2" style="margin-top:10px">
             <label><input type="checkbox" name="esi_applicable" value="1" {{ $staff->esi_applicable?'checked':'' }}> ESI Applicable</label>
             <label><input type="checkbox" name="overtime_applicable" value="1" {{ $staff->overtime_applicable?'checked':'' }}> Applicable for Overtime</label>
-            <label><input type="checkbox" name="wop_applicable" value="1" {{ $staff->wop_applicable !== false ? 'checked' : '' }}> WOP — Week Off Present (Extra Day Salary)</label>
-            <label><input type="checkbox" name="hop_applicable" value="1" {{ $staff->hop_applicable !== false ? 'checked' : '' }}> HOP — Holiday Present (Extra Day Salary)</label>
+            <label><input type="checkbox" name="wop_applicable" value="1" {{ old('wop_applicable', $staff->wop_applicable) ? 'checked' : '' }}> WOP — Week Off Present (Extra Day Salary)</label>
+            <label><input type="checkbox" name="hop_applicable" value="1" {{ old('hop_applicable', $staff->hop_applicable) ? 'checked' : '' }}> HOP — Holiday Present (Extra Day Salary)</label>
             <label><input type="checkbox" name="view_self_salary" value="1" {{ $staff->view_self_salary?'checked':'' }}> View Self Salary</label>
         </div>
 

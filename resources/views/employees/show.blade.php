@@ -55,10 +55,10 @@
                    style="padding:6px 14px;border-radius:8px;font-weight:600;font-size:13px;{{ $tab==='attendance'?'background:#f3f4f6;color:#111;':'color:#6b7280;' }}">Attendance</a>
                 <a class="{{ $tab==='salary'?'active':'' }}" href="{{ route('employees.show', [$staff,'tab'=>'salary','month'=>$month,'year'=>$year]) }}" 
                    style="padding:6px 14px;border-radius:8px;font-weight:600;font-size:13px;{{ $tab==='salary'?'background:#f3f4f6;color:#111;':'color:#6b7280;' }}">Salary</a>
-                <a class="{{ $tab==='expense'?'active':'' }}" href="{{ route('employees.show', [$staff,'tab'=>'expense','month'=>$month,'year'=>$year]) }}" 
-                   style="padding:6px 14px;border-radius:8px;font-weight:600;font-size:13px;{{ $tab==='expense'?'background:#f3f4f6;color:#111;':'color:#6b7280;' }}">Expense</a>
-                <a href="#" style="padding:6px 14px;border-radius:8px;font-weight:600;font-size:13px;color:#6b7280;">Incentive</a>
-                <a href="#" style="padding:6px 14px;border-radius:8px;font-weight:600;font-size:13px;color:#6b7280;">Loan/EMI</a>
+                <!-- <a class="{{ $tab==='expense'?'active':'' }}" href="{{ route('employees.show', [$staff,'tab'=>'expense','month'=>$month,'year'=>$year]) }}" 
+                   style="padding:6px 14px;border-radius:8px;font-weight:600;font-size:13px;{{ $tab==='expense'?'background:#f3f4f6;color:#111;':'color:#6b7280;' }}">Expense</a> -->
+                <!-- <a href="#" style="padding:6px 14px;border-radius:8px;font-weight:600;font-size:13px;color:#6b7280;">Incentive</a>
+                <a href="#" style="padding:6px 14px;border-radius:8px;font-weight:600;font-size:13px;color:#6b7280;">Loan/EMI</a> -->
             </div>
 
             @if($tab==='attendance')
@@ -70,11 +70,11 @@
                     <a href="{{ route('reports.generate', ['type'=>'overall','from'=>sprintf('%04d-%02d-01',$year,$month)]) }}" 
                        style="background:#1f2937;color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none">Monthly Summary Sheet</a>
                     
-                    <a href="#" style="background:#1f2937;color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none">Odometer Report</a>
+                    <!-- <a href="#" style="background:#1f2937;color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none">Odometer Report</a> -->
                     
                     <a href="{{ route('tasks.index') }}" style="background:#1f2937;color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none">Task Report</a>
                     
-                    <a href="#" style="background:#1f2937;color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none">Visits Report</a>
+                    <!-- <a href="#" style="background:#1f2937;color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none">Visits Report</a> -->
                 </div>
 
                 <!-- KPI Badges Scrollable Row matching Screenshot 2 -->
@@ -247,9 +247,9 @@
                         <i class="fa-solid fa-download"></i> Monthly Report
                     </a>
 
-                    <a href="#" style="background:#0f172a;color:#fff;padding:10px 16px;border-radius:10px;font-weight:700;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:6px">
+                    <!-- <a href="#" style="background:#0f172a;color:#fff;padding:10px 16px;border-radius:10px;font-weight:700;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:6px">
                         <i class="fa-solid fa-download"></i> Odometer Report
-                    </a>
+                    </a> -->
                 </div>
 
             @elseif($tab==='salary')
@@ -289,14 +289,15 @@
                     <div class="grid-2" style="font-size:13px">
                         <div>Total Days: <b>{{ $summary['days'] }}</b></div>
                         <div>Present Days: <b>{{ $summary['present'] }}</b></div>
-                        <div>Present in Week Offs: <b>{{ $summary['wop'] }}</b></div>
                         <div>Absent Days: <b>{{ $summary['absent'] }}</b></div>
+                        <div>Week Offs: <b>{{ $summary['weekOff'] }}</b></div>
+                        <div>Holidays: <b>{{ $summary['holiday'] }}</b></div>
+                        <div>Present in Week Offs (WO-P): <b>{{ $summary['wop'] }}</b> <small style="color:#64748b">({{ !empty($staff->wop_applicable) ? 'Extra Day Paid' : 'Standard Day' }})</small></div>
+                        <div>Present in Holidays (H-P): <b>{{ $summary['hop'] }}</b> <small style="color:#64748b">({{ !empty($staff->hop_applicable) ? 'Extra Day Paid' : 'Standard Day' }})</small></div>
                         <div>Half Days: <b>{{ $summary['half'] }}</b></div>
                         <div>Paid Leave Days: <b>{{ $summary['leave'] }}</b></div>
                         <div>Unpaid Leave Days: <b>0</b></div>
-                        <div>Holidays: <b>{{ $summary['holiday'] }}</b></div>
-                        <div>Week Offs: <b>{{ $summary['weekOff'] }}</b></div>
-                        <div>Payable Days: <b>{{ $summary['payable'] }}</b></div>
+                        <div>Total Payable Days: <b style="color:#166534;font-size:14px">{{ $pay['payable_days'] }}</b></div>
                     </div>
                 </div>
 

@@ -180,7 +180,7 @@
                         $cntWO = $sum['weekOff'] ?? 0;
                         $cntWOP = $sum['wop'] ?? 0;
                         $cntHOP = $sum['hop'] ?? 0;
-                        $totPayable = $sum['payable'] ?? ($cntP + $cntH + $cntWO + $cntWOP + $cntHOP);
+                        $totPayable = $sum['payable'] ?? 0;
                     @endphp
                     <td class="tot-col" style="background:#e0f2fe;color:#0369a1">{{ $cntP }}</td>
                     <td class="tot-col" style="background:#fee2e2;color:#dc2626">{{ $cntA }}</td>

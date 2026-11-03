@@ -178,24 +178,24 @@ class AttendanceService
     }
 
     /**
-     * Find the preceding working day before a non-working cluster (skipping adjacent week-offs and holidays)
+     * Find the preceding working day before a non-working cluster (skipping adjacent week-offs and holidays where employee did NOT work)
      */
     public function getPrecedingWorkingDay(User $user, Carbon $date): Carbon
     {
         $prev = $date->copy()->subDay();
-        while ($this->isNonWorkingDay($user, $prev) && $prev->gt($date->copy()->subDays(14))) {
+        while ($this->isNonWorkingDay($user, $prev) && !$this->isPresentOrOnLeave($user, $prev) && $prev->gt($date->copy()->subDays(14))) {
             $prev->subDay();
         }
         return $prev;
     }
 
     /**
-     * Find the succeeding working day after a non-working cluster (skipping adjacent week-offs and holidays)
+     * Find the succeeding working day after a non-working cluster (skipping adjacent week-offs and holidays where employee did NOT work)
      */
     public function getSucceedingWorkingDay(User $user, Carbon $date): Carbon
     {
         $next = $date->copy()->addDay();
-        while ($this->isNonWorkingDay($user, $next) && $next->lt($date->copy()->addDays(14))) {
+        while ($this->isNonWorkingDay($user, $next) && !$this->isPresentOrOnLeave($user, $next) && $next->lt($date->copy()->addDays(14))) {
             $next->addDay();
         }
         return $next;
@@ -222,11 +222,27 @@ class AttendanceService
      * Client Eligibility Policy (Weekly Off & Holiday Sandwich Rule):
      * - Sunday Weekly Off Eligibility: Saturday Present OR Monday Present.
      *   (If both Saturday & Monday are Absent => Sunday Weekly Off will NOT be granted -> Marked Continuous Absent).
-     * - Saturday Holiday + Sunday Weekly Off: Friday Present OR Monday Present.
-     *   (If both Friday & Monday are Absent => Saturday & Sunday both marked Continuous Absent).
+     * - Saturday Holiday + Sunday Weekly Off:
+     *   If employee worked on Saturday (H-P), Saturday has physical presence -> Sunday Weekly Off is earned!
+     *   If neither was worked: Friday Present OR Monday Present qualifies both; Friday Absent AND Monday Absent => Both Absent.
+     * - Present on any adjacent day (e.g. 1 day before or 1 day after) grants the weekly off.
      */
     public function isNonWorkingDayQualified(User $user, Carbon $date): bool
     {
+        // 1. Direct immediate adjacent presence check:
+        // If employee was present (or on leave) on the immediately preceding calendar day (e.g. Saturday Holiday worked),
+        // or on the immediately succeeding calendar day (or next day is today/future), they qualify!
+        $immediatePrev = $date->copy()->subDay();
+        if ($this->isPresentOrOnLeave($user, $immediatePrev)) {
+            return true;
+        }
+
+        $immediateNext = $date->copy()->addDay();
+        if ($immediateNext->isFuture() || $immediateNext->isToday() || $this->isPresentOrOnLeave($user, $immediateNext)) {
+            return true;
+        }
+
+        // 2. Cluster traversal: Look backwards skipping unworked non-working days:
         $prevWorkingDay = $this->getPrecedingWorkingDay($user, $date);
         $nextWorkingDay = $this->getSucceedingWorkingDay($user, $date);
 

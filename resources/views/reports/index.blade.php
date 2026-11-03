@@ -232,36 +232,44 @@
     </div>
 </div>
 
-<!-- GENERATE REPORTS POPUP MODAL matching Screenshot 2 & Screenshot 4 -->
+<!-- GENERATE REPORTS POPUP MODAL matching Client Requirements -->
 <div id="reportModal" class="modal-bg">
-    <div class="modal" style="max-width:820px;padding:24px;border-radius:18px;background:#fff">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid #f3f4f6;padding-bottom:10px">
-            <h2 id="reportModalTitle" style="margin:0;font-size:18px;font-weight:700">Generate Reports</h2>
-            <button type="button" class="btn light" onclick="closeReportModal()" style="font-size:16px;padding:4px 10px">&times;</button>
+    <div class="modal" style="max-width:960px;width:95vw;padding:22px 26px;border-radius:18px;background:#fff;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid #f1f5f9;padding-bottom:12px">
+            <div style="display:flex;align-items:center;gap:12px">
+                <div style="width:38px;height:38px;border-radius:10px;background:#e0f2fe;color:#0284c7;display:grid;place-items:center;font-size:17px">
+                    <i class="fa-solid fa-file-invoice-dollar"></i>
+                </div>
+                <div>
+                    <h2 id="reportModalTitle" style="margin:0;font-size:17px;font-weight:700;color:#0f172a">Monthly Payroll Summary Register</h2>
+                    <p style="margin:2px 0 0;font-size:12px;color:#64748b">Filter by Company, Department, Category, and Date Range to generate report.</p>
+                </div>
+            </div>
+            <button type="button" class="btn light" onclick="closeReportModal()" style="font-size:18px;padding:4px 10px;border-radius:50%;width:32px;height:32px;display:grid;place-items:center;border:none;background:#f1f5f9;color:#64748b;cursor:pointer">&times;</button>
         </div>
 
         <form method="get" action="{{ route('reports.generate') }}" target="_blank">
             <input type="hidden" name="type" id="reportTypeInput" value="daywise">
 
             <!-- Company & Department Filter Dropdowns Requested by Client -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;background:#f8fafc;padding:12px 14px;border-radius:12px;border:1px solid #e2e8f0">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;background:#f8fafc;padding:12px 16px;border-radius:12px;border:1px solid #e2e8f0">
                 <div>
-                    <label style="font-size:12.5px;font-weight:700;color:#334155;margin-bottom:5px;display:flex;align-items:center;gap:6px">
-                        <i class="fa-solid fa-building" style="color:var(--accent)"></i> Select Company :
+                    <label style="font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;display:flex;align-items:center;gap:6px">
+                        <i class="fa-solid fa-building" style="color:#0284c7"></i> Select Company
                     </label>
-                    <select name="company_id" id="reportCompanySelect" onchange="syncEmployeesByFilters()" style="width:100%;font-size:12.5px;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#fff">
-                        <option value="">All Companies</option>
+                    <select name="company_id" id="reportCompanySelect" onchange="syncEmployeesByFilters()" style="width:100%;font-size:12.5px;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#1e293b;outline:none;font-weight:500">
+                        <option value="">All Companies (All Staff)</option>
                         @foreach($companies as $comp)
                             <option value="{{ $comp->id }}">{{ $comp->name }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div>
-                    <label style="font-size:12.5px;font-weight:700;color:#334155;margin-bottom:5px;display:flex;align-items:center;gap:6px">
-                        <i class="fa-solid fa-sitemap" style="color:var(--accent)"></i> Select Department :
+                    <label style="font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;display:flex;align-items:center;gap:6px">
+                        <i class="fa-solid fa-sitemap" style="color:#10b981"></i> Select Department
                     </label>
-                    <select name="department_id" id="reportDepartmentSelect" onchange="syncEmployeesByFilters()" style="width:100%;font-size:12.5px;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#fff">
-                        <option value="">All Departments</option>
+                    <select name="department_id" id="reportDepartmentSelect" onchange="syncEmployeesByFilters()" style="width:100%;font-size:12.5px;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#1e293b;outline:none;font-weight:500">
+                        <option value="">All Departments (All Staff)</option>
                         @foreach($departments as $dept)
                             <option value="{{ $dept->id }}">{{ $dept->name }}</option>
                         @endforeach
@@ -269,37 +277,41 @@
                 </div>
             </div>
 
-            <div style="display:grid;grid-template-columns:260px 1fr 1fr;gap:16px;align-items:flex-start">
+            <div style="display:grid;grid-template-columns:270px 270px 1fr;gap:16px;align-items:stretch">
                 
                 <!-- LEFT BOX: Date Selection Options -->
-                <div style="background:#fafafa;padding:14px;border-radius:12px;border:1px solid #e5e7eb">
-                    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
-                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer">
+                <div style="background:#fafafa;padding:14px;border-radius:12px;border:1px solid #e2e8f0;display:flex;flex-direction:column">
+                    <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+                        <i class="fa-regular fa-calendar-days" style="color:#6366f1"></i> Date &amp; Period
+                    </div>
+
+                    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+                        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 10px;background:#fff;border-radius:8px;border:1px solid #e2e8f0">
                             <input type="radio" name="range_type" value="single" onchange="switchDateSelection(this.value)"> Single Date Selection
                         </label>
-                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer">
+                        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 10px;background:#fff;border-radius:8px;border:1px solid #e2e8f0">
                             <input type="radio" name="range_type" value="month" checked onchange="switchDateSelection(this.value)"> Month Selection
                         </label>
-                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer">
+                        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 10px;background:#fff;border-radius:8px;border:1px solid #e2e8f0">
                             <input type="radio" name="range_type" value="custom" onchange="switchDateSelection(this.value)"> Custom Date Range
                         </label>
                     </div>
 
                     <!-- Single Date Picker -->
-                    <div id="singleDateBox" style="display:none">
-                        <label style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:4px;display:block">Select Date</label>
-                        <input type="date" name="date" value="{{ now()->toDateString() }}">
+                    <div id="singleDateBox" style="display:none;margin-top:auto">
+                        <label style="font-size:11.5px;font-weight:700;color:#64748b;margin-bottom:4px;display:block">Select Date</label>
+                        <input type="date" name="date" value="{{ now()->toDateString() }}" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px">
                     </div>
 
                     <!-- Month Selection Pickers -->
-                    <div id="monthDateBox">
-                        <label style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:4px;display:block">Select Month & Year</label>
-                        <select name="month" style="margin-bottom:8px">
+                    <div id="monthDateBox" style="margin-top:auto">
+                        <label style="font-size:11.5px;font-weight:700;color:#64748b;margin-bottom:4px;display:block">Select Month &amp; Year</label>
+                        <select name="month" style="width:100%;margin-bottom:8px;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px">
                             @for($m=1;$m<=12;$m++)
                                 <option value="{{ $m }}" {{ now()->month==$m?'selected':'' }}>{{ date('F', mktime(0,0,0,$m,1)) }}</option>
                             @endfor
                         </select>
-                        <select name="year">
+                        <select name="year" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px">
                             @for($y=2024;$y<=2030;$y++)
                                 <option value="{{ $y }}" {{ now()->year==$y?'selected':'' }}>{{ $y }}</option>
                             @endfor
@@ -307,45 +319,86 @@
                     </div>
 
                     <!-- Custom Range Pickers -->
-                    <div id="customDateBox" style="display:none">
-                        <label style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:4px;display:block">From Date</label>
-                        <input type="date" name="from" value="{{ now()->startOfMonth()->toDateString() }}" style="margin-bottom:8px">
-                        <label style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:4px;display:block">To Date</label>
-                        <input type="date" name="to" value="{{ now()->toDateString() }}">
+                    <div id="customDateBox" style="display:none;margin-top:auto">
+                        <label style="font-size:11.5px;font-weight:700;color:#64748b;margin-bottom:4px;display:block">From Date</label>
+                        <input type="date" name="from" value="{{ now()->startOfMonth()->toDateString() }}" style="width:100%;margin-bottom:8px;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px">
+                        <label style="font-size:11.5px;font-weight:700;color:#64748b;margin-bottom:4px;display:block">To Date</label>
+                        <input type="date" name="to" value="{{ now()->toDateString() }}" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px">
                     </div>
                 </div>
 
-                <!-- MIDDLE BOX: Select Category Checklist -->
-                <div style="border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fff">
-                    <label style="font-size:13px;font-weight:700;color:#111827;margin-bottom:8px;display:block">Select Category :</label>
-                    <input type="text" id="catSearchInput" placeholder="Search category..." onkeyup="filterCategoriesList()" style="font-size:12px;padding:6px 10px;margin-bottom:8px">
+                <!-- MIDDLE BOX: Select Category Checklist (Optional) -->
+                <div style="border:1px solid #e2e8f0;border-radius:12px;padding:14px;background:#fff;display:flex;flex-direction:column">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                        <div style="font-size:13px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:6px">
+                            <i class="fa-solid fa-tags" style="color:#f59e0b"></i> Select Category
+                        </div>
+                        <span style="font-size:10.5px;font-weight:700;background:#f1f5f9;color:#64748b;padding:2px 7px;border-radius:10px">Optional</span>
+                    </div>
+
+                    <div style="position:relative;margin-bottom:8px">
+                        <input type="text" id="catSearchInput" placeholder="Search category..." onkeyup="filterCategoriesList()" style="width:100%;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;outline:none">
+                    </div>
                     
-                    <div style="max-height:180px;overflow-y:auto" id="catChecklist">
-                        <label style="display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px solid #f3f4f6;font-weight:600">
-                            <input type="checkbox" id="selectAllCatCheckbox" onchange="toggleSelectAllCategories(this)" checked> Select All Categories
-                        </label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 8px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;font-weight:700;cursor:pointer;margin-bottom:4px">
+                        <input type="checkbox" id="selectAllCatCheckbox" onchange="toggleSelectAllCategories(this)" checked>
+                        <span>All Categories (No filter)</span>
+                    </label>
+
+                    <div style="max-height:190px;overflow-y:auto;padding-right:4px" id="catChecklist">
                         @foreach($categories as $cat)
-                            <label class="cat-item" style="display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;color:#374151">
-                                <input type="checkbox" name="category_ids[]" value="{{ $cat->id }}" class="cat-cb" onchange="syncEmployeesByCategory()" checked> {{ $cat->name }}
+                            <label class="cat-item" style="display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 6px;border-radius:6px;color:#334155;cursor:pointer">
+                                <input type="checkbox" name="category_ids[]" value="{{ $cat->id }}" class="cat-cb" onchange="onCategoryCheckboxChange()" checked>
+                                <span style="font-weight:500">{{ $cat->name }}</span>
                             </label>
                         @endforeach
                     </div>
                 </div>
 
-                <!-- RIGHT BOX: Select Employee Checklist -->
-                <div style="border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fff">
-                    <label style="font-size:13px;font-weight:700;color:#111827;margin-bottom:8px;display:block">Select Employee :</label>
-                    <input type="text" id="empSearchInput" placeholder="Search employee..." onkeyup="filterEmployeesList()" style="font-size:12px;padding:6px 10px;margin-bottom:8px">
+                <!-- RIGHT BOX: Select Staff Checklist -->
+                <div style="border:1px solid #e2e8f0;border-radius:12px;padding:14px;background:#fff;display:flex;flex-direction:column">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                        <div style="font-size:13px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:6px">
+                            <i class="fa-solid fa-users" style="color:#10b981"></i> Staff Members
+                        </div>
+                        <span id="empCountBadge" style="font-size:11px;font-weight:700;background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:10px">{{ $employees->count() }} Selected</span>
+                    </div>
+
+                    <div style="position:relative;margin-bottom:8px">
+                        <input type="text" id="empSearchInput" placeholder="Search by name, code..." onkeyup="filterEmployeesList()" style="width:100%;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;outline:none">
+                    </div>
                     
-                    <div style="max-height:180px;overflow-y:auto" id="empChecklist">
-                        <label style="display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px solid #f3f4f6;font-weight:600">
-                            <input type="checkbox" id="selectAllEmpCheckbox" onchange="toggleSelectAllEmployees(this)" checked> <span id="selectAllEmpLabel">Select All ({{ $employees->count() }}) Employees</span>
-                        </label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 8px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;font-weight:700;cursor:pointer;margin-bottom:4px">
+                        <input type="checkbox" id="selectAllEmpCheckbox" onchange="toggleSelectAllEmployees(this)" checked>
+                        <span id="selectAllEmpLabel">Select All ({{ $employees->count() }}) Staff</span>
+                    </label>
+
+                    <div style="max-height:190px;overflow-y:auto;padding-right:4px" id="empChecklist">
                         @foreach($employees as $emp)
-                            <label class="emp-item" data-category-id="{{ $emp->category_id ?: 0 }}" data-company-id="{{ $emp->company_id ?: 0 }}" data-department-id="{{ $emp->department_id ?: 0 }}" style="display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;color:#374151">
+                            @php
+                                $empDeptName = $emp->department ?: ($emp->department_id ? ($departments->firstWhere('id', $emp->department_id)?->name ?? '') : '');
+                                $empDeptId = $emp->department_id ?: ($empDeptName ? ($departments->firstWhere('name', $empDeptName)?->id ?? 0) : 0);
+                            @endphp
+                            <label class="emp-item" 
+                                   data-category-id="{{ $emp->category_id ?: 0 }}" 
+                                   data-company-id="{{ $emp->company_id ?: 0 }}" 
+                                   data-department-id="{{ $empDeptId }}" 
+                                   data-search="{{ strtolower($emp->displayName() . ' ' . ($emp->serial_no ?? '') . ' ' . ($emp->code ?? '') . ' ' . $empDeptName) }}" 
+                                   style="display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 8px;border-radius:6px;margin-bottom:2px;cursor:pointer;background:#fff;border-bottom:1px solid #f8fafc">
                                 <input type="checkbox" name="employee_ids[]" value="{{ $emp->id }}" class="emp-cb" onchange="syncSelectAllEmpState()" checked>
-                                <span>{{ $emp->displayName() }}</span>
-                                <small style="color:#64748b;font-size:10.5px">({{ $emp->category?->name ?? 'Unassigned' }})</small>
+                                <div style="flex:1;min-width:0">
+                                    <div style="font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                        {{ $emp->displayName() }}
+                                        @if(!empty($emp->serial_no) || !empty($emp->code))
+                                            <span style="font-size:11px;font-weight:normal;color:#64748b">({{ $emp->serial_no ?: $emp->code }})</span>
+                                        @endif
+                                    </div>
+                                    <div style="font-size:11px;color:#94a3b8;display:flex;gap:6px;align-items:center;margin-top:1px">
+                                        <span>{{ $empDeptName ?: 'No Dept' }}</span>
+                                        <span>&bull;</span>
+                                        <span>{{ $emp->category?->name ?? 'Unassigned' }}</span>
+                                    </div>
+                                </div>
                             </label>
                         @endforeach
                     </div>
@@ -353,20 +406,23 @@
             </div>
 
             <!-- BOTTOM BAR: Export Format & Submit Button -->
-            <div style="margin-top:20px;padding-top:14px;border-top:1px solid #f3f4f6;display:flex;justify-space-between;align-items:center">
-                <div style="display:flex;align-items:center;gap:16px;background:#fafafa;padding:8px 16px;border-radius:10px;border:1px dashed #d1d5db">
-                    <span style="font-size:13px;font-weight:700;color:#374151">Export Format :</span>
-                    <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer">
-                        <input type="radio" name="format" value="pdf"> PDF
+            <div style="margin-top:18px;padding-top:14px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center">
+                <div style="display:flex;align-items:center;gap:12px">
+                    <span style="font-size:12.5px;font-weight:700;color:#475569">Export Format:</span>
+                    <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:6px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;cursor:pointer">
+                        <input type="radio" name="format" value="excel" checked> <i class="fa-solid fa-file-excel" style="color:#16a34a"></i> Excel (.xls)
                     </label>
-                    <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer">
-                        <input type="radio" name="format" value="excel" checked> Excel
+                    <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:6px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;cursor:pointer">
+                        <input type="radio" name="format" value="pdf"> <i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> PDF Document
                     </label>
                 </div>
 
-                <button id="reportSubmitBtn" class="btn" style="background:#111;color:#fff;padding:10px 20px;border-radius:10px;font-weight:700;font-size:13px">
-                    Generate Report
-                </button>
+                <div style="display:flex;align-items:center;gap:10px">
+                    <button type="button" class="btn light" onclick="closeReportModal()" style="padding:9px 16px;border-radius:8px;font-weight:600;font-size:13px">Cancel</button>
+                    <button type="submit" id="reportSubmitBtn" class="btn" style="background:#0f172a;color:#fff;padding:9px 22px;border-radius:8px;font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:8px">
+                        <i class="fa-solid fa-sliders"></i> Generate Payroll Register
+                    </button>
+                </div>
             </div>
         </form>
     </div>
@@ -466,6 +522,16 @@ function filterEmployeesList() {
     syncEmployeesByFilters();
 }
 
+function onCategoryCheckboxChange() {
+    const allCatCbs = Array.from(document.querySelectorAll('.cat-cb'));
+    const checkedCatCbs = Array.from(document.querySelectorAll('.cat-cb:checked'));
+    const selectAllCatCb = document.getElementById('selectAllCatCheckbox');
+    if (selectAllCatCb) {
+        selectAllCatCb.checked = (checkedCatCbs.length === allCatCbs.length && allCatCbs.length > 0);
+    }
+    syncEmployeesByFilters();
+}
+
 function toggleSelectAllCategories(master) {
     document.querySelectorAll('.cat-cb').forEach(cb => cb.checked = master.checked);
     syncEmployeesByFilters();
@@ -488,43 +554,57 @@ function syncSelectAllEmpState() {
     if (selectAllEmpCb) {
         selectAllEmpCb.checked = (checkedVisible.length === visibleItems.length && visibleItems.length > 0);
     }
+    const empCountBadge = document.getElementById('empCountBadge');
+    if (empCountBadge) {
+        empCountBadge.textContent = `${checkedVisible.length} / ${visibleItems.length} Selected`;
+    }
 }
 
 function syncEmployeesByFilters() {
     const selCompany = document.getElementById('reportCompanySelect')?.value || '';
     const selDepartment = document.getElementById('reportDepartmentSelect')?.value || '';
-    const checkedCats = Array.from(document.querySelectorAll('.cat-cb:checked')).map(cb => String(cb.value));
-    const allCatCbs = document.querySelectorAll('.cat-cb');
-    const selectAllCat = document.getElementById('selectAllCatCheckbox');
-    if (selectAllCat) {
-        selectAllCat.checked = (checkedCats.length === allCatCbs.length && allCatCbs.length > 0);
-    }
+    const empSearch = (document.getElementById('empSearchInput')?.value || '').toLowerCase().trim();
+
+    const selectAllCatCb = document.getElementById('selectAllCatCheckbox');
+    const allCatCbs = Array.from(document.querySelectorAll('.cat-cb'));
+    const checkedCatCbs = Array.from(document.querySelectorAll('.cat-cb:checked'));
+    const checkedCatIds = checkedCatCbs.map(cb => String(cb.value));
+
+    // Client Requirement:
+    // Company or Department filter must list ALL employees without requiring a Category!
+    // Category filtering is active ONLY when:
+    // 1. "All Categories" is NOT checked
+    // 2. AND at least 1 category is checked
+    // 3. AND not all categories are checked (user specifically selected a sub-filter)
+    const isCategoryFilterActive = selectAllCatCb 
+        ? (!selectAllCatCb.checked && checkedCatCbs.length > 0 && checkedCatCbs.length < allCatCbs.length) 
+        : false;
 
     let visibleCount = 0;
-    const empSearch = (document.getElementById('empSearchInput')?.value || '').toLowerCase();
+    let checkedCount = 0;
 
     document.querySelectorAll('.emp-item').forEach(item => {
-        const catId = String(item.getAttribute('data-category-id') || '');
-        const compId = String(item.getAttribute('data-company-id') || '');
-        const deptId = String(item.getAttribute('data-department-id') || '');
+        const catId = String(item.getAttribute('data-category-id') || '0');
+        const compId = String(item.getAttribute('data-company-id') || '0');
+        const deptId = String(item.getAttribute('data-department-id') || '0');
+        const searchData = item.getAttribute('data-search') || item.innerText.toLowerCase();
         const cb = item.querySelector('.emp-cb');
-        const txt = item.innerText.toLowerCase();
 
-        const matchesSearch = !empSearch || txt.includes(empSearch);
-        const matchesCategory = checkedCats.includes(catId);
         const matchesCompany = !selCompany || compId === selCompany;
         const matchesDepartment = !selDepartment || deptId === selDepartment;
+        const matchesSearch = !empSearch || searchData.includes(empSearch);
+        const matchesCategory = !isCategoryFilterActive || checkedCatIds.includes(catId);
 
-        if (matchesCategory && matchesCompany && matchesDepartment && matchesSearch) {
+        if (matchesCompany && matchesDepartment && matchesSearch && matchesCategory) {
             item.style.display = 'flex';
             if (cb) {
                 cb.disabled = false;
+                if (cb.checked) checkedCount++;
             }
             visibleCount++;
         } else {
             item.style.display = 'none';
             if (cb) {
-                cb.checked = false;
                 cb.disabled = true;
             }
         }
@@ -532,9 +612,16 @@ function syncEmployeesByFilters() {
 
     const selectAllEmpLabel = document.getElementById('selectAllEmpLabel');
     if (selectAllEmpLabel) {
-        selectAllEmpLabel.textContent = `Select All (${visibleCount}) Employees`;
+        selectAllEmpLabel.textContent = `Select All (${visibleCount}) Staff`;
     }
-    syncSelectAllEmpState();
+    const empCountBadge = document.getElementById('empCountBadge');
+    if (empCountBadge) {
+        empCountBadge.textContent = `${checkedCount} / ${visibleCount} Selected`;
+    }
+    const selectAllEmpCb = document.getElementById('selectAllEmpCheckbox');
+    if (selectAllEmpCb) {
+        selectAllEmpCb.checked = (visibleCount > 0 && checkedCount === visibleCount);
+    }
 }
 // Alias for backwards-compatibility
 const syncEmployeesByCategory = syncEmployeesByFilters;

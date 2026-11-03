@@ -87,19 +87,22 @@ class ReportController extends Controller
             }
         }
         
-        $catIds = $request->get('category_ids');
-        if (!empty($catIds) && !in_array('all', (array)$catIds)) {
-            $filteredCats = array_values(array_filter((array)$catIds, fn($val) => $val !== '' && $val !== null));
-            if (!empty($filteredCats)) {
-                $query->whereIn('category_id', $filteredCats);
-            }
-        }
-
         $empIds = $request->get('employee_ids');
+        $hasSpecificEmps = false;
         if (!empty($empIds) && !in_array('all', (array)$empIds)) {
             $filteredEmps = array_values(array_filter((array)$empIds, fn($val) => $val !== '' && $val !== null));
             if (!empty($filteredEmps)) {
                 $query->whereIn('id', $filteredEmps);
+                $hasSpecificEmps = true;
+            }
+        }
+
+        $catIds = $request->get('category_ids');
+        // Only restrict by category if specific employees were NOT individually supplied and categories are not 'all'
+        if (!$hasSpecificEmps && !empty($catIds) && !in_array('all', (array)$catIds)) {
+            $filteredCats = array_values(array_filter((array)$catIds, fn($val) => $val !== '' && $val !== null));
+            if (!empty($filteredCats)) {
+                $query->whereIn('category_id', $filteredCats);
             }
         }
 

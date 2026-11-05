@@ -517,8 +517,8 @@ class AttendanceService
         $extraWop = (!empty($user->wop_applicable)) ? $wop : 0;
         $extraHop = (!empty($user->hop_applicable)) ? $hop : 0;
 
-        // Payable formula: Regular Present + Half Day (0.5) + Double Duty (2.0) + Qualified Week Offs + Qualified Holidays + Leave + Extra WOP Day + Extra HOP Day
-        $payable = $present + ($half * 0.5) + ($doubleDuty * 2.0) + $totalWeekOff + $totalHoliday + $leave + $extraWop + $extraHop;
+        // Payable formula: Regular Present + Half Day (0.5) + Double Duty (2.0) + Qualified Week Offs + Qualified Holidays + Extra WOP Day + Extra HOP Day (Leaves are unpaid)
+        $payable = $present + ($half * 0.5) + ($doubleDuty * 2.0) + $totalWeekOff + $totalHoliday + $extraWop + $extraHop;
         $holidayPresent = $hop;
         $totalOtHoursFormatted = sprintf('%02d:%02d', intdiv($totalOtMinutes, 60), $totalOtMinutes % 60);
         $totalShortHoursFormatted = sprintf('%02d:%02d', intdiv($totalShortMinutes, 60), $totalShortMinutes % 60);

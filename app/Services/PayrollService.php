@@ -42,7 +42,7 @@ class PayrollService
                 $hopBonus = 0;
                 $basic = round($daily * $payableDays, 2);
             } else {
-                $payableDays = max(0, $presentDays + ($halfDays * 0.5) + ($doubleDutyDays * 2.0) + $weekOffDays + $holidayDays + $leaveDays + $extraWop + $extraHop);
+                $payableDays = max(0, $presentDays + ($halfDays * 0.5) + ($doubleDutyDays * 2.0) + $weekOffDays + $holidayDays + $extraWop + $extraHop);
                 $hopBonus = 0;
                 $basic = round($daily * $payableDays, 2);
             }

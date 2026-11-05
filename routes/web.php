@@ -8,6 +8,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RequestController;
 use App\Http\Controllers\RosterController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\TaskCategoryController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TrackingController;
 use Illuminate\Support\Facades\Route;
@@ -95,9 +96,15 @@ Route::middleware('auth')->group(function () {
     Route::delete('/tasks/attachments/{attachment}', [TaskController::class, 'deleteAttachment'])->name('tasks.attachments.destroy');
     Route::delete('/tasks/replies/{reply}/attachment', [TaskController::class, 'deleteReplyAttachment'])->name('tasks.replies.attachment.delete');
     Route::post('/tasks/replies/{reply}/attachment/delete', [TaskController::class, 'deleteReplyAttachment']);
-    Route::post('/tasks/categories', [TaskController::class, 'storeCategory'])->name('tasks.categories.store');
+    // Task Categories Management
+    Route::get('/tasks/categories', [TaskCategoryController::class, 'index'])->name('tasks.categories.index');
+    Route::post('/tasks/categories', [TaskCategoryController::class, 'store'])->name('tasks.categories.store');
+    Route::put('/tasks/categories/{category}', [TaskCategoryController::class, 'update'])->name('tasks.categories.update');
+    Route::delete('/tasks/categories/{category}', [TaskCategoryController::class, 'destroy'])->name('tasks.categories.destroy');
+
     Route::post('/tasks/{task}/update-deadline', [TaskController::class, 'updateDeadline'])->name('tasks.update-deadline');
     Route::post('/tasks/{task}/update-description', [TaskController::class, 'updateDescription'])->name('tasks.update-description');
+    Route::post('/tasks/{task}/update-category', [TaskController::class, 'updateCategory'])->name('tasks.update-category');
     Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
 
     // Reports

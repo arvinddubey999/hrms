@@ -29,8 +29,9 @@ class AttendanceController extends Controller
         $skip = false;
 
         if (! empty($data['employee_id']) && (int) $data['employee_id'] !== $actor->id) {
-            if (! $actor->isManager()) {
-                return response()->json(['message' => 'Only managers can mark attendance for staff'], 403);
+            $canMark = $actor->isSuperAdmin() || $actor->isManager() || $actor->hasPermission('attendance.mark') || $actor->hasPermission('attendance.bulk');
+            if (! $canMark) {
+                return response()->json(['message' => 'You do not have permission to mark attendance for other staff'], 403);
             }
             $target = User::findOrFail($data['employee_id']);
             $source = 'manager';
@@ -49,9 +50,11 @@ class AttendanceController extends Controller
             ->orderByDesc('punched_at')
             ->first();
 
-        // Auto toggle Punch OUT if user is already IN, avoiding "Already punched IN" error!
-        if ($type === 'in' && $lastPunch && strtolower($lastPunch->type) === 'in') {
+        // Auto-toggle punch: If last punch was IN -> punch OUT; if OUT or no punch -> punch IN
+        if ($lastPunch && strtolower($lastPunch->type) === 'in') {
             $type = 'out';
+        } elseif (!$lastPunch || strtolower($lastPunch->type) === 'out') {
+            $type = 'in';
         }
 
         $punch = $attendance->punch(

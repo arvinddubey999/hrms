@@ -68,6 +68,7 @@ class Task extends Model
             'user_id' => $userId,
             'action' => $action,
             'details' => $details,
+            'created_at' => now(),
         ]);
     }
 

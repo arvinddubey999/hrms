@@ -187,6 +187,17 @@ class AuthController extends Controller
 
     private function payload(User $user): array
     {
+        $shiftFormatted = null;
+        if ($user->shift) {
+            $startFormatted = $user->shift->start_time ? \Carbon\Carbon::parse($user->shift->start_time)->format('g:i A') : '';
+            $endFormatted = $user->shift->end_time ? \Carbon\Carbon::parse($user->shift->end_time)->format('g:i A') : '';
+            $timeStr = ($startFormatted && $endFormatted) ? " ({$startFormatted} - {$endFormatted})" : '';
+            $shiftFormatted = $user->shift->name . $timeStr;
+        }
+
+        $canMarkOthers = $user->isSuperAdmin() || $user->isManager() || $user->hasPermission('attendance.mark') || $user->hasPermission('attendance.bulk');
+        $canViewTasks = $user->isSuperAdmin() || $user->isManager() || $user->hasPermission('tasks.view') || $user->hasPermission('task.view');
+
         return [
             'id' => $user->id,
             'first_name' => $user->first_name,
@@ -198,6 +209,11 @@ class AuthController extends Controller
             'role' => $user->role,
             'designation' => $user->designation,
             'department' => $user->department,
+            'company_name' => $user->company?->name ?? 'TULSI FABRICS INDIA PVT LTD',
+            'shift_name' => $shiftFormatted ?? 'General Staff Shift (09:45 AM - 08:30 PM)',
+            'can_mark_others' => $canMarkOthers,
+            'can_view_tasks' => $canViewTasks,
+            'permissions' => $user->allPermissions(),
             'vendor_name' => $user->vendor_name,
             'mobile_attendance' => $user->mobile_attendance,
             'multiple_attendance' => $user->multiple_attendance,

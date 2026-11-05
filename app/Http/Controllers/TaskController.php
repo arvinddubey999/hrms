@@ -186,14 +186,20 @@ class TaskController extends Controller
             'companies' => (!$u->isSuperAdmin() && !empty($u->accessibleCompanyIds())) ? Company::whereIn('id', $u->accessibleCompanyIds())->orderBy('name')->get() : Company::orderBy('name')->get(),
             'categories' => \Illuminate\Support\Facades\Schema::hasTable('task_categories') ? TaskCategory::orderBy('name')->get() : collect(),
             'allTasksForCalendar' => (clone $baseCountQuery)->with(['assignee'])->select(['id', 'title', 'due_date', 'due_time', 'priority', 'status', 'assigned_to'])->get(),
+            'canCreateTask' => $u && ($u->isSuperAdmin() || $u->hasPermission('tasks.create')),
+            'canManageTask' => $u && ($u->isSuperAdmin() || $u->isAdmin() || $u->hasPermission('tasks.manage')),
         ]);
     }
 
     public function store(Request $request)
     {
         $u = $request->user();
-        if (!$u || (!$u->hasPermission('tasks.create') && !$u->hasPermission('tasks.manage'))) {
-            return back()->with('error', 'You do not have permission to create & assign tasks.');
+        if (!$u || (!$u->isSuperAdmin() && !$u->hasPermission('tasks.create'))) {
+            $msg = 'You do not have permission to create & assign tasks. Only users with "Create & Assign Tasks" permission can add new tasks.';
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['ok' => false, 'message' => $msg], 403);
+            }
+            return back()->with('error', $msg);
         }
 
         try {
@@ -466,6 +472,15 @@ class TaskController extends Controller
 
     public function reassign(Request $request, Task $task)
     {
+        $u = $request->user();
+        if (!$u) {
+            return redirect()->route('login');
+        }
+        $canReassign = $u->isAdmin() || $u->isSuperAdmin() || $u->hasPermission('tasks.manage') || $task->created_by == $u->id;
+        if (!$canReassign) {
+            return back()->with('error', 'You do not have permission to re-assign tasks. Only users with "Manage & Reassign Tasks" permission or task creator can reassign.');
+        }
+
         $rawAssignees = $request->input('new_assigned_to') ?: $request->input('assignees') ?: $request->input('assignee_ids');
         if (empty($rawAssignees)) {
             return back()->with('error', 'The new assigned to field is required. Please select at least one employee to re-assign.');
@@ -555,6 +570,11 @@ class TaskController extends Controller
         $u = $request->user();
         if (!$u) {
             return redirect()->route('login');
+        }
+
+        $canManage = $u->isAdmin() || $u->isSuperAdmin() || $u->hasPermission('tasks.manage') || $task->created_by == $u->id || $task->assigned_to == $u->id;
+        if (!$canManage) {
+            return back()->with('error', 'You do not have permission to update task deadline or status.');
         }
 
         $data = $request->validate([
@@ -716,6 +736,15 @@ class TaskController extends Controller
     public function reopen(Request $request, Task $task)
     {
         $u = $request->user();
+        if (!$u) {
+            return redirect()->route('login');
+        }
+
+        $canReopen = $u->isAdmin() || $u->isSuperAdmin() || $u->hasPermission('tasks.manage') || $task->created_by == $u->id;
+        if (!$canReopen) {
+            return back()->with('error', 'You do not have permission to re-open tasks. Only users with "Manage & Reassign Tasks" permission or task creator can re-open.');
+        }
+
         $data = $request->validate([
             'due_date' => 'nullable|date',
             'due_time' => 'nullable|string',
@@ -983,6 +1012,57 @@ class TaskController extends Controller
         $redirectParams = $request->except(['open_task', 'tab', '_token', 'description']);
         return redirect()->route('tasks.index', $redirectParams)
             ->with('ok', 'Task description updated successfully.');
+    }
+
+    public function updateCategory(Request $request, Task $task)
+    {
+        $u = $request->user();
+        if (!$u) {
+            return response()->json(['ok' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        // Creator, Admin, or Assignee can update category
+        $isAssignee = $task->assigned_to == $u->id 
+            || ($task->relationLoaded('assignees') && $task->assignees->contains('id', $u->id))
+            || $task->assignees()->where('users.id', $u->id)->exists();
+
+        if (!$u->isAdmin() && $task->created_by != $u->id && !$isAssignee) {
+            $msg = 'You do not have permission to update the category for this task.';
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['ok' => false, 'message' => $msg], 403);
+            }
+            return back()->with('error', $msg);
+        }
+
+        $request->validate([
+            'category_id' => 'nullable|exists:task_categories,id',
+        ]);
+
+        $catId = $request->input('category_id') ?: null;
+        $oldCatName = $task->category ? $task->category->name : 'General';
+
+        $task->update(['category_id' => $catId]);
+        $task->load('category');
+
+        $newCatName = $task->category ? $task->category->name : 'General';
+        $task->logHistory('category_updated', "Task category updated from '{$oldCatName}' to '{$newCatName}' by " . $u->displayName(), $u->id);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'Task category updated successfully.',
+                'category_id' => $catId,
+                'category' => $task->category ? [
+                    'id' => $task->category->id,
+                    'name' => $task->category->name,
+                    'color' => $task->category->color,
+                ] : null,
+            ]);
+        }
+
+        $redirectParams = $request->except(['open_task', 'tab', '_token', 'category_id']);
+        return redirect()->route('tasks.index', $redirectParams)
+            ->with('ok', 'Task category updated successfully.');
     }
 
     public function destroy(Request $request, Task $task)

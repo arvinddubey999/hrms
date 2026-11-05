@@ -16,7 +16,9 @@
 
         <a class="btn light" href="{{ route('tasks.export.excel', request()->query()) }}"><i class="fa-solid fa-file-excel" style="color:#16a34a"></i> Excel</a>
         <a class="btn light" href="{{ route('tasks.export.pdf', request()->query()) }}" target="_blank"><i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> PDF</a>
-        <button class="btn" onclick="openNewTaskDrawer()"><i class="fa-solid fa-plus"></i> New Task</button>
+        @if($canCreateTask ?? false)
+            <button class="btn" onclick="openNewTaskDrawer()"><i class="fa-solid fa-plus"></i> New Task</button>
+        @endif
     </div>
 </div>
 
@@ -172,8 +174,12 @@
                                         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                                             <b style="color:#1e293b">{{ $gTask->title }}</b>
                                             @if($gTask->category)
-                                                <span class="chip" style="background:{{ $gTask->category->color ? $gTask->category->color . '20' : '#e0e7ff' }};color:{{ $gTask->category->color ?: '#4338ca' }};font-size:10px;font-weight:700;padding:1px 6px">
-                                                    {{ $gTask->category->name }}
+                                                <span class="chip task-cat-badge-{{ $gTask->id }}" style="background:{{ $gTask->category->color ? $gTask->category->color . '20' : '#e0e7ff' }};color:{{ $gTask->category->color ?: '#4338ca' }};font-size:10px;font-weight:700;padding:1px 6px">
+                                                    <span class="cat-text">{{ $gTask->category->name }}</span>
+                                                </span>
+                                            @else
+                                                <span class="chip task-cat-badge-{{ $gTask->id }}" style="display:none;font-size:10px;font-weight:700;padding:1px 6px">
+                                                    <span class="cat-text"></span>
                                                 </span>
                                             @endif
                                         </div>
@@ -462,8 +468,12 @@
                             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                                 <span style="font-weight:600;color:#1e293b;font-size:13.5px;line-height:1.3">{{ $task->title }}</span>
                                 @if($task->category)
-                                    <span class="chip" style="background:{{ $task->category->color ? $task->category->color . '20' : '#e0e7ff' }};color:{{ $task->category->color ?: '#4338ca' }};font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:12px;border:1px solid {{ $task->category->color ? $task->category->color . '40' : '#c7d2fe' }}">
-                                        <i class="fa-solid fa-tag" style="font-size:9px"></i> {{ $task->category->name }}
+                                    <span class="chip task-cat-badge-{{ $task->id }}" style="background:{{ $task->category->color ? $task->category->color . '20' : '#e0e7ff' }};color:{{ $task->category->color ?: '#4338ca' }};font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:12px;border:1px solid {{ $task->category->color ? $task->category->color . '40' : '#c7d2fe' }}">
+                                        <i class="fa-solid fa-tag" style="font-size:9px"></i> <span class="cat-text">{{ $task->category->name }}</span>
+                                    </span>
+                                @else
+                                    <span class="chip task-cat-badge-{{ $task->id }}" style="display:none;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:12px;border:1px solid #c7d2fe">
+                                        <i class="fa-solid fa-tag" style="font-size:9px"></i> <span class="cat-text"></span>
                                     </span>
                                 @endif
                             </div>
@@ -557,7 +567,11 @@
                 @empty
                     <tr>
                         <td colspan="7" style="text-align:center;padding:36px;color:#64748b;font-size:13.5px">
-                            No tasks found matching current filters. Click "+ New Task" to create one.
+                            @if($canCreateTask ?? false)
+                                No tasks found matching current filters. Click "+ New Task" to create one.
+                            @else
+                                No tasks found matching current filters.
+                            @endif
                         </td>
                     </tr>
                 @endforelse
@@ -643,9 +657,14 @@
             <div style="margin-bottom:12px">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
                     <label style="margin:0;font-size:13px;font-weight:600">Task Category</label>
-                    <a href="javascript:void(0)" onclick="openNewCategoryModal()" style="font-size:12px;color:var(--accent);font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:4px">
-                        <i class="fa-solid fa-plus-circle"></i> Add New Category
-                    </a>
+                    <div style="display:flex;align-items:center;gap:10px">
+                        <a href="javascript:void(0)" onclick="openNewCategoryModal()" style="font-size:12px;color:var(--accent);font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:4px">
+                            <i class="fa-solid fa-plus-circle"></i> Add New Category
+                        </a>
+                        <a href="{{ route('tasks.categories.index') }}" target="_blank" style="font-size:11.5px;color:#64748b;text-decoration:none;display:inline-flex;align-items:center;gap:3px" title="Manage all task categories">
+                            <i class="fa-solid fa-gear"></i> Manage
+                        </a>
+                    </div>
                 </div>
                 <select name="category_id" id="taskCategorySelect" style="width:100%;background:#fff;border:1px solid #cbd5e1;padding:8px 12px;border-radius:8px;font-size:12.5px;color:#1e293b">
                     <option value="">Select Category (Optional)</option>
@@ -817,18 +836,41 @@
                         </div>
                     </div>
                     
-                    <div class="grid-2" style="font-size:12px;color:#475569;margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:10px">
-                        <div><i class="fa-solid fa-tags" style="color:#6366f1"></i> <b>Category:</b> <span id="dtlCategory">-</span></div>
-                        <div><i class="fa-regular fa-calendar-plus" style="color:#0284c7"></i> <b>Created On:</b> <span id="dtlCreatedAt">-</span></div>
-                        <div><i class="fa-regular fa-calendar"></i> <b>Due Date:</b> <span id="dtlDueDate">-</span></div>
-                        <div><i class="fa-regular fa-clock"></i> <b>Due Time:</b> <span id="dtlDueTime">-</span></div>
-                        <div><i class="fa-solid fa-flag"></i> <b>Priority:</b> <span id="dtlPriority">-</span></div>
-                        <div><i class="fa-solid fa-repeat"></i> <b>Repeat:</b> <span id="dtlRepeat">-</span></div>
+                    <div style="font-size:12px;color:#475569;margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:10px">
+                        <!-- Category Full Width Row (Read-Only) -->
+                        <div style="margin-bottom:8px">
+                            <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;flex-wrap:wrap">
+                                <span style="display:inline-flex;align-items:center;gap:5px;font-weight:700;color:#334155;white-space:nowrap">
+                                    <i class="fa-solid fa-tags" style="color:#6366f1"></i> Category:
+                                </span>
+                                <span id="dtlCategory" style="word-break:break-word">-</span>
+                            </div>
+                        </div>
+
+                        <!-- 2-Column Grid for Dates & Metadata: Created On & Priority on top, Due Date & Time & Repeat below -->
+                        <div class="grid-2" style="display:grid;grid-template-columns:1.25fr 0.75fr;gap:8px 12px">
+                            <div>
+                                <i class="fa-regular fa-calendar-plus" style="color:#0284c7"></i> 
+                                <b>Created On:</b> <span id="dtlCreatedAt">-</span>
+                            </div>
+                            <div>
+                                <i class="fa-solid fa-flag" style="color:#f59e0b"></i> 
+                                <b>Priority:</b> <span id="dtlPriority">-</span>
+                            </div>
+                            <div>
+                                <i class="fa-regular fa-clock" style="color:#ef4444"></i> 
+                                <b>Due Date & Time:</b> <span id="dtlDueDateTime">-</span>
+                            </div>
+                            <div>
+                                <i class="fa-solid fa-repeat" style="color:#64748b"></i> 
+                                <b>Repeat:</b> <span id="dtlRepeat">-</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- EDIT DUE DATE & STATUS (Deadline Extension / Resume Task) -->
-                <div style="background:#f0f9ff;border:1.5px solid #bae6fd;padding:12px 14px;border-radius:10px;margin-bottom:14px">
+                <div id="drawerDeadlineSection" style="background:#f0f9ff;border:1.5px solid #bae6fd;padding:12px 14px;border-radius:10px;margin-bottom:14px">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
                         <strong style="font-size:12.5px;color:#0369a1;display:flex;align-items:center;gap:6px">
                             <i class="fa-solid fa-calendar-pen"></i> Edit Due Date & Update Status
@@ -900,7 +942,7 @@
 
                 <!-- Action Buttons: Re-assign, Re-Open, Send Reminder & Delete -->
                 <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-                    <button type="button" class="btn light" style="flex:1" onclick="openReassignModal()"><i class="fa-solid fa-right-left"></i> Re-assign</button>
+                    <button type="button" id="btnReassignTask" class="btn light" style="flex:1" onclick="openReassignModal()"><i class="fa-solid fa-right-left"></i> Re-assign</button>
                     <button type="button" id="btnReopenTask" class="btn" style="flex:1;background:#0284c7;color:#fff;display:none" onclick="openReopenModal()"><i class="fa-solid fa-rotate-left"></i> Re-Open Task</button>
                     
                     <!-- Send Reminder Button -->
@@ -1087,10 +1129,51 @@
 let currentActiveTask = null;
 const allEmployeesList = @json($employees);
 
+function formatTime12(timeStr) {
+    if (!timeStr) return '';
+    if (typeof timeStr === 'string' && (timeStr.includes('AM') || timeStr.includes('PM'))) {
+        return timeStr;
+    }
+    const parts = String(timeStr).trim().split(':');
+    let h = parseInt(parts[0], 10);
+    const m = parts[1] || '00';
+    if (isNaN(h)) return timeStr;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${String(h).padStart(2, '0')}:${m} ${ampm}`;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const parts = String(dateStr).substring(0, 10).split('-');
+        if (parts.length === 3) {
+            const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+            return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) {
+            return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+        return dateStr;
+    } catch(e) {
+        return dateStr;
+    }
+}
+
 function formatDateTime(dtStr) {
     if (!dtStr) return '';
     try {
-        const d = new Date(dtStr);
+        if (typeof dtStr === 'string' && (dtStr.includes('AM') || dtStr.includes('PM'))) {
+            return dtStr;
+        }
+        let str = String(dtStr).trim();
+        // If SQL datetime without timezone (e.g. '2026-11-04 12:56:00'), append Z so browser treats it as UTC and converts to local (IST)
+        if (str.includes(' ') && !str.includes('T') && !str.endsWith('Z')) {
+            str = str.replace(' ', 'T') + 'Z';
+        }
+        const d = new Date(str);
         if (isNaN(d.getTime())) return dtStr;
         return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + 
                d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -1118,6 +1201,11 @@ function toggleTaskView(view) {
 }
 
 function openNewTaskDrawer() {
+    const canCreate = @json($canCreateTask ?? false);
+    if (!canCreate) {
+        alert('You do not have permission to create tasks. Only users with "Create & Assign Tasks" permission can add new tasks.');
+        return;
+    }
     document.getElementById('drawerHeaderTitle').innerText = "New Task";
     document.getElementById('newTaskForm').style.display = 'block';
     document.getElementById('viewTaskDetails').style.display = 'none';
@@ -1155,8 +1243,22 @@ function openTaskDetailsDrawer(task, initialTab = 'details') {
 
     document.getElementById('dtlTitle').innerText = task.title;
     document.getElementById('dtlDescription').innerText = task.description || 'No description provided.';
-    document.getElementById('dtlDueDate').innerText = task.due_date ? task.due_date.substring(0, 10) : 'None';
-    document.getElementById('dtlDueTime').innerText = task.due_time || '12:00';
+
+    // Combined Due Date & Time in 12hr AM/PM format (e.g., "04 Nov 2026, 06:00 PM")
+    let dueStr = 'None';
+    if (task.due_date) {
+        dueStr = formatDate(task.due_date);
+        if (task.due_time) {
+            dueStr += ', ' + formatTime12(task.due_time);
+        }
+    }
+    const dueDateTimeSpan = document.getElementById('dtlDueDateTime');
+    if (dueDateTimeSpan) dueDateTimeSpan.innerText = dueStr;
+    const oldDueDate = document.getElementById('dtlDueDate');
+    if (oldDueDate) oldDueDate.innerText = task.due_date ? formatDate(task.due_date) : 'None';
+    const oldDueTime = document.getElementById('dtlDueTime');
+    if (oldDueTime) oldDueTime.innerText = task.due_time ? formatTime12(task.due_time) : 'None';
+
     document.getElementById('dtlPriority').innerText = (task.priority || 'medium').toUpperCase();
     document.getElementById('dtlRepeat').innerText = (task.repeat_type || 'none').toUpperCase();
 
@@ -1168,9 +1270,9 @@ function openTaskDetailsDrawer(task, initialTab = 'details') {
     const catSpan = document.getElementById('dtlCategory');
     if (catSpan) {
         if (task.category) {
-            catSpan.innerHTML = `<span class="chip" style="background:${task.category.color ? task.category.color + '20' : '#e0e7ff'};color:${task.category.color || '#4338ca'};font-weight:700">${task.category.name}</span>`;
+            catSpan.innerHTML = `<span class="chip" style="background:${task.category.color ? task.category.color + '20' : '#e0e7ff'};color:${task.category.color || '#4338ca'};font-weight:700;white-space:normal;word-break:break-word;display:inline-block;padding:2px 8px;border-radius:12px">${task.category.name}</span>`;
         } else {
-            catSpan.innerText = 'General';
+            catSpan.innerHTML = `<span class="chip" style="background:#f1f5f9;color:#64748b;font-weight:600;padding:2px 8px;border-radius:12px">General</span>`;
         }
     }
 
@@ -1285,6 +1387,27 @@ function openTaskDetailsDrawer(task, initialTab = 'details') {
         }
     }
     cancelEditDescription();
+
+    // Re-assign permission: Super Admin, Admin, users with 'tasks.manage', or Task Creator
+    const canManageTask = @json($canManageTask ?? false);
+    const canReassign = canManageTask || isSuperAdmin || isAdmin || (task.created_by && Number(task.created_by) === currentUserId);
+    const btnReassign = document.getElementById('btnReassignTask');
+    if (btnReassign) {
+        btnReassign.style.display = canReassign ? 'inline-flex' : 'none';
+    }
+
+    // Edit Deadline & Status permission: Creator, Primary Assignee, Admin, Super Admin, or users with 'tasks.manage'
+    const canEditDeadline = canManageTask || isSuperAdmin || isAdmin || 
+        (task.created_by && Number(task.created_by) === currentUserId) || 
+        (task.assigned_to && Number(task.assigned_to) === currentUserId);
+    const deadlineSection = document.getElementById('drawerDeadlineSection');
+    if (deadlineSection) {
+        deadlineSection.style.display = canEditDeadline ? 'block' : 'none';
+    }
+    const stSelect = document.getElementById('dtlStatusSelect');
+    if (stSelect) {
+        stSelect.disabled = !canEditDeadline;
+    }
 
     // Drawer Multiple Attachment Form Action (Requirement 5)
     const drawerAttForm = document.getElementById('drawerUploadAttachmentForm');
@@ -1650,7 +1773,7 @@ function renderHistories(histories) {
     }
     histories.forEach(h => {
         let uname = h.user ? h.user.first_name : 'System';
-        let timeStr = formatDateTime(h.created_at);
+        let timeStr = h.formatted_created_at || formatDateTime(h.created_at);
         container.innerHTML += `
             <div style="background:#fff;padding:8px 12px;border-radius:6px;border-left:3px solid var(--accent);box-shadow:0 1px 2px rgba(0,0,0,0.04);font-size:12px">
                 <div style="font-weight:700;color:#111827">${h.action.toUpperCase()} by ${uname}</div>

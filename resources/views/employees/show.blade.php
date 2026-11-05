@@ -111,10 +111,16 @@
                             <div style="font-weight:800;font-size:13px;color:#111827"><b>{{ $summary['weekOff'] }}</b> <small style="font-weight:normal;font-size:10px">times</small></div>
                         </div>
 
-                        <!-- Paid Leave KPI Card -->
-                        <div style="background:#ffedd5;border-left:4px solid #ea580c;padding:6px 10px;border-radius:6px;min-width:95px;flex-shrink:0">
-                            <div style="font-size:10px;color:#374151">Paid Leave</div>
-                            <div style="font-weight:800;font-size:13px;color:#111827"><b>{{ $summary['leave'] }}</b> <small style="font-weight:normal;font-size:10px">times</small></div>
+                        <!-- WO-P KPI Card -->
+                        <div style="background:#dbeafe;border-left:4px solid #2563eb;padding:6px 10px;border-radius:6px;min-width:95px;flex-shrink:0">
+                            <div style="font-size:10px;color:#374151">WO-P</div>
+                            <div style="font-weight:800;font-size:13px;color:#111827"><b>{{ $summary['wop'] ?? 0 }}</b> <small style="font-weight:normal;font-size:10px">times</small></div>
+                        </div>
+
+                        <!-- H-P KPI Card -->
+                        <div style="background:#fce7f3;border-left:4px solid #db2777;padding:6px 10px;border-radius:6px;min-width:95px;flex-shrink:0">
+                            <div style="font-size:10px;color:#374151">H-P</div>
+                            <div style="font-weight:800;font-size:13px;color:#111827"><b>{{ $summary['hop'] ?? ($summary['holidayPresent'] ?? 0) }}</b> <small style="font-weight:normal;font-size:10px">times</small></div>
                         </div>
 
                         <!-- Late KPI Card -->
@@ -295,8 +301,7 @@
                         <div>Present in Week Offs (WO-P): <b>{{ $summary['wop'] }}</b> <small style="color:#64748b">({{ !empty($staff->wop_applicable) ? 'Extra Day Paid' : 'Standard Day' }})</small></div>
                         <div>Present in Holidays (H-P): <b>{{ $summary['hop'] }}</b> <small style="color:#64748b">({{ !empty($staff->hop_applicable) ? 'Extra Day Paid' : 'Standard Day' }})</small></div>
                         <div>Half Days: <b>{{ $summary['half'] }}</b></div>
-                        <div>Paid Leave Days: <b>{{ $summary['leave'] }}</b></div>
-                        <div>Unpaid Leave Days: <b>0</b></div>
+                        <div>Leave Days (Unpaid): <b>{{ $summary['leave'] }}</b></div>
                         <div>Total Payable Days: <b style="color:#166534;font-size:14px">{{ $pay['payable_days'] }}</b></div>
                     </div>
                 </div>

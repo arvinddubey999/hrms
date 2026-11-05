@@ -214,9 +214,37 @@
                 </div>
             </div>
 
-            <div>
-                <label style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">Description</label>
-                <input name="description" id="holiday_description" placeholder="Public or Festival Holiday" style="width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;font-size:12px;background:#fff;box-sizing:border-box">
+            <!-- 4. Additional Fields (Applicable Companies & Departments) -->
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px">
+                <div style="font-size:12px;font-weight:700;color:#475569"><i class="fa-solid fa-sliders"></i> Applicable Rules (Optional)</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <div>
+                        <label style="font-size:11.5px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">Applicable Companies (Blank = All)</label>
+                        <div style="max-height:85px;overflow-y:auto;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:6px 8px;display:flex;flex-direction:column;gap:4px">
+                            @foreach($companies as $comp)
+                                <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#334155;cursor:pointer;margin:0">
+                                    <input type="checkbox" name="company_ids[]" value="{{ $comp->id }}" class="hol-comp-chk" style="width:13px;height:13px;margin:0">
+                                    <span>{{ $comp->name }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                    </div>
+                    <div>
+                        <label style="font-size:11.5px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">Applicable Departments (Blank = All)</label>
+                        <div style="max-height:85px;overflow-y:auto;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:6px 8px;display:flex;flex-direction:column;gap:4px">
+                            @foreach($departments as $dept)
+                                <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#334155;cursor:pointer;margin:0">
+                                    <input type="checkbox" name="department_ids[]" value="{{ $dept->id }}" class="hol-dept-chk" style="width:13px;height:13px;margin:0">
+                                    <span>{{ $dept->name }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size:11.5px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">Description</label>
+                    <input name="description" id="holiday_description" placeholder="Public or Festival Holiday" style="width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;font-size:12px;background:#fff;box-sizing:border-box">
+                </div>
             </div>
 
             <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:6px;padding-top:10px;border-top:1px solid #e5e7eb">
@@ -324,6 +352,8 @@ function openAddHolidayModal() {
     if (toWrap) toWrap.style.display = 'block';
 
     document.querySelectorAll('.hol-cat-chk').forEach(c => c.checked = false);
+    document.querySelectorAll('.hol-comp-chk').forEach(c => c.checked = true);
+    document.querySelectorAll('.hol-dept-chk').forEach(c => c.checked = true);
     renderHolidayCalendar();
     document.getElementById('holidayModal').style.display = 'flex';
 }
@@ -354,6 +384,16 @@ function openEditHolidayModal(hol) {
     const catIds = Array.isArray(hol.category_ids) ? hol.category_ids : [];
     document.querySelectorAll('.hol-cat-chk').forEach(c => {
         c.checked = catIds.includes(parseInt(c.value)) || catIds.includes(String(c.value));
+    });
+
+    const compIds = Array.isArray(hol.company_ids) ? hol.company_ids : [];
+    document.querySelectorAll('.hol-comp-chk').forEach(c => {
+        c.checked = compIds.length === 0 || compIds.includes(parseInt(c.value)) || compIds.includes(String(c.value));
+    });
+
+    const deptIds = Array.isArray(hol.department_ids) ? hol.department_ids : [];
+    document.querySelectorAll('.hol-dept-chk').forEach(c => {
+        c.checked = deptIds.length === 0 || deptIds.includes(parseInt(c.value)) || deptIds.includes(String(c.value));
     });
 
     renderHolidayCalendar();

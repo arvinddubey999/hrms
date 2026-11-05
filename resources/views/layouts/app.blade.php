@@ -125,7 +125,15 @@ $setting = \App\Models\Setting::current();
 
 
             @if(!$u || $u->hasPermission('tasks.view') || $u->hasPermission('tasks.create') || $u->hasPermission('tasks.manage'))
-                <a class="{{ $nav==='tasks'?'active':'' }}" href="{{ route('tasks.index') }}"><i class="fa-solid fa-list-check" style="width:18px"></i> Task Management</a>
+                @if(!$u || $u->isSuperAdmin() || $u->hasPermission('tasks.create'))
+                    <details {{ in_array($nav ?? '', ['tasks', 'task_categories']) || request()->is('tasks*') ? 'open' : '' }}>
+                        <summary class="{{ in_array($nav ?? '', ['tasks', 'task_categories']) ? 'active' : '' }}"><i class="fa-solid fa-list-check" style="width:18px"></i> Task Management</summary>
+                        <a class="{{ ($nav ?? '') === 'tasks' && !request()->routeIs('tasks.categories.*') ? 'active' : '' }}" href="{{ route('tasks.index') }}">Tasks</a>
+                        <a class="{{ ($nav ?? '') === 'task_categories' || request()->routeIs('tasks.categories.*') ? 'active' : '' }}" href="{{ route('tasks.categories.index') }}">Task Categories</a>
+                    </details>
+                @else
+                    <a class="{{ $nav==='tasks'?'active':'' }}" href="{{ route('tasks.index') }}"><i class="fa-solid fa-list-check" style="width:18px"></i> Task Management</a>
+                @endif
             @endif
 
             @if(!$u || $u->hasPermission('dashboard.reports'))

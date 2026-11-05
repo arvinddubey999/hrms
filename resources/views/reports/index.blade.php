@@ -234,10 +234,10 @@
 
 <!-- GENERATE REPORTS POPUP MODAL matching Client Requirements -->
 <div id="reportModal" class="modal-bg">
-    <div class="modal" style="max-width:960px;width:95vw;padding:22px 26px;border-radius:18px;background:#fff;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25)">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid #f1f5f9;padding-bottom:12px">
+    <div class="modal" style="width:1100px !important;max-width:96vw !important;padding:22px 24px;border-radius:18px;background:#fff;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);box-sizing:border-box">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:1px solid #f1f5f9;padding-bottom:10px">
             <div style="display:flex;align-items:center;gap:12px">
-                <div style="width:38px;height:38px;border-radius:10px;background:#e0f2fe;color:#0284c7;display:grid;place-items:center;font-size:17px">
+                <div style="width:38px;height:38px;border-radius:10px;background:#e0f2fe;color:#0284c7;display:grid;place-items:center;font-size:17px;flex-shrink:0">
                     <i class="fa-solid fa-file-invoice-dollar"></i>
                 </div>
                 <div>
@@ -245,19 +245,19 @@
                     <p style="margin:2px 0 0;font-size:12px;color:#64748b">Filter by Company, Department, Category, and Date Range to generate report.</p>
                 </div>
             </div>
-            <button type="button" class="btn light" onclick="closeReportModal()" style="font-size:18px;padding:4px 10px;border-radius:50%;width:32px;height:32px;display:grid;place-items:center;border:none;background:#f1f5f9;color:#64748b;cursor:pointer">&times;</button>
+            <button type="button" class="btn light" onclick="closeReportModal()" style="font-size:18px;padding:0;border-radius:50%;width:32px;height:32px;display:grid;place-items:center;border:none;background:#f1f5f9;color:#64748b;cursor:pointer">&times;</button>
         </div>
 
         <form method="get" action="{{ route('reports.generate') }}" target="_blank">
             <input type="hidden" name="type" id="reportTypeInput" value="daywise">
 
             <!-- Company & Department Filter Dropdowns Requested by Client -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;background:#f8fafc;padding:12px 16px;border-radius:12px;border:1px solid #e2e8f0">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;background:#f8fafc;padding:10px 14px;border-radius:12px;border:1px solid #e2e8f0">
                 <div>
-                    <label style="font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;display:flex;align-items:center;gap:6px">
+                    <label style="font-size:12px;font-weight:700;color:#334155;margin-bottom:5px;display:flex;align-items:center;gap:6px">
                         <i class="fa-solid fa-building" style="color:#0284c7"></i> Select Company
                     </label>
-                    <select name="company_id" id="reportCompanySelect" onchange="syncEmployeesByFilters()" style="width:100%;font-size:12.5px;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#1e293b;outline:none;font-weight:500">
+                    <select name="company_id" id="reportCompanySelect" onchange="syncEmployeesByFilters()" style="width:100%;font-size:12.5px;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#1e293b;outline:none;font-weight:500;box-sizing:border-box">
                         <option value="">All Companies (All Staff)</option>
                         @foreach($companies as $comp)
                             <option value="{{ $comp->id }}">{{ $comp->name }}</option>
@@ -265,10 +265,10 @@
                     </select>
                 </div>
                 <div>
-                    <label style="font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;display:flex;align-items:center;gap:6px">
+                    <label style="font-size:12px;font-weight:700;color:#334155;margin-bottom:5px;display:flex;align-items:center;gap:6px">
                         <i class="fa-solid fa-sitemap" style="color:#10b981"></i> Select Department
                     </label>
-                    <select name="department_id" id="reportDepartmentSelect" onchange="syncEmployeesByFilters()" style="width:100%;font-size:12.5px;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#1e293b;outline:none;font-weight:500">
+                    <select name="department_id" id="reportDepartmentSelect" onchange="syncEmployeesByFilters()" style="width:100%;font-size:12.5px;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#1e293b;outline:none;font-weight:500;box-sizing:border-box">
                         <option value="">All Departments (All Staff)</option>
                         @foreach($departments as $dept)
                             <option value="{{ $dept->id }}">{{ $dept->name }}</option>
@@ -277,41 +277,44 @@
                 </div>
             </div>
 
-            <div style="display:grid;grid-template-columns:270px 270px 1fr;gap:16px;align-items:stretch">
+            <div style="display:grid;grid-template-columns:260px 260px minmax(0, 1fr);gap:14px;align-items:stretch">
                 
                 <!-- LEFT BOX: Date Selection Options -->
-                <div style="background:#fafafa;padding:14px;border-radius:12px;border:1px solid #e2e8f0;display:flex;flex-direction:column">
-                    <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+                <div style="background:#fafafa;padding:12px 14px;border-radius:12px;border:1px solid #e2e8f0;display:flex;flex-direction:column;box-sizing:border-box">
+                    <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:10px;display:flex;align-items:center;gap:6px">
                         <i class="fa-regular fa-calendar-days" style="color:#6366f1"></i> Date &amp; Period
                     </div>
 
-                    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
-                        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 10px;background:#fff;border-radius:8px;border:1px solid #e2e8f0">
-                            <input type="radio" name="range_type" value="single" onchange="switchDateSelection(this.value)"> Single Date Selection
+                    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+                        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 10px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;margin:0">
+                            <input type="radio" name="range_type" value="single" onchange="switchDateSelection(this.value)">
+                            <span>Single Date Selection</span>
                         </label>
-                        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 10px;background:#fff;border-radius:8px;border:1px solid #e2e8f0">
-                            <input type="radio" name="range_type" value="month" checked onchange="switchDateSelection(this.value)"> Month Selection
+                        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 10px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;margin:0">
+                            <input type="radio" name="range_type" value="month" checked onchange="switchDateSelection(this.value)">
+                            <span>Month Selection</span>
                         </label>
-                        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 10px;background:#fff;border-radius:8px;border:1px solid #e2e8f0">
-                            <input type="radio" name="range_type" value="custom" onchange="switchDateSelection(this.value)"> Custom Date Range
+                        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 10px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;margin:0">
+                            <input type="radio" name="range_type" value="custom" onchange="switchDateSelection(this.value)">
+                            <span>Custom Date Range</span>
                         </label>
                     </div>
 
                     <!-- Single Date Picker -->
                     <div id="singleDateBox" style="display:none;margin-top:auto">
                         <label style="font-size:11.5px;font-weight:700;color:#64748b;margin-bottom:4px;display:block">Select Date</label>
-                        <input type="date" name="date" value="{{ now()->toDateString() }}" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px">
+                        <input type="date" name="date" value="{{ now()->toDateString() }}" style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px;box-sizing:border-box">
                     </div>
 
                     <!-- Month Selection Pickers -->
                     <div id="monthDateBox" style="margin-top:auto">
                         <label style="font-size:11.5px;font-weight:700;color:#64748b;margin-bottom:4px;display:block">Select Month &amp; Year</label>
-                        <select name="month" style="width:100%;margin-bottom:8px;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px">
+                        <select name="month" style="width:100%;margin-bottom:8px;padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px;box-sizing:border-box">
                             @for($m=1;$m<=12;$m++)
                                 <option value="{{ $m }}" {{ now()->month==$m?'selected':'' }}>{{ date('F', mktime(0,0,0,$m,1)) }}</option>
                             @endfor
                         </select>
-                        <select name="year" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px">
+                        <select name="year" style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px;box-sizing:border-box">
                             @for($y=2024;$y<=2030;$y++)
                                 <option value="{{ $y }}" {{ now()->year==$y?'selected':'' }}>{{ $y }}</option>
                             @endfor
@@ -321,14 +324,14 @@
                     <!-- Custom Range Pickers -->
                     <div id="customDateBox" style="display:none;margin-top:auto">
                         <label style="font-size:11.5px;font-weight:700;color:#64748b;margin-bottom:4px;display:block">From Date</label>
-                        <input type="date" name="from" value="{{ now()->startOfMonth()->toDateString() }}" style="width:100%;margin-bottom:8px;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px">
+                        <input type="date" name="from" value="{{ now()->startOfMonth()->toDateString() }}" style="width:100%;margin-bottom:8px;padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px;box-sizing:border-box">
                         <label style="font-size:11.5px;font-weight:700;color:#64748b;margin-bottom:4px;display:block">To Date</label>
-                        <input type="date" name="to" value="{{ now()->toDateString() }}" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px">
+                        <input type="date" name="to" value="{{ now()->toDateString() }}" style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;font-size:12.5px;box-sizing:border-box">
                     </div>
                 </div>
 
                 <!-- MIDDLE BOX: Select Category Checklist (Optional) -->
-                <div style="border:1px solid #e2e8f0;border-radius:12px;padding:14px;background:#fff;display:flex;flex-direction:column">
+                <div style="border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;background:#fff;display:flex;flex-direction:column;box-sizing:border-box">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
                         <div style="font-size:13px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:6px">
                             <i class="fa-solid fa-tags" style="color:#f59e0b"></i> Select Category
@@ -337,26 +340,26 @@
                     </div>
 
                     <div style="position:relative;margin-bottom:8px">
-                        <input type="text" id="catSearchInput" placeholder="Search category..." onkeyup="filterCategoriesList()" style="width:100%;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;outline:none">
+                        <input type="text" id="catSearchInput" placeholder="Search category..." onkeyup="filterCategoriesList()" style="width:100%;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;outline:none;box-sizing:border-box">
                     </div>
                     
-                    <label style="display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 8px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;font-weight:700;cursor:pointer;margin-bottom:4px">
+                    <label style="display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 8px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;font-weight:700;cursor:pointer;margin-bottom:6px">
                         <input type="checkbox" id="selectAllCatCheckbox" onchange="toggleSelectAllCategories(this)" checked>
                         <span>All Categories (No filter)</span>
                     </label>
 
-                    <div style="max-height:190px;overflow-y:auto;padding-right:4px" id="catChecklist">
+                    <div style="max-height:200px;overflow-y:auto;overflow-x:hidden;padding-right:2px" id="catChecklist">
                         @foreach($categories as $cat)
-                            <label class="cat-item" style="display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 6px;border-radius:6px;color:#334155;cursor:pointer">
+                            <label class="cat-item" style="display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 6px;border-radius:6px;color:#334155;cursor:pointer;margin-bottom:2px">
                                 <input type="checkbox" name="category_ids[]" value="{{ $cat->id }}" class="cat-cb" onchange="onCategoryCheckboxChange()" checked>
-                                <span style="font-weight:500">{{ $cat->name }}</span>
+                                <span style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ $cat->name }}</span>
                             </label>
                         @endforeach
                     </div>
                 </div>
 
                 <!-- RIGHT BOX: Select Staff Checklist -->
-                <div style="border:1px solid #e2e8f0;border-radius:12px;padding:14px;background:#fff;display:flex;flex-direction:column">
+                <div style="border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;background:#fff;display:flex;flex-direction:column;box-sizing:border-box;min-width:0">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
                         <div style="font-size:13px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:6px">
                             <i class="fa-solid fa-users" style="color:#10b981"></i> Staff Members
@@ -365,38 +368,50 @@
                     </div>
 
                     <div style="position:relative;margin-bottom:8px">
-                        <input type="text" id="empSearchInput" placeholder="Search by name, code..." onkeyup="filterEmployeesList()" style="width:100%;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;outline:none">
+                        <input type="text" id="empSearchInput" placeholder="Search by name, code..." onkeyup="filterEmployeesList()" style="width:100%;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;outline:none;box-sizing:border-box">
                     </div>
                     
-                    <label style="display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 8px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;font-weight:700;cursor:pointer;margin-bottom:4px">
+                    <label style="display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 8px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;font-weight:700;cursor:pointer;margin-bottom:6px">
                         <input type="checkbox" id="selectAllEmpCheckbox" onchange="toggleSelectAllEmployees(this)" checked>
                         <span id="selectAllEmpLabel">Select All ({{ $employees->count() }}) Staff</span>
                     </label>
 
-                    <div style="max-height:190px;overflow-y:auto;padding-right:4px" id="empChecklist">
+                    <div style="max-height:200px;overflow-y:auto;overflow-x:hidden;padding-right:2px" id="empChecklist">
                         @foreach($employees as $emp)
                             @php
                                 $empDeptName = $emp->department ?: ($emp->department_id ? ($departments->firstWhere('id', $emp->department_id)?->name ?? '') : '');
                                 $empDeptId = $emp->department_id ?: ($empDeptName ? ($departments->firstWhere('name', $empDeptName)?->id ?? 0) : 0);
+                                $empCatName = $emp->category?->name ?: ($emp->category_id ? ($categories->firstWhere('id', $emp->category_id)?->name ?? '') : '');
+                                if (!$empCatName && !empty($emp->role) && !in_array(strtolower($emp->role), ['employee', 'staff'])) {
+                                    $empCatName = ucfirst($emp->role);
+                                }
+                                if (!$empCatName) {
+                                    $empCatName = 'General Staff';
+                                }
                             @endphp
                             <label class="emp-item" 
                                    data-category-id="{{ $emp->category_id ?: 0 }}" 
                                    data-company-id="{{ $emp->company_id ?: 0 }}" 
                                    data-department-id="{{ $empDeptId }}" 
-                                   data-search="{{ strtolower($emp->displayName() . ' ' . ($emp->serial_no ?? '') . ' ' . ($emp->code ?? '') . ' ' . $empDeptName) }}" 
-                                   style="display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 8px;border-radius:6px;margin-bottom:2px;cursor:pointer;background:#fff;border-bottom:1px solid #f8fafc">
+                                   data-search="{{ strtolower($emp->displayName() . ' ' . ($emp->serial_no ?? '') . ' ' . ($emp->code ?? '') . ' ' . $empDeptName . ' ' . $empCatName) }}" 
+                                   style="display:flex;align-items:center;gap:10px;font-size:12px;padding:6px 10px;border-radius:8px;margin-bottom:3px;cursor:pointer;background:#fff;border:1px solid #f1f5f9;box-sizing:border-box">
                                 <input type="checkbox" name="employee_ids[]" value="{{ $emp->id }}" class="emp-cb" onchange="syncSelectAllEmpState()" checked>
-                                <div style="flex:1;min-width:0">
-                                    <div style="font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-                                        {{ $emp->displayName() }}
-                                        @if(!empty($emp->serial_no) || !empty($emp->code))
-                                            <span style="font-size:11px;font-weight:normal;color:#64748b">({{ $emp->serial_no ?: $emp->code }})</span>
-                                        @endif
+                                <div style="flex:1;min-width:0;display:flex;justify-content:space-between;align-items:center;gap:8px">
+                                    <div style="min-width:0;overflow:hidden">
+                                        <div style="font-weight:600;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                            {{ $emp->displayName() }}
+                                            @if(!empty($emp->serial_no) || !empty($emp->code))
+                                                <span style="font-size:11px;font-weight:normal;color:#64748b">({{ $emp->serial_no ?: $emp->code }})</span>
+                                            @endif
+                                        </div>
+                                        <div style="font-size:11px;color:#64748b;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                            {{ $empDeptName ?: 'No Dept' }}
+                                        </div>
                                     </div>
-                                    <div style="font-size:11px;color:#94a3b8;display:flex;gap:6px;align-items:center;margin-top:1px">
-                                        <span>{{ $empDeptName ?: 'No Dept' }}</span>
-                                        <span>&bull;</span>
-                                        <span>{{ $emp->category?->name ?? 'Unassigned' }}</span>
+                                    <div style="flex-shrink:0">
+                                        <span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:10.5px;font-weight:600;background:#f8fafc;color:#334155;border:1px solid #e2e8f0;white-space:nowrap">
+                                            {{ $empCatName }}
+                                        </span>
                                     </div>
                                 </div>
                             </label>
@@ -406,20 +421,20 @@
             </div>
 
             <!-- BOTTOM BAR: Export Format & Submit Button -->
-            <div style="margin-top:18px;padding-top:14px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center">
+            <div style="margin-top:16px;padding-top:12px;border-top:1px solid #f1f5f9;display:flex;justify-space-between;align-items:center">
                 <div style="display:flex;align-items:center;gap:12px">
                     <span style="font-size:12.5px;font-weight:700;color:#475569">Export Format:</span>
-                    <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:6px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;cursor:pointer">
+                    <label style="display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;padding:6px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;cursor:pointer;margin:0">
                         <input type="radio" name="format" value="excel" checked> <i class="fa-solid fa-file-excel" style="color:#16a34a"></i> Excel (.xls)
                     </label>
-                    <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:6px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;cursor:pointer">
+                    <label style="display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;padding:6px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;cursor:pointer;margin:0">
                         <input type="radio" name="format" value="pdf"> <i class="fa-solid fa-file-pdf" style="color:#dc2626"></i> PDF Document
                     </label>
                 </div>
 
                 <div style="display:flex;align-items:center;gap:10px">
-                    <button type="button" class="btn light" onclick="closeReportModal()" style="padding:9px 16px;border-radius:8px;font-weight:600;font-size:13px">Cancel</button>
-                    <button type="submit" id="reportSubmitBtn" class="btn" style="background:#0f172a;color:#fff;padding:9px 22px;border-radius:8px;font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:8px">
+                    <button type="button" class="btn light" onclick="closeReportModal()" style="padding:8px 16px;border-radius:8px;font-weight:600;font-size:13px">Cancel</button>
+                    <button type="submit" id="reportSubmitBtn" class="btn" style="background:#0f172a;color:#fff;padding:8px 20px;border-radius:8px;font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:8px">
                         <i class="fa-solid fa-sliders"></i> Generate Payroll Register
                     </button>
                 </div>
@@ -429,6 +444,59 @@
 </div>
 
 <style>
+/* Modal Layout & Reset Styles */
+#reportModal .modal {
+    width: 1100px !important;
+    max-width: 96vw !important;
+    box-sizing: border-box !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+}
+
+#reportModal input[type="checkbox"],
+#reportModal input[type="radio"] {
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    max-width: 16px !important;
+    min-height: 16px !important;
+    max-height: 16px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    display: inline-block !important;
+    vertical-align: middle !important;
+    box-sizing: border-box !important;
+    accent-color: #0f172a !important;
+}
+
+#reportModal input[type="radio"] {
+    border-radius: 50% !important;
+}
+
+#reportModal label {
+    margin: 0 !important;
+    font-weight: 500;
+}
+
+#reportModal .emp-item:hover {
+    background: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+}
+
+#reportModal .cat-item:hover {
+    background: #f8fafc !important;
+}
+
+#reportModal select, 
+#reportModal input[type="text"], 
+#reportModal input[type="date"] {
+    box-sizing: border-box !important;
+}
+
 .report-card {
     background: #fff;
     border: 1px dashed #d1d5db;

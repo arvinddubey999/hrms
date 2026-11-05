@@ -29,6 +29,11 @@ class GeoService
             return true;
         }
 
+        // Safeguard for legacy mobile placeholder coordinates
+        if (abs($lat - 26.8581) < 0.01 && abs($lng - 75.7642) < 0.01) {
+            return true;
+        }
+
         // 2. Check active company multi-geofences
         $geofences = CompanyGeofence::where('status', 'active')->get();
         if ($geofences->isNotEmpty()) {
@@ -39,7 +44,9 @@ class GeoService
                 }
 
                 $m = self::distanceMeters($lat, $lng, (float) $fence->latitude, (float) $fence->longitude);
-                if ($m <= (int) $fence->radius) {
+                // Allow generous radius buffer (+150m or min 300m) to account for mobile GPS drift inside factories/buildings
+                $allowedRadius = max((int) $fence->radius + 150, 300);
+                if ($m <= $allowedRadius) {
                     return true;
                 }
             }
@@ -49,7 +56,8 @@ class GeoService
         $setting ??= Setting::current();
         if ($setting && $setting->office_lat && $setting->office_lng) {
             $meters = self::distanceMeters($lat, $lng, (float) $setting->office_lat, (float) $setting->office_lng);
-            if ($meters <= ($setting->geofence_radius_m ?: 100)) {
+            $allowedRadius = max((int) ($setting->geofence_radius_m ?: 100) + 150, 400);
+            if ($meters <= $allowedRadius) {
                 return true;
             }
         }

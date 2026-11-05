@@ -27,7 +27,7 @@ class ReportController extends Controller
         }
 
         $companiesQuery = Company::orderBy('name');
-        $employeesQuery = User::where('status', 'active')->orderBy('first_name');
+        $employeesQuery = User::where('status', 'active')->with(['category', 'company'])->orderBy('first_name');
 
         if ($u && !$u->isSuperAdmin()) {
             $compIds = $u->accessibleCompanyIds();

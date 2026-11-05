@@ -83,29 +83,30 @@ Route::middleware('auth')->group(function () {
     Route::post('/tasks', [TaskController::class, 'store'])->name('tasks.store');
     Route::get('/tasks/export/excel', [TaskController::class, 'exportExcel'])->name('tasks.export.excel');
     Route::get('/tasks/export/pdf', [TaskController::class, 'exportPdf'])->name('tasks.export.pdf');
-    Route::get('/tasks/{task}', [TaskController::class, 'show'])->name('tasks.show');
-    Route::put('/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
-    Route::post('/tasks/{task}/reply', [TaskController::class, 'reply'])->name('tasks.reply');
-    Route::post('/tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status');
-    Route::post('/tasks/{task}/pin', [TaskController::class, 'togglePin'])->name('tasks.pin');
-    Route::post('/tasks/{task}/reopen', [TaskController::class, 'reopen'])->name('tasks.reopen');
-    Route::get('/tasks/{task}/replies-pdf', [TaskController::class, 'exportRepliesPdf'])->name('tasks.replies.pdf');
-    Route::post('/tasks/{task}/reassign', [TaskController::class, 'reassign'])->name('tasks.reassign');
-    Route::post('/tasks/{task}/remind', [TaskController::class, 'remind'])->name('tasks.remind');
-    Route::post('/tasks/{task}/attachment', [TaskController::class, 'uploadAttachment'])->name('tasks.attachment');
-    Route::delete('/tasks/attachments/{attachment}', [TaskController::class, 'deleteAttachment'])->name('tasks.attachments.destroy');
-    Route::delete('/tasks/replies/{reply}/attachment', [TaskController::class, 'deleteReplyAttachment'])->name('tasks.replies.attachment.delete');
-    Route::post('/tasks/replies/{reply}/attachment/delete', [TaskController::class, 'deleteReplyAttachment']);
+
     // Task Categories Management
     Route::get('/tasks/categories', [TaskCategoryController::class, 'index'])->name('tasks.categories.index');
     Route::post('/tasks/categories', [TaskCategoryController::class, 'store'])->name('tasks.categories.store');
-    Route::put('/tasks/categories/{category}', [TaskCategoryController::class, 'update'])->name('tasks.categories.update');
-    Route::delete('/tasks/categories/{category}', [TaskCategoryController::class, 'destroy'])->name('tasks.categories.destroy');
+    Route::put('/tasks/categories/{category}', [TaskCategoryController::class, 'update'])->name('tasks.categories.update')->whereNumber('category');
+    Route::delete('/tasks/categories/{category}', [TaskCategoryController::class, 'destroy'])->name('tasks.categories.destroy')->whereNumber('category');
 
-    Route::post('/tasks/{task}/update-deadline', [TaskController::class, 'updateDeadline'])->name('tasks.update-deadline');
-    Route::post('/tasks/{task}/update-description', [TaskController::class, 'updateDescription'])->name('tasks.update-description');
-    Route::post('/tasks/{task}/update-category', [TaskController::class, 'updateCategory'])->name('tasks.update-category');
-    Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
+    Route::get('/tasks/{task}', [TaskController::class, 'show'])->name('tasks.show')->whereNumber('task');
+    Route::put('/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update')->whereNumber('task');
+    Route::post('/tasks/{task}/reply', [TaskController::class, 'reply'])->name('tasks.reply')->whereNumber('task');
+    Route::post('/tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status')->whereNumber('task');
+    Route::post('/tasks/{task}/pin', [TaskController::class, 'togglePin'])->name('tasks.pin')->whereNumber('task');
+    Route::post('/tasks/{task}/reopen', [TaskController::class, 'reopen'])->name('tasks.reopen')->whereNumber('task');
+    Route::get('/tasks/{task}/replies-pdf', [TaskController::class, 'exportRepliesPdf'])->name('tasks.replies.pdf')->whereNumber('task');
+    Route::post('/tasks/{task}/reassign', [TaskController::class, 'reassign'])->name('tasks.reassign')->whereNumber('task');
+    Route::post('/tasks/{task}/remind', [TaskController::class, 'remind'])->name('tasks.remind')->whereNumber('task');
+    Route::post('/tasks/{task}/attachment', [TaskController::class, 'uploadAttachment'])->name('tasks.attachment')->whereNumber('task');
+    Route::delete('/tasks/attachments/{attachment}', [TaskController::class, 'deleteAttachment'])->name('tasks.attachments.destroy');
+    Route::delete('/tasks/replies/{reply}/attachment', [TaskController::class, 'deleteReplyAttachment'])->name('tasks.replies.attachment.delete');
+    Route::post('/tasks/replies/{reply}/attachment/delete', [TaskController::class, 'deleteReplyAttachment']);
+    Route::post('/tasks/{task}/update-deadline', [TaskController::class, 'updateDeadline'])->name('tasks.update-deadline')->whereNumber('task');
+    Route::post('/tasks/{task}/update-description', [TaskController::class, 'updateDescription'])->name('tasks.update-description')->whereNumber('task');
+    Route::post('/tasks/{task}/update-category', [TaskController::class, 'updateCategory'])->name('tasks.update-category')->whereNumber('task');
+    Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy')->whereNumber('task');
 
     // Reports
     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');

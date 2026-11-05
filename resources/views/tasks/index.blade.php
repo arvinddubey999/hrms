@@ -1404,7 +1404,6 @@ function openTaskDetailsDrawer(task, initialTab = 'details') {
     if (deadlineSection) {
         deadlineSection.style.display = canEditDeadline ? 'block' : 'none';
     }
-    const stSelect = document.getElementById('dtlStatusSelect');
     if (stSelect) {
         stSelect.disabled = !canEditDeadline;
     }

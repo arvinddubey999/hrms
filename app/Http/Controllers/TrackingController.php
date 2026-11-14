@@ -35,6 +35,16 @@ class TrackingController extends Controller
                 ->whereDate('pinged_at', $date)
                 ->orderBy('pinged_at', 'asc')
                 ->get();
+
+            foreach ($pings as $p) {
+                if (empty($p->address) || strtolower(trim($p->address)) === 'unknown location') {
+                    $resolved = \App\Services\GeoService::reverseGeocode((float)$p->lat, (float)$p->lng);
+                    if ($resolved) {
+                        $p->address = $resolved;
+                        $p->save();
+                    }
+                }
+            }
         }
 
         $totalLocations = $pings->count();

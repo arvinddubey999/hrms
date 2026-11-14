@@ -37,6 +37,8 @@ Route::middleware('api.token')->group(function () {
     Route::get('/team', [AuthController::class, 'team']);
 
     Route::post('/attendance/punch', [AttendanceController::class, 'punch']);
+    Route::post('/attendance/recognize-and-punch', [AttendanceController::class, 'recognizeAndPunch']);
+    Route::post('/attendance/recognize', [AttendanceController::class, 'recognizeAndPunch']);
     Route::get('/attendance/today', [AttendanceController::class, 'today']);
     Route::get('/attendance/history', [AttendanceController::class, 'history']);
     Route::get('/attendance/statistics', [AttendanceController::class, 'statistics']);
@@ -61,11 +63,29 @@ Route::middleware('api.token')->group(function () {
 
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::post('/tasks', [TaskController::class, 'store']);
-    Route::get('/tasks/{task}', [TaskController::class, 'show']);
-    Route::post('/tasks/{task}/status', [TaskController::class, 'updateStatus']);
-    Route::post('/tasks/{task}/reply', [TaskController::class, 'reply']);
-    Route::post('/tasks/{task}/reassign', [TaskController::class, 'reassign']);
-    Route::post('/tasks/{task}/remind', [TaskController::class, 'remind']);
+    Route::get('/tasks/{task}', [TaskController::class, 'show'])->whereNumber('task');
+    Route::put('/tasks/{task}', [TaskController::class, 'updateDescription'])->whereNumber('task');
+    Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->whereNumber('task');
+    Route::post('/tasks/{task}/delete', [TaskController::class, 'destroy'])->whereNumber('task');
+    Route::post('/tasks/{task}/status', [TaskController::class, 'updateStatus'])->whereNumber('task');
+    Route::post('/tasks/{task}/reply', [TaskController::class, 'reply'])->whereNumber('task');
+    Route::post('/tasks/{task}/reassign', [TaskController::class, 'reassign'])->whereNumber('task');
+    Route::post('/tasks/{task}/remind', [TaskController::class, 'remind'])->whereNumber('task');
+    Route::post('/tasks/{task}/pin', [TaskController::class, 'togglePin'])->whereNumber('task');
+    Route::get('/tasks/{task}/pin', [TaskController::class, 'togglePin'])->whereNumber('task');
+    Route::post('/tasks/{task}/toggle-pin', [TaskController::class, 'togglePin'])->whereNumber('task');
+    Route::post('/tasks/{task}/reopen', [TaskController::class, 'reopen'])->whereNumber('task');
+    Route::post('/tasks/{task}/update-deadline', [TaskController::class, 'updateDeadline'])->whereNumber('task');
+    Route::post('/tasks/{task}/deadline', [TaskController::class, 'updateDeadline'])->whereNumber('task');
+    Route::post('/tasks/{task}/update-description', [TaskController::class, 'updateDescription'])->whereNumber('task');
+    Route::post('/tasks/{task}/update', [TaskController::class, 'updateDescription'])->whereNumber('task');
+    Route::post('/tasks/{task}/update-category', [TaskController::class, 'updateCategory'])->whereNumber('task');
+    Route::post('/tasks/{task}/attachment', [TaskController::class, 'uploadAttachment'])->whereNumber('task');
+    Route::post('/tasks/{task}/attachments', [TaskController::class, 'uploadAttachment'])->whereNumber('task');
+    Route::delete('/tasks/attachments/{attachment}', [TaskController::class, 'deleteAttachment'])->whereNumber('attachment');
+    Route::post('/tasks/attachments/{attachment}/delete', [TaskController::class, 'deleteAttachment'])->whereNumber('attachment');
+    Route::delete('/tasks/replies/{reply}/attachment', [TaskController::class, 'deleteReplyAttachment'])->whereNumber('reply');
+    Route::post('/tasks/replies/{reply}/attachment/delete', [TaskController::class, 'deleteReplyAttachment'])->whereNumber('reply');
     Route::get('/department-employees', [TaskController::class, 'departmentEmployees']);
     Route::get('/task-categories', [TaskController::class, 'categories']);
     Route::post('/task-categories', [TaskController::class, 'storeCategory']);

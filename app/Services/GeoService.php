@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Models\CompanyGeofence;
 use App\Models\Setting;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class GeoService
 {
@@ -83,5 +86,62 @@ class GeoService
         }
 
         return "{$part} {$name}";
+    }
+
+    public static function reverseGeocode(?float $lat, ?float $lng): ?string
+    {
+        if ($lat === null || $lng === null || ($lat == 0.0 && $lng == 0.0)) {
+            return null;
+        }
+
+        // 1. Check if near any active company geofence
+        try {
+            $geofences = CompanyGeofence::where('status', 'active')->get();
+            foreach ($geofences as $fence) {
+                if ($fence->latitude && $fence->longitude) {
+                    $dist = self::distanceMeters($lat, $lng, (float)$fence->latitude, (float)$fence->longitude);
+                    if ($dist <= max((int)$fence->radius + 150, 300)) {
+                        return $fence->name;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        // 2. Check office setting
+        try {
+            $setting = Setting::current();
+            if ($setting && $setting->office_lat && $setting->office_lng) {
+                $dist = self::distanceMeters($lat, $lng, (float)$setting->office_lat, (float)$setting->office_lng);
+                if ($dist <= max((int)($setting->geofence_radius_m ?: 100) + 150, 400)) {
+                    return $setting->office_address ?: 'Company Office';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        // 3. Reverse geocode via Nominatim with caching
+        $cacheKey = "rev_geo_" . round($lat, 4) . "_" . round($lng, 4);
+        return Cache::remember($cacheKey, 86400 * 7, function () use ($lat, $lng) {
+            try {
+                $url = "https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}&zoom=18&addressdetails=1";
+                $res = Http::withHeaders(['User-Agent' => 'TulsiHRMS/1.0'])->timeout(3)->get($url);
+                if ($res->successful()) {
+                    $json = $res->json();
+                    $addr = $json['address'] ?? [];
+                    $parts = array_filter([
+                        $addr['amenity'] ?? $addr['building'] ?? $addr['shop'] ?? null,
+                        $addr['road'] ?? $addr['neighbourhood'] ?? $addr['suburb'] ?? null,
+                        $addr['city_district'] ?? $addr['city'] ?? $addr['town'] ?? null,
+                        $addr['state_district'] ?? $addr['state'] ?? null,
+                    ]);
+                    if (!empty($parts)) {
+                        return implode(', ', array_unique($parts));
+                    }
+                    if (!empty($json['display_name'])) {
+                        return Str::limit($json['display_name'], 80);
+                    }
+                }
+            } catch (\Throwable $e) {}
+            return null;
+        });
     }
 }

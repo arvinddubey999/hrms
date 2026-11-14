@@ -413,8 +413,9 @@
                     $isStart = ($itemNum === 1);
                     $status = $p->journey_status ?: ($isEnd ? 'End' : ($isStart ? 'Start' : 'Transit'));
                     
-                    $batteryVal = $p->battery !== null ? (int)$p->battery : 21;
-                    $batteryColor = $batteryVal <= 20 ? '#ef4444' : ($batteryVal <= 50 ? '#f59e0b' : '#16a34a');
+                    $batteryVal = $p->battery !== null ? (int)$p->battery : null;
+                    $batteryColor = $batteryVal !== null ? ($batteryVal <= 20 ? '#ef4444' : ($batteryVal <= 50 ? '#f59e0b' : '#16a34a')) : '#94a3b8';
+                    $batteryIcon = $batteryVal !== null ? ($batteryVal <= 20 ? 'fa-battery-quarter' : ($batteryVal <= 50 ? 'fa-battery-half' : 'fa-battery-full')) : 'fa-battery-empty';
                 @endphp
                 <div class="timeline-card {{ $isEnd ? 'active-card' : '' }}" 
                      id="timeline-card-{{ $itemNum }}" 
@@ -431,10 +432,17 @@
                                 <span style="font-weight: 700; font-size: 13px; color: #111827;">
                                     {{ $p->formatted_time }}
                                 </span>
-                                <span style="font-size: 11px; font-weight: 700; color: {{ $batteryColor }}; display: inline-flex; align-items: center; gap: 4px;">
-                                    <i class="fa-solid fa-battery-quarter" style="color: {{ $batteryColor }};"></i>
-                                    {{ $p->battery_formatted }}
-                                </span>
+                                @if($batteryVal !== null)
+                                    <span style="font-size: 11px; font-weight: 700; color: {{ $batteryColor }}; display: inline-flex; align-items: center; gap: 4px;">
+                                        <i class="fa-solid {{ $batteryIcon }}" style="color: {{ $batteryColor }};"></i>
+                                        {{ $batteryVal }}%
+                                    </span>
+                                @else
+                                    <span style="font-size: 11px; font-weight: 600; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px;">
+                                        <i class="fa-solid fa-battery-empty" style="color: #94a3b8;"></i>
+                                        --
+                                    </span>
+                                @endif
                             </div>
                             <div style="font-size: 12px; font-weight: 600; color: #64748b; margin-top: 1px;">
                                 {{ $status }}
@@ -445,7 +453,7 @@
                     <!-- Address string with icon matching Screenshot 4 -->
                     <div style="font-size: 12px; color: #374151; line-height: 1.45; margin-bottom: 8px; display: flex; gap: 6px;">
                         <i class="fa-solid fa-location-dot" style="color: #9ca3af; margin-top: 3px; font-size: 12px; flex-shrink: 0;"></i>
-                        <span style="overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                        <span id="timeline-addr-{{ $itemNum }}" style="overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
                             {{ $p->address ?: 'Unknown location' }}
                         </span>
                     </div>
@@ -490,6 +498,10 @@
         // Marker color type: 'start' (green), 'end' (blue), 'transit' (orange)
         $colorType = $isEnd ? 'end' : ($isStart ? 'start' : 'transit');
 
+        $batteryVal = $p->battery !== null ? (int)$p->battery : null;
+        $batteryColor = $batteryVal !== null ? ($batteryVal <= 20 ? '#ef4444' : ($batteryVal <= 50 ? '#f59e0b' : '#16a34a')) : '#94a3b8';
+        $batteryText = $batteryVal !== null ? "{$batteryVal}%" : '--';
+
         return [
             'id' => $p->id,
             'index' => $itemNum,
@@ -501,7 +513,9 @@
             'address' => $p->address ?: 'Unknown location',
             'points' => $p->points ?: 1,
             'accuracy' => $p->accuracy_formatted,
-            'battery' => $p->battery_formatted,
+            'battery' => $batteryText,
+            'battery_val' => $batteryVal,
+            'battery_color' => $batteryColor,
             'is_end' => $isEnd,
             'is_start' => $isStart,
             'maps_url' => "https://www.google.com/maps?q={$p->lat},{$p->lng}",
@@ -522,9 +536,63 @@
     // Calendar state
     let calCurrentDate = new Date("{{ $date }}");
 
+    function buildPopupContent(pt) {
+        const bColor = pt.battery_color || '#16a34a';
+        return `
+            <div style="min-width: 220px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <span style="font-weight:700; color:#111; font-size:13px;">#${pt.index} - ${pt.time}</span>
+                    <span style="font-size:11px; font-weight:700; color:${bColor};">${pt.battery}</span>
+                </div>
+                <div style="font-size:11px; font-weight:700; color:#2563eb; margin-bottom:6px;">${pt.status}</div>
+                <div style="font-size:12px; color:#4b5563; margin-bottom:8px; line-height:1.4;">
+                    <i class="fa-solid fa-location-dot" style="color:#f97316;"></i> <span id="popup-addr-${pt.index}">${pt.address}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:11px; color:#6b7280; border-top:1px dashed #e2e8f0; padding-top:6px; margin-bottom:8px;">
+                    <span>Points: <b>${pt.points}</b></span>
+                    <span>Accuracy: <b>${pt.accuracy}</b></span>
+                </div>
+                <a href="${pt.maps_url}" target="_blank" style="display:inline-block; font-size:11px; color:#0284c7; font-weight:600; text-decoration:underline;">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> View in Google Maps
+                </a>
+            </div>
+        `;
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         initTimelineMap();
         initCalendarPicker();
+
+        // Client-side reverse geocoding fallback for unknown locations
+        pointsData.forEach(function (pt) {
+            if (!pt.address || pt.address === 'Unknown location' || pt.address.trim() === '') {
+                fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + pt.lat + '&lon=' + pt.lng + '&zoom=18')
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (data && data.address) {
+                            var a = data.address;
+                            var parts = [
+                                a.amenity || a.building || a.shop,
+                                a.road || a.neighbourhood || a.suburb,
+                                a.city_district || a.city || a.town,
+                                a.state_district || a.state
+                            ].filter(Boolean);
+                            var clean = parts.length > 0 ? parts.join(', ') : (data.display_name || '');
+                            if (clean) {
+                                pt.address = clean;
+                                var cardSpan = document.getElementById('timeline-addr-' + pt.index);
+                                if (cardSpan) cardSpan.innerText = clean;
+                                var popSpan = document.getElementById('popup-addr-' + pt.index);
+                                if (popSpan) popSpan.innerText = clean;
+                                if (markersMap[pt.index]) {
+                                    markersMap[pt.index].setPopupContent(buildPopupContent(pt));
+                                }
+                            }
+                        }
+                    })
+                    .catch(function () {});
+            }
+        });
 
         // Close calendar when clicking outside
         document.addEventListener('click', function (e) {
@@ -616,28 +684,7 @@
                     onMarkerCircleClick(pt.index, pt.lat, pt.lng);
                 });
 
-                // Popup content
-                const popupContent = `
-                    <div style="min-width: 220px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                            <span style="font-weight:700; color:#111; font-size:13px;">#${pt.index} - ${pt.time}</span>
-                            <span style="font-size:11px; font-weight:700; color:#ef4444;">${pt.battery}</span>
-                        </div>
-                        <div style="font-size:11px; font-weight:700; color:#2563eb; margin-bottom:6px;">${pt.status}</div>
-                        <div style="font-size:12px; color:#4b5563; margin-bottom:8px; line-height:1.4;">
-                            <i class="fa-solid fa-location-dot" style="color:#f97316;"></i> ${pt.address}
-                        </div>
-                        <div style="display:flex; justify-content:space-between; font-size:11px; color:#6b7280; border-top:1px dashed #e2e8f0; padding-top:6px; margin-bottom:8px;">
-                            <span>Points: <b>${pt.points}</b></span>
-                            <span>Accuracy: <b>${pt.accuracy}</b></span>
-                        </div>
-                        <a href="${pt.maps_url}" target="_blank" style="display:inline-block; font-size:11px; color:#0284c7; font-weight:600; text-decoration:underline;">
-                            <i class="fa-solid fa-arrow-up-right-from-square"></i> View in Google Maps
-                        </a>
-                    </div>
-                `;
-
-                marker.bindPopup(popupContent, { className: 'custom-leaflet-popup' });
+                marker.bindPopup(buildPopupContent(pt), { className: 'custom-leaflet-popup' });
                 markersMap[pt.index] = marker;
             });
 

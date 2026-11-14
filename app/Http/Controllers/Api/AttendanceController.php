@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AttendancePunch;
 use App\Models\User;
 use App\Services\AttendanceService;
+use App\Services\FaceService;
 use App\Services\GeoService;
 use Illuminate\Http\Request;
 
@@ -14,13 +15,15 @@ class AttendanceController extends Controller
     public function punch(Request $request, AttendanceService $attendance)
     {
         $data = $request->validate([
-            'type' => 'required|in:in,out',
+            'type' => 'nullable|in:in,out',
             'lat' => 'required|numeric',
             'lng' => 'required|numeric',
             'location_text' => 'nullable|string',
             'face_detected' => 'nullable|boolean',
-            'photo' => 'nullable|image|max:8192',
+            'photo' => 'nullable|file|max:12288',
             'employee_id' => 'nullable|exists:users,id',
+            'auto_detect' => 'nullable|boolean',
+            'battery' => 'nullable',
         ]);
 
         $actor = $request->user();
@@ -28,21 +31,59 @@ class AttendanceController extends Controller
         $source = 'mobile';
         $skip = false;
 
-        if (! empty($data['employee_id']) && (int) $data['employee_id'] !== $actor->id) {
+        // 1. Manager Mode Auto-Detect: Detect employee from face scan
+        if ($request->boolean('auto_detect')) {
             $canMark = $actor->isSuperAdmin() || $actor->isManager() || $actor->hasPermission('attendance.mark') || $actor->hasPermission('attendance.bulk');
-            if (! $canMark) {
-                return response()->json(['message' => 'You do not have permission to mark attendance for other staff'], 403);
+            if (!$canMark) {
+                return response()->json(['message' => 'You do not have permission to mark attendance for other staff.'], 403);
+            }
+            if (!$request->hasFile('photo')) {
+                return response()->json(['message' => 'Camera face photo is required for face detection.'], 422);
+            }
+
+            $recog = FaceService::recognizeStaffFromFace($request->file('photo'), $actor);
+            if (!$recog['recognized']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $recog['reason'] ?? 'Face not recognized! Please ensure the employee\'s face is registered in Edit Staff Member.',
+                ], 422);
+            }
+
+            $target = $recog['user'];
+            $source = 'manager';
+            $skip = true;
+        } elseif (!empty($data['employee_id']) && (int)$data['employee_id'] !== $actor->id) {
+            // Manager manually selected employee
+            $canMark = $actor->isSuperAdmin() || $actor->isManager() || $actor->hasPermission('attendance.mark') || $actor->hasPermission('attendance.bulk');
+            if (!$canMark) {
+                return response()->json(['message' => 'You do not have permission to mark attendance for other staff.'], 403);
             }
             $target = User::findOrFail($data['employee_id']);
             $source = 'manager';
             $skip = true;
         }
 
-        if (! $target->mobile_attendance && $source === 'mobile') {
-            return response()->json(['message' => 'Mobile attendance is disabled for this user'], 422);
+        if (!$target->mobile_attendance && $source === 'mobile') {
+            return response()->json(['message' => 'Mobile attendance is disabled for this user.'], 422);
         }
 
-        $type = strtolower($data['type']);
+        // 2. Face Verification against registered "AI Selfie Verification" images
+        if ($request->hasFile('photo')) {
+            $ver = FaceService::verifyUserFace($target, $request->file('photo'));
+            if (!$ver['matched']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $ver['reason'] ?? 'Face verification failed! Face does not match registered employee image in Edit Staff Member.',
+                ], 422);
+            }
+        } elseif ($target->ai_selfie) {
+            return response()->json([
+                'success' => false,
+                'message' => "AI Selfie Verification is enabled for {$target->displayName()}. A live face capture is required.",
+            ], 422);
+        }
+
+        $type = strtolower($data['type'] ?? 'in');
         $todayStr = now('Asia/Kolkata')->toDateString();
         $lastPunch = AttendancePunch::query()
             ->where('user_id', $target->id)
@@ -64,7 +105,7 @@ class AttendanceController extends Controller
             (float) $data['lng'],
             $data['location_text'] ?? null,
             $request->file('photo'),
-            $request->boolean('face_detected'),
+            true, // face is verified
             $source,
             $actor,
             $skip,
@@ -72,13 +113,38 @@ class AttendanceController extends Controller
 
         $nextAction = strtolower($punch->type) === 'in' ? 'out' : 'in';
 
+        // Update battery if passed
+        if ($request->filled('battery')) {
+            $cleanBat = preg_replace('/[^0-9]/', '', (string)$request->input('battery'));
+            if (is_numeric($cleanBat)) {
+                $lastPing = $target->locationPings()->latest('pinged_at')->first();
+                if ($lastPing) {
+                    $lastPing->update(['battery' => (int)$cleanBat]);
+                }
+            }
+        }
+
         return response()->json([
+            'success' => true,
             'punch' => $this->serialize($punch),
+            'employee' => [
+                'id' => $target->id,
+                'name' => $target->displayName(),
+                'employee_code' => $target->employee_code,
+                'department' => $target->department?->name ?? (string)$target->department,
+                'avatar' => $target->avatarUrl(),
+            ],
             'greeting' => $punch->greeting,
-            'speak' => $punch->greeting,
+            'speak' => $punch->greeting . ", " . strtoupper($type) . " PUNCH MARKED",
             'next_action' => $nextAction,
             'inside' => GeoService::insideOffice((float) $data['lat'], (float) $data['lng'], null, $target),
         ]);
+    }
+
+    public function recognizeAndPunch(Request $request, AttendanceService $attendance)
+    {
+        $request->merge(['auto_detect' => true, 'type' => 'in']);
+        return $this->punch($request, $attendance);
     }
 
     public function today(Request $request)

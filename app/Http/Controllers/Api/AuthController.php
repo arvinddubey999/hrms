@@ -196,7 +196,9 @@ class AuthController extends Controller
         }
 
         $canMarkOthers = $user->isSuperAdmin() || $user->isManager() || $user->hasPermission('attendance.mark') || $user->hasPermission('attendance.bulk');
-        $canViewTasks = $user->isSuperAdmin() || $user->isManager() || $user->hasPermission('tasks.view') || $user->hasPermission('task.view');
+        $canViewTasks = $user->isSuperAdmin() || $user->hasPermission('tasks.view') || $user->hasPermission('tasks.create') || $user->hasPermission('tasks.manage');
+        $canCreateTasks = $user->isSuperAdmin() || $user->hasPermission('tasks.create');
+        $canManageTasks = $user->isSuperAdmin() || $user->hasPermission('tasks.manage');
 
         return [
             'id' => $user->id,
@@ -213,6 +215,8 @@ class AuthController extends Controller
             'shift_name' => $shiftFormatted ?? 'General Staff Shift (09:45 AM - 08:30 PM)',
             'can_mark_others' => $canMarkOthers,
             'can_view_tasks' => $canViewTasks,
+            'can_create_tasks' => $canCreateTasks,
+            'can_manage_tasks' => $canManageTasks,
             'permissions' => $user->allPermissions(),
             'vendor_name' => $user->vendor_name,
             'mobile_attendance' => $user->mobile_attendance,

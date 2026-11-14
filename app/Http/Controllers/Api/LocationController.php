@@ -45,11 +45,16 @@ class LocationController extends Controller
             'last_location_at' => now(),
         ])->save();
 
+        $address = $data['address'] ?? $request->input('location_text') ?? null;
+        if (empty($address) || strtolower(trim($address)) === 'unknown location') {
+            $address = GeoService::reverseGeocode((float)$data['lat'], (float)$data['lng']);
+        }
+
         $ping = $user->locationPings()->create([
             'lat' => (float) $data['lat'],
             'lng' => (float) $data['lng'],
             'accuracy' => $this->sanitizeAccuracy($data['accuracy'] ?? null),
-            'address' => $data['address'] ?? null,
+            'address' => $address,
             'journey_status' => $this->sanitizeStatus($data['journey_status'] ?? 'Transit'),
             'points' => !empty($data['points']) ? (int) $data['points'] : 1,
             'battery' => $this->sanitizeBattery($data['battery'] ?? null),
@@ -122,7 +127,10 @@ class LocationController extends Controller
             $battery = $this->sanitizeBattery($item['battery'] ?? null);
             $points = isset($item['points']) ? (int) $item['points'] : 1;
             $status = $this->sanitizeStatus($item['journey_status'] ?? $item['status'] ?? 'Transit');
-            $address = $item['address'] ?? null;
+            $address = $item['address'] ?? $item['location_text'] ?? $item['location'] ?? null;
+            if (empty($address) || strtolower(trim($address)) === 'unknown location') {
+                $address = GeoService::reverseGeocode($lat, $lng);
+            }
             $stayedMinutes = isset($item['stayed_minutes']) ? (int)$item['stayed_minutes'] : null;
             $speed = isset($item['speed']) ? (float)$item['speed'] : null;
             $timeRange = $item['time_range'] ?? $item['time'] ?? null;

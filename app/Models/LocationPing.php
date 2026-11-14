@@ -41,7 +41,7 @@ class LocationPing extends Model
 
     public function getBatteryFormattedAttribute(): string
     {
-        return ($this->battery !== null) ? "{$this->battery}%" : '100%';
+        return ($this->battery !== null) ? "{$this->battery}%" : '--';
     }
 
     public function getAccuracyFormattedAttribute(): string

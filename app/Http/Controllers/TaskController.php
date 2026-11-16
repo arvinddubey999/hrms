@@ -311,6 +311,14 @@ class TaskController extends Controller
                 \App\Services\MailService::sendTaskAssignedMail($user, $task, $request->user());
             }
 
+            if ($request->wantsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'ok' => true,
+                    'message' => 'Task created successfully and notifications dispatched via Push & Email.',
+                    'task' => $task->load(['creator', 'assignee', 'assignees']),
+                ], 201);
+            }
+
             return back()->with('ok', 'Task created successfully and notifications dispatched via Push & Email.');
         } catch (\Illuminate\Validation\ValidationException $ve) {
             throw $ve;
@@ -325,6 +333,15 @@ class TaskController extends Controller
 
     public function show(Task $task, Request $request)
     {
+        if ($request->wantsJson() || $request->is('api/*')) {
+            $task->load(['creator', 'assignee', 'assignees', 'others', 'department', 'category', 'replies.user', 'attachments.user', 'histories.user']);
+            return response()->json([
+                'ok' => true,
+                'data' => $task,
+                'task' => $task,
+            ]);
+        }
+
         $tab = $request->get('tab', 'details');
         return redirect()->route('tasks.index', array_filter([
             'open_task' => $task->id,
@@ -931,6 +948,13 @@ class TaskController extends Controller
         }
 
         $task->logHistory('reminded', "Reminder notification and email sent by {$senderName}", $request->user()->id);
+
+        if ($request->wantsJson() || $request->is('api/*')) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'Reminder notification and email sent to assigned team members.',
+            ]);
+        }
 
         $redirectParams = $request->except(['open_task', 'tab', '_token']);
         return redirect()->route('tasks.index', $redirectParams)

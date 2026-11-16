@@ -22,40 +22,7 @@ class FirebaseNotificationService
             $title = sprintf('%s [ Punch %s ]', $employee->displayName(), $formattedType);
             $body = $locationText ?: 'Location recorded';
 
-            $tokens = User::whereNotNull('fcm_token')
-                ->where('fcm_token', '!=', '')
-                ->pluck('fcm_token')
-                ->unique()
-                ->toArray();
-
-            // 1. Send to specific registered tokens (Managers, Admins & Employee)
-            foreach ($tokens as $token) {
-                self::sendFcmV1Message([
-                    'token' => $token,
-                    'notification' => [
-                        'title' => $title,
-                        'body' => $body,
-                    ],
-                    'data' => [
-                        'user_id' => (string) $employee->id,
-                        'user_name' => $employee->displayName(),
-                        'punch_type' => $formattedType,
-                        'location' => $body,
-                        'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
-                    ],
-                    'android' => [
-                        'priority' => 'HIGH',
-                        'notification' => [
-                            'sound' => 'default',
-                            'channel_id' => 'attendance_channel',
-                        ],
-                    ],
-                ]);
-            }
-
-            // 2. Broadcast to "attendance" FCM topic
-            self::sendFcmV1Message([
-                'topic' => 'attendance',
+            $basePayload = [
                 'notification' => [
                     'title' => $title,
                     'body' => $body,
@@ -65,6 +32,8 @@ class FirebaseNotificationService
                     'user_name' => $employee->displayName(),
                     'punch_type' => $formattedType,
                     'location' => $body,
+                    'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+                    'type' => 'attendance',
                 ],
                 'android' => [
                     'priority' => 'HIGH',
@@ -73,8 +42,37 @@ class FirebaseNotificationService
                         'channel_id' => 'attendance_channel',
                     ],
                 ],
-            ]);
+            ];
 
+            // 1. Direct device token if available
+            if (!empty($employee->fcm_token)) {
+                self::sendFcmV1Message(array_merge(['token' => $employee->fcm_token], $basePayload));
+            }
+
+            // 2. Dedicated user topic so employee's phone receives it reliably
+            self::sendFcmV1Message(array_merge(['topic' => 'user_' . $employee->id], $basePayload));
+
+            // 3. Broadcast to "attendance" FCM topic (All subscribed devices)
+            self::sendFcmV1Message(array_merge(['topic' => 'attendance'], $basePayload));
+
+            // 4. Send directly to active managers & admins with registered tokens
+            $managerTokens = User::whereNotNull('fcm_token')
+                ->where('fcm_token', '!=', '')
+                ->where('id', '!=', $employee->id)
+                ->where(function ($q) {
+                    $q->whereIn('role', ['admin', 'super admin', 'superadmin', 'manager'])
+                      ->orWhereJsonContains('permissions', 'attendance.view')
+                      ->orWhereJsonContains('permissions', 'attendance.mark');
+                })
+                ->pluck('fcm_token')
+                ->unique()
+                ->toArray();
+
+            foreach ($managerTokens as $token) {
+                self::sendFcmV1Message(array_merge(['token' => $token], $basePayload));
+            }
+
+            Log::info("Punch push notification dispatched for User #{$employee->id} ({$formattedType})");
         } catch (\Throwable $e) {
             Log::error('Firebase Notification Error: ' . $e->getMessage(), [
                 'user_id' => $employee->id,
@@ -129,7 +127,7 @@ class FirebaseNotificationService
     /**
      * Send payload to FCM HTTP v1 API using Google OAuth2 Access Token.
      */
-    private static function sendFcmV1Message(array $messagePayload): bool
+    public static function sendFcmV1Message(array $messagePayload): bool
     {
         $accessToken = self::getGoogleAccessToken();
         if (!$accessToken) {

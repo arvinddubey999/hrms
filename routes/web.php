@@ -99,7 +99,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status')->whereNumber('task');
     Route::post('/tasks/{task}/pin', [TaskController::class, 'togglePin'])->name('tasks.pin')->whereNumber('task');
     Route::post('/tasks/{task}/reopen', [TaskController::class, 'reopen'])->name('tasks.reopen')->whereNumber('task');
-    Route::get('/tasks/{task}/replies-pdf', [TaskController::class, 'exportRepliesPdf'])->name('tasks.replies.pdf')->whereNumber('task');
     Route::post('/tasks/{task}/reassign', [TaskController::class, 'reassign'])->name('tasks.reassign')->whereNumber('task');
     Route::post('/tasks/{task}/remind', [TaskController::class, 'remind'])->name('tasks.remind')->whereNumber('task');
     Route::post('/tasks/{task}/attachment', [TaskController::class, 'uploadAttachment'])->name('tasks.attachment')->whereNumber('task');

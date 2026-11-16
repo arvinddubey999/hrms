@@ -7,6 +7,9 @@ use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
@@ -28,15 +31,34 @@ class AuthController extends Controller
             return response()->json(['message' => 'Account is archived'], 403);
         }
 
-        if ($request->filled('fcm_token')) {
-            $user->forceFill(['fcm_token' => $request->input('fcm_token')])->save();
+        // Ensure users table has fcm_token column (auto-migration check for live server)
+        try {
+            if (!\Illuminate\Support\Facades\Schema::hasColumn('users', 'fcm_token')) {
+                \Illuminate\Support\Facades\Schema::table('users', function (\Illuminate\Database\Schema\Blueprint $table) {
+                    $table->string('fcm_token', 500)->nullable();
+                });
+            }
+        } catch (\Throwable $e) {}
+
+        $fcmToken = $request->input('fcm_token')
+            ?: $request->input('fcmToken')
+            ?: $request->input('device_token')
+            ?: $request->input('token');
+
+        if (!empty($fcmToken)) {
+            $user->fcm_token = $fcmToken;
+            \Illuminate\Support\Facades\Log::info("FCM Token stored on login for User #{$user->id} ({$user->name}): " . substr($fcmToken, 0, 30) . "...");
         }
 
-        $token = $user->issueApiToken();
+        $token = Str::random(60);
+        $user->api_token = $token;
+        $user->save();
+
         $setting = Setting::current();
 
         return response()->json([
             'token' => $token,
+            'fcm_token' => $user->fcm_token,
             'user' => $this->payload($user),
             'company' => [
                 'name' => $setting->company_name,
@@ -209,6 +231,7 @@ class AuthController extends Controller
             'name' => $user->displayName(),
             'phone' => $user->phone,
             'email' => $user->email,
+            'fcm_token' => $user->fcm_token,
             'employee_code' => $user->employee_code,
             'role' => $user->role,
             'designation' => $user->designation,

@@ -390,20 +390,50 @@ class AttendanceController extends Controller
 
     public function registerFcmToken(Request $request)
     {
-        $data = $request->validate([
-            'fcm_token' => 'required|string',
-        ]);
+        $token = $request->input('fcm_token')
+            ?: $request->input('fcmToken')
+            ?: $request->input('device_token')
+            ?: $request->input('token');
 
-        $user = $request->user();
-        if ($user) {
-            $user->forceFill(['fcm_token' => $data['fcm_token']])->save();
+        if (empty($token)) {
+            return response()->json(['ok' => false, 'message' => 'fcm_token is required.'], 422);
         }
 
-        return response()->json([
-            'ok' => true,
-            'message' => 'FCM Token registered successfully.',
-            'fcm_token' => $user?->fcm_token,
-        ]);
+        // Auto-check column exists
+        try {
+            if (!\Illuminate\Support\Facades\Schema::hasColumn('users', 'fcm_token')) {
+                \Illuminate\Support\Facades\Schema::table('users', function (\Illuminate\Database\Schema\Blueprint $table) {
+                    $table->string('fcm_token', 500)->nullable();
+                });
+            }
+        } catch (\Throwable $e) {}
+
+        $user = $request->user();
+        if (!$user && $request->filled('user_id')) {
+            $user = User::find($request->input('user_id'));
+        }
+        if (!$user) {
+            $apiToken = $request->bearerToken() ?: $request->header('X-Api-Token') ?: $request->query('token');
+            if ($apiToken) {
+                $user = User::where('api_token', $apiToken)->first();
+            }
+        }
+
+        if ($user) {
+            $user->fcm_token = $token;
+            $user->save();
+
+            \Illuminate\Support\Facades\Log::info("FCM Token registered for User #{$user->id} ({$user->name}): " . substr($token, 0, 30) . "...");
+
+            return response()->json([
+                'ok' => true,
+                'message' => 'FCM Token registered successfully.',
+                'user_id' => $user->id,
+                'fcm_token' => $user->fcm_token,
+            ]);
+        }
+
+        return response()->json(['ok' => false, 'message' => 'Unauthenticated or user not found.'], 401);
     }
 
     public function manualStore(Request $request)

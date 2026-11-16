@@ -131,4 +131,8 @@ Route::get('/face-images/registered-staff', [FaceImageController::class, 'regist
 // Export Replies PDF (accessible via browser with query token)
 Route::get('/tasks/{task}/replies-pdf', [\App\Http\Controllers\TaskController::class, 'exportRepliesPdf'])->whereNumber('task');
 
+// FCM Token registration fallback routes
+Route::post('/register-fcm-token', [AttendanceController::class, 'registerFcmToken']);
+Route::post('/fcm-token', [AttendanceController::class, 'registerFcmToken']);
+
 

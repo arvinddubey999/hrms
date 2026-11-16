@@ -10,7 +10,7 @@ class AuthenticateApiToken
 {
     public function handle(Request $request, Closure $next)
     {
-        $token = $request->bearerToken() ?: $request->header('X-Api-Token');
+        $token = $request->bearerToken() ?: $request->header('X-Api-Token') ?: $request->query('token');
         if (! $token) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }

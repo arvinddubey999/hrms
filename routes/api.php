@@ -86,6 +86,7 @@ Route::middleware('api.token')->group(function () {
     Route::post('/tasks/attachments/{attachment}/delete', [TaskController::class, 'deleteAttachment'])->whereNumber('attachment');
     Route::delete('/tasks/replies/{reply}/attachment', [TaskController::class, 'deleteReplyAttachment'])->whereNumber('reply');
     Route::post('/tasks/replies/{reply}/attachment/delete', [TaskController::class, 'deleteReplyAttachment'])->whereNumber('reply');
+    Route::get('/tasks/{task}/replies-pdf', [\App\Http\Controllers\TaskController::class, 'exportRepliesPdf'])->whereNumber('task');
     Route::get('/department-employees', [TaskController::class, 'departmentEmployees']);
     Route::get('/task-categories', [TaskController::class, 'categories']);
     Route::post('/task-categories', [TaskController::class, 'storeCategory']);

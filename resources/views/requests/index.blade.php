@@ -109,11 +109,7 @@
 
         <label>Leave Type *</label>
         <select name="leave_type" required>
-            <option value="Casual Leave">Casual Leave</option>
-            <option value="Sick Leave">Sick Leave</option>
-            <option value="Privilege Leave">Privilege Leave</option>
-            <option value="Emergency Leave">Emergency Leave</option>
-            <option value="Unpaid Leave">Unpaid Leave</option>
+            <option value="Unpaid Leave" selected>Unpaid Leave</option>
         </select>
 
         <div class="grid-2">

@@ -196,6 +196,8 @@ class AuthController extends Controller
         }
 
         $canMarkOthers = $user->isSuperAdmin() || $user->isManager() || $user->hasPermission('attendance.mark') || $user->hasPermission('attendance.bulk');
+        $canViewEmployees = $user->isSuperAdmin() || $user->isAdmin() || $user->isManager() || $user->hasPermission('employee.view') || $user->hasPermission('employees.view') || $user->hasPermission('attendance.view');
+        $canEditEmployees = $user->isSuperAdmin() || $user->isAdmin() || $user->hasPermission('employee.edit') || $user->hasPermission('employees.edit') || $user->hasPermission('employee.manage');
         $canViewTasks = $user->isSuperAdmin() || $user->hasPermission('tasks.view') || $user->hasPermission('tasks.create') || $user->hasPermission('tasks.manage');
         $canCreateTasks = $user->isSuperAdmin() || $user->hasPermission('tasks.create');
         $canManageTasks = $user->isSuperAdmin() || $user->hasPermission('tasks.manage');
@@ -214,6 +216,8 @@ class AuthController extends Controller
             'company_name' => $user->company?->name ?? 'TULSI FABRICS INDIA PVT LTD',
             'shift_name' => $shiftFormatted ?? 'General Staff Shift (09:45 AM - 08:30 PM)',
             'can_mark_others' => $canMarkOthers,
+            'can_view_employees' => $canViewEmployees,
+            'can_edit_employees' => $canEditEmployees,
             'can_view_tasks' => $canViewTasks,
             'can_create_tasks' => $canCreateTasks,
             'can_manage_tasks' => $canManageTasks,

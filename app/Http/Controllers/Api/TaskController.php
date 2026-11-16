@@ -74,6 +74,15 @@ class TaskController extends Controller
             $baseQuery->where('priority', $request->get('priority'));
         }
 
+        // User / Assignee filter (Matching web 'To User')
+        if ($request->filled('user_id')) {
+            $filterUid = (int) $request->get('user_id');
+            $baseQuery->where(function ($uQuery) use ($filterUid) {
+                $uQuery->where('assigned_to', $filterUid)
+                    ->orWhereHas('assignees', fn ($p) => $p->where('users.id', $filterUid));
+            });
+        }
+
         // Calculate counts for tab badges based on current search & filters (except status)
         $todayStr = now()->toDateString();
         $countsQuery = clone $baseQuery;
@@ -103,9 +112,9 @@ class TaskController extends Controller
                 ->where('due_date', '<', $todayStr);
         }
 
-        // Sort: Pinned first, then newest
+        // Sort: Pinned first, then nearest deadline upcoming (matching web)
         $items = $baseQuery->orderByDesc('is_pinned')
-            ->orderByDesc('id')
+            ->orderByRaw('due_date IS NULL, due_date ASC, due_time ASC, id ASC')
             ->get()
             ->map(fn (Task $t) => $this->formatTask($t));
 
@@ -835,12 +844,7 @@ class TaskController extends Controller
 
     public function categories(Request $request)
     {
-        $companyId = $request->user()->company_id;
-        $categories = TaskCategory::active()
-            ->when($companyId, fn ($q) => $q->where(fn ($sub) => $sub->whereNull('company_id')->orWhere('company_id', $companyId)))
-            ->orderBy('name')
-            ->get();
-
+        $categories = TaskCategory::orderBy('name')->get();
         return response()->json(['data' => $categories]);
     }
 
@@ -857,14 +861,24 @@ class TaskController extends Controller
             'description' => 'nullable|string|max:255',
         ]);
 
-        $category = TaskCategory::create([
+        $insertData = [
             'name' => trim($data['name']),
-            'color' => $data['color'] ?? '#6366f1',
-            'description' => $data['description'] ?? null,
-            'company_id' => $u->company_id,
             'created_by' => $u->id,
-            'is_active' => true,
-        ]);
+        ];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('task_categories', 'color')) {
+            $insertData['color'] = $data['color'] ?? '#6366f1';
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('task_categories', 'description')) {
+            $insertData['description'] = $data['description'] ?? null;
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('task_categories', 'company_id')) {
+            $insertData['company_id'] = $u->company_id;
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('task_categories', 'is_active')) {
+            $insertData['is_active'] = true;
+        }
+
+        $category = TaskCategory::create($insertData);
 
         return response()->json([
             'ok' => true,

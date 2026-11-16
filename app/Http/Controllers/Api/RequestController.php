@@ -30,15 +30,16 @@ class RequestController extends Controller
             'active_pending' => LeaveRequest::where('user_id', $user->id)->where('status', 'pending')->count() + Advance::where('user_id', $user->id)->where('status', 'pending')->count(),
         ];
 
-        // Upcoming Holidays List matching Screenshot "Company holidays list show lik this.jpeg"
+        // Upcoming Holidays List: Only show today and future upcoming holidays, sorted nearest first
         $holidays = Holiday::query()
-            ->whereDate('date', '>=', now()->startOfYear())
-            ->orderBy('date')
+            ->whereDate('date', '>=', now()->toDateString())
+            ->orderBy('date', 'asc')
             ->get()
             ->map(fn (Holiday $h) => [
                 'id' => $h->id,
                 'name' => $h->name,
                 'date' => $h->date->format('d M Y'),
+                'raw_date' => $h->date->toDateString(),
                 'day' => $h->date->format('l'),
                 'description' => $h->description ?: 'Company Holiday',
             ]);

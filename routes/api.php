@@ -128,4 +128,7 @@ Route::delete('/face-images/{id}', [FaceImageController::class, 'destroy']);
 Route::post('/face-images/delete', [FaceImageController::class, 'deleteMultiple']);
 Route::get('/face-images/registered-staff', [FaceImageController::class, 'registeredStaff']);
 
+// Export Replies PDF (accessible via browser with query token)
+Route::get('/tasks/{task}/replies-pdf', [\App\Http\Controllers\TaskController::class, 'exportRepliesPdf'])->whereNumber('task');
+
 

@@ -2196,8 +2196,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:4px">Category Name *</label>
             <input type="text" id="catModalName" name="name" placeholder="e.g. Electricity Bill, Sales OS Followup..." required style="margin-bottom:12px;width:100%">
 
-            <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:4px">Category Color (Badge)</label>
-            <input type="color" id="catModalColor" name="color" value="#4f46e5" style="width:100%;height:38px;padding:2px;border-radius:6px;border:1px solid #cbd5e1;cursor:pointer;margin-bottom:12px">
+            <input type="hidden" id="catModalColor" name="color" value="#4f46e5">
 
             <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:4px">Description (Optional)</label>
             <textarea id="catModalDesc" name="description" rows="2" placeholder="Brief note about this category..." style="margin-bottom:16px;width:100%"></textarea>

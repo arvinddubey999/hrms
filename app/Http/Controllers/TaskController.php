@@ -790,10 +790,26 @@ class TaskController extends Controller
             ->with('ok', 'Task re-opened successfully with updated deadline.');
     }
 
-    public function exportRepliesPdf(Task $task)
+    public function exportRepliesPdf(Request $request, Task $task)
     {
+        if (!auth()->check()) {
+            $token = $request->query('token') ?: $request->bearerToken();
+            if ($token) {
+                if (class_exists(\Laravel\Sanctum\PersonalAccessToken::class)) {
+                    $pat = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
+                    if ($pat && $pat->tokenable) {
+                        auth()->login($pat->tokenable);
+                    }
+                }
+                if (!auth()->check()) {
+                    $u = \App\Models\User::where('api_token', $token)->where('status', 'active')->first();
+                    if ($u) {
+                        auth()->login($u);
+                    }
+                }
+            }
+        }
         $task->load(['creator', 'assignee', 'assignees', 'others', 'department', 'replies.user', 'attachments.user', 'histories.user']);
-        // dd($task);
         return view('tasks.replies-pdf', compact('task'));
     }
 

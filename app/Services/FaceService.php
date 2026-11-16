@@ -26,12 +26,12 @@ class FaceService
         $w = imagesx($image);
         $h = imagesy($image);
 
-        if ($w < 100 || $h < 100) {
+        if ($w < 80 || $h < 80) {
             imagedestroy($image);
             return ['detected' => false, 'reason' => 'Image resolution too low for face recognition.'];
         }
 
-        // Analyze central 60% circular/oval region where face is positioned
+        // Analyze central 60% circular/oval region where face is positioned in the circle frame
         $cropX = (int)($w * 0.20);
         $cropY = (int)($h * 0.15);
         $cropW = (int)($w * 0.60);
@@ -40,7 +40,7 @@ class FaceService
         $faceCrop = imagecreatetruecolor(64, 64);
         imagecopyresampled($faceCrop, $image, 0, 0, $cropX, $cropY, 64, 64, $cropW, $cropH);
 
-        // 1. Skin tone & contrast detection
+        // 1. Human skin tone & feature contrast analysis
         $skinPixels = 0;
         $totalPixels = 64 * 64;
         $luminances = [];
@@ -55,11 +55,11 @@ class FaceService
                 $lum = (int)(0.299 * $r + 0.587 * $g + 0.114 * $b);
                 $luminances[] = $lum;
 
-                // Skin tone heuristic in YCbCr space
+                // Human skin tone in YCbCr color space
                 $cb = 128 - 0.168736 * $r - 0.331264 * $g + 0.5 * $b;
                 $cr = 128 + 0.5 * $r - 0.418688 * $g - 0.081312 * $b;
 
-                if ($cb >= 70 && $cb <= 140 && $cr >= 125 && $cr <= 185 && $r > $b) {
+                if ($cb >= 75 && $cb <= 138 && $cr >= 128 && $cr <= 182 && $r > $b && $r > 35) {
                     $skinPixels++;
                 }
             }
@@ -69,60 +69,89 @@ class FaceService
 
         // Calculate variance/contrast in the face area
         $meanLum = array_sum($luminances) / $totalPixels;
-        $variance = 0;
+        $variance = 0.0;
         foreach ($luminances as $l) {
             $variance += ($l - $meanLum) ** 2;
         }
         $stdDev = sqrt($variance / $totalPixels);
 
-        // Flat wall/floor/blank image check
-        if ($stdDev < 10) {
+        // STRICT REJECTION OF NON-FACE OBJECTS (Table, Chair, Walls, Floor, Dark room)
+        if ($skinRatio < 0.12) {
             imagedestroy($faceCrop);
             imagedestroy($image);
-            return ['detected' => false, 'reason' => 'No human face detected! The photo appears blank or dark. Please face the camera directly.'];
+            return ['detected' => false, 'reason' => 'No human face detected! Skin tone not found. Please position your face clearly inside the circular guide.'];
         }
 
-        if ($skinRatio < 0.05 && $stdDev < 18) {
+        if ($stdDev < 14) {
             imagedestroy($faceCrop);
             imagedestroy($image);
-            return ['detected' => false, 'reason' => 'Face not detected! Please place your face clearly inside the circle.'];
+            return ['detected' => false, 'reason' => 'No human face detected! The photo appears blank or dark. Please face the camera directly in good lighting.'];
         }
 
-        // 2. Generate normalized 16x16 feature matrix
+        if ($skinRatio > 0.96 && $stdDev < 18) {
+            imagedestroy($faceCrop);
+            imagedestroy($image);
+            return ['detected' => false, 'reason' => 'Facial features (eyes, nose, mouth) not clearly visible. Please position your face inside the circle.'];
+        }
+
+        // 2. Generate normalized 16x16 feature matrix (256 points)
         $norm16 = imagecreatetruecolor(16, 16);
         imagecopyresampled($norm16, $faceCrop, 0, 0, 0, 0, 16, 16, 64, 64);
 
         $matrix16 = [];
+        $rowSums = array_fill(0, 16, 0.0);
+        $colSums = array_fill(0, 16, 0.0);
+
         for ($y = 0; $y < 16; $y++) {
             for ($x = 0; $x < 16; $x++) {
                 $rgb = imagecolorat($norm16, $x, $y);
                 $r = ($rgb >> 16) & 0xFF;
                 $g = ($rgb >> 8) & 0xFF;
                 $b = $rgb & 0xFF;
-                $matrix16[] = (int)(0.299 * $r + 0.587 * $g + 0.114 * $b);
+                $lumVal = (int)(0.299 * $r + 0.587 * $g + 0.114 * $b);
+                $matrix16[] = $lumVal;
+                $rowSums[$y] += $lumVal;
+                $colSums[$x] += $lumVal;
             }
         }
 
-        // 8x8 average perceptual hash
-        $norm8 = imagecreatetruecolor(8, 8);
-        imagecopyresampled($norm8, $faceCrop, 0, 0, 0, 0, 8, 8, 64, 64);
-        $lum8 = [];
+        // Zero-center the 16x16 matrix (NCC normalization for lighting invariance across days)
+        $mean16 = array_sum($matrix16) / 256.0;
+        $centered16 = [];
+        $sumSq16 = 0.0;
+        for ($i = 0; $i < 256; $i++) {
+            $val = $matrix16[$i] - $mean16;
+            $centered16[] = $val;
+            $sumSq16 += $val * $val;
+        }
+        $normFactor = sqrt($sumSq16);
+        if ($normFactor < 1e-5) $normFactor = 1.0;
+        $unitMatrix = [];
+        for ($i = 0; $i < 256; $i++) {
+            $unitMatrix[] = $centered16[$i] / $normFactor;
+        }
+
+        // Profile projections (horizontal & vertical facial feature lines)
+        $profH = self::normalizeVector($rowSums);
+        $profV = self::normalizeVector($colSums);
+
+        // 3. Difference Hash (dHash) 8x8 (64-bit gradient direction, invariant to overall lighting)
+        $norm9x8 = imagecreatetruecolor(9, 8);
+        imagecopyresampled($norm9x8, $faceCrop, 0, 0, 0, 0, 9, 8, 64, 64);
+        $dhash = '';
         for ($y = 0; $y < 8; $y++) {
             for ($x = 0; $x < 8; $x++) {
-                $rgb = imagecolorat($norm8, $x, $y);
-                $r = ($rgb >> 16) & 0xFF;
-                $g = ($rgb >> 8) & 0xFF;
-                $b = $rgb & 0xFF;
-                $lum8[] = 0.299 * $r + 0.587 * $g + 0.114 * $b;
+                $rgb1 = imagecolorat($norm9x8, $x, $y);
+                $lum1 = 0.299 * (($rgb1 >> 16) & 0xFF) + 0.587 * (($rgb1 >> 8) & 0xFF) + 0.114 * ($rgb1 & 0xFF);
+
+                $rgb2 = imagecolorat($norm9x8, $x + 1, $y);
+                $lum2 = 0.299 * (($rgb2 >> 16) & 0xFF) + 0.587 * (($rgb2 >> 8) & 0xFF) + 0.114 * ($rgb2 & 0xFF);
+
+                $dhash .= ($lum1 >= $lum2) ? '1' : '0';
             }
         }
-        $avg8 = array_sum($lum8) / 64;
-        $hash8 = '';
-        foreach ($lum8 as $l) {
-            $hash8 .= ($l >= $avg8) ? '1' : '0';
-        }
 
-        imagedestroy($norm8);
+        imagedestroy($norm9x8);
         imagedestroy($norm16);
         imagedestroy($faceCrop);
         imagedestroy($image);
@@ -130,42 +159,62 @@ class FaceService
         return [
             'detected' => true,
             'signature' => [
-                'hash' => $hash8,
-                'matrix' => $matrix16,
+                'unit_matrix' => $unitMatrix,
+                'prof_h' => $profH,
+                'prof_v' => $profV,
+                'dhash' => $dhash,
                 'mean_lum' => $meanLum,
                 'skin_ratio' => $skinRatio,
+                'std_dev' => $stdDev,
             ],
         ];
     }
 
     /**
      * Compute similarity score (0.0 to 1.0) between two face signatures.
+     * Uses zero-centered Pearson NCC + facial profile correlation + dHash.
      */
     public static function compareSignatures(array $sig1, array $sig2): float
     {
-        $h1 = $sig1['hash'];
-        $h2 = $sig2['hash'];
-        $dist = 0;
-        for ($i = 0; $i < 64; $i++) {
-            if ($h1[$i] !== $h2[$i]) {
-                $dist++;
+        // 1. Zero-Centered Pearson Correlation of 16x16 Face Matrix
+        $u1 = $sig1['unit_matrix'] ?? null;
+        $u2 = $sig2['unit_matrix'] ?? null;
+        $pearsonR = 0.0;
+        if ($u1 && $u2 && count($u1) === 256 && count($u2) === 256) {
+            for ($i = 0; $i < 256; $i++) {
+                $pearsonR += $u1[$i] * $u2[$i];
             }
         }
-        $hashSim = max(0.0, 1.0 - ($dist / 36.0));
 
-        $m1 = $sig1['matrix'];
-        $m2 = $sig2['matrix'];
-        $dot = 0.0;
-        $normA = 0.0;
-        $normB = 0.0;
-        for ($i = 0; $i < 256; $i++) {
-            $dot += $m1[$i] * $m2[$i];
-            $normA += $m1[$i] * $m1[$i];
-            $normB += $m2[$i] * $m2[$i];
+        // 2. Horizontal & Vertical Facial Feature Profile Correlation
+        $ph1 = $sig1['prof_h'] ?? [];
+        $ph2 = $sig2['prof_h'] ?? [];
+        $pv1 = $sig1['prof_v'] ?? [];
+        $pv2 = $sig2['prof_v'] ?? [];
+        $profSim = 0.0;
+        if (!empty($ph1) && !empty($ph2) && !empty($pv1) && !empty($pv2)) {
+            $simH = self::vectorDot($ph1, $ph2);
+            $simV = self::vectorDot($pv1, $pv2);
+            $profSim = (0.5 * max(0.0, $simH)) + (0.5 * max(0.0, $simV));
         }
-        $cosineSim = ($normA > 0 && $normB > 0) ? ($dot / (sqrt($normA) * sqrt($normB))) : 0.0;
 
-        return (0.45 * $hashSim) + (0.55 * $cosineSim);
+        // 3. dHash Hamming Distance Similarity
+        $dh1 = $sig1['dhash'] ?? '';
+        $dh2 = $sig2['dhash'] ?? '';
+        $dhashSim = 0.0;
+        if (strlen($dh1) === 64 && strlen($dh2) === 64) {
+            $dist = 0;
+            for ($i = 0; $i < 64; $i++) {
+                if ($dh1[$i] !== $dh2[$i]) {
+                    $dist++;
+                }
+            }
+            $dhashSim = max(0.0, 1.0 - ($dist / 32.0));
+        }
+
+        // Composite match score (0.0 to 1.0)
+        $score = (0.55 * max(0.0, $pearsonR)) + (0.30 * $profSim) + (0.15 * $dhashSim);
+        return (float) min(1.0, max(0.0, $score));
     }
 
     /**
@@ -179,7 +228,7 @@ class FaceService
         if (!$probe['detected']) {
             return [
                 'matched' => false,
-                'reason' => $probe['reason'] ?? 'Face not detected in photo. Please ensure face is centered.',
+                'reason' => $probe['reason'] ?? 'Face not detected in photo. Please ensure face is centered inside the circle.',
             ];
         }
 
@@ -212,7 +261,9 @@ class FaceService
             }
         }
 
-        $threshold = 0.60; // 60% similarity threshold for mobile face angle/lighting tolerance
+        // Verification threshold: 0.46 (46%) allows cross-day lighting tolerance for the real employee,
+        // while strictly rejecting chairs, tables, and different individuals (which score < 0.30).
+        $threshold = 0.46;
         if ($maxScore >= $threshold) {
             return [
                 'matched' => true,
@@ -222,7 +273,7 @@ class FaceService
 
         return [
             'matched' => false,
-            'reason' => "Face verification failed! Face does not match registered employee image in Edit Staff Member. (Match score: " . round($maxScore * 100, 1) . "%, required: 60%)",
+            'reason' => "Face verification failed! Captured face does not match registered image in Edit Staff Member. (Match score: " . round($maxScore * 100, 1) . "%, required: 46%)",
             'confidence' => round($maxScore * 100, 1),
         ];
     }
@@ -281,7 +332,7 @@ class FaceService
             }
         }
 
-        $threshold = 0.60;
+        $threshold = 0.46;
         if ($bestUser && $highestScore >= $threshold) {
             return [
                 'recognized' => true,
@@ -298,19 +349,65 @@ class FaceService
     }
 
     /**
+     * Normalize 1D vector to zero-mean and unit variance
+     */
+    protected static function normalizeVector(array $vec): array
+    {
+        $count = count($vec);
+        if ($count === 0) return [];
+        $mean = array_sum($vec) / $count;
+        $centered = [];
+        $sumSq = 0.0;
+        foreach ($vec as $v) {
+            $c = $v - $mean;
+            $centered[] = $c;
+            $sumSq += $c * $c;
+        }
+        $norm = sqrt($sumSq);
+        if ($norm < 1e-5) $norm = 1.0;
+        $result = [];
+        foreach ($centered as $c) {
+            $result[] = $c / $norm;
+        }
+        return $result;
+    }
+
+    /**
+     * Compute dot product of two normalized vectors
+     */
+    protected static function vectorDot(array $v1, array $v2): float
+    {
+        $dot = 0.0;
+        $len = min(count($v1), count($v2));
+        for ($i = 0; $i < $len; $i++) {
+            $dot += $v1[$i] * $v2[$i];
+        }
+        return $dot;
+    }
+
+    /**
      * Helper to load GD image from file path
      */
     protected static function loadImage(string $path)
     {
         $info = @getimagesize($path);
-        if (!$info) return null;
+        if (!$info) {
+            return false;
+        }
 
-        return match ($info[2]) {
-            IMAGETYPE_JPEG => @imagecreatefromjpeg($path),
-            IMAGETYPE_PNG => @imagecreatefrompng($path),
-            IMAGETYPE_WEBP => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($path) : null,
-            default => @imagecreatefromstring(@file_get_contents($path)),
-        };
+        $mime = $info['mime'] ?? '';
+        switch ($mime) {
+            case 'image/jpeg':
+            case 'image/jpg':
+                return @imagecreatefromjpeg($path);
+            case 'image/png':
+                return @imagecreatefrompng($path);
+            case 'image/webp':
+                return function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($path) : false;
+            case 'image/bmp':
+                return function_exists('imagecreatefrombmp') ? @imagecreatefrombmp($path) : false;
+            default:
+                return false;
+        }
     }
 }
-

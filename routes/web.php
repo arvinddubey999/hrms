@@ -33,6 +33,9 @@ Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
+// Replies PDF export (accessible via browser with query token or session)
+Route::get('/tasks/{task}/replies-pdf', [TaskController::class, 'exportRepliesPdf'])->name('tasks.replies.pdf')->whereNumber('task');
+
 Route::middleware('auth')->group(function () {
     Route::get('/profile-settings', [AuthController::class, 'showProfileSettings'])->name('profile.settings');
     Route::post('/profile-settings', [AuthController::class, 'updateProfileSettings'])->name('profile.settings.update');

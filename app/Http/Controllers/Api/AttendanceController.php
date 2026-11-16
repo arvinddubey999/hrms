@@ -169,7 +169,8 @@ class AttendanceController extends Controller
     public function statistics(Request $request)
     {
         $user = $request->user();
-        $todayStr = now('Asia/Kolkata')->toDateString();
+        $targetDate = $request->get('date') ? \Carbon\Carbon::parse($request->get('date'))->setTimezone('Asia/Kolkata') : now('Asia/Kolkata');
+        $targetDateStr = $targetDate->toDateString();
 
         $usersQuery = User::query();
         if (!$user->isManager()) {
@@ -181,7 +182,7 @@ class AttendanceController extends Controller
         $archivedUsers = $allUsers->where('status', '!=', 'active');
 
         $punchesToday = AttendancePunch::query()
-            ->whereDate('work_date', $todayStr)
+            ->whereDate('work_date', $targetDateStr)
             ->orderBy('punched_at')
             ->get()
             ->groupBy('user_id');
@@ -238,6 +239,15 @@ class AttendanceController extends Controller
 
             $todayStatus = $isPresent ? ($isHalfDay ? 'half_day' : ($isLate ? 'late' : 'present')) : 'not_marked';
 
+            $durationFormatted = null;
+            if ($firstIn && $lastOut) {
+                $mins = $firstIn->punched_at->diffInMinutes($lastOut->punched_at);
+                $durationFormatted = number_format($mins / 60, 2) . ' hrs';
+            } elseif ($firstIn && $targetDateStr === now('Asia/Kolkata')->toDateString()) {
+                $mins = $firstIn->punched_at->diffInMinutes(now('Asia/Kolkata'));
+                $durationFormatted = number_format(max(0, $mins) / 60, 2) . ' hrs';
+            }
+
             $employeesList[] = [
                 'id' => $u->id,
                 'name' => $u->displayName(),
@@ -264,6 +274,7 @@ class AttendanceController extends Controller
                 'ot_hours' => sprintf('%02d:%02d', intdiv($otMins, 60), $otMins % 60),
                 'in_time' => $firstIn ? $firstIn->punched_at->format('h:i A') : null,
                 'out_time' => $lastOut ? $lastOut->punched_at->format('h:i A') : null,
+                'duration' => $durationFormatted,
                 'in_photo' => $firstIn && $firstIn->photo ? url('storage/'.$firstIn->photo) : null,
                 'out_photo' => $lastOut && $lastOut->photo ? url('storage/'.$lastOut->photo) : null,
             ];
@@ -316,7 +327,8 @@ class AttendanceController extends Controller
         ];
 
         return response()->json([
-            'date' => now('Asia/Kolkata')->format('M d, Y'),
+            'date' => $targetDate->format('M d, Y'),
+            'raw_date' => $targetDateStr,
             'counts' => $counts,
             'employees' => $employeesList,
             'birthdays' => $todayBirthdays,

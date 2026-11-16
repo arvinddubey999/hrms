@@ -1544,6 +1544,14 @@ class EmployeeController extends Controller
         }
         if ($request->hasFile('face_images')) {
             foreach ($request->file('face_images') as $file) {
+                $check = \App\Services\FaceService::detectAndExtractSignature($file->getRealPath());
+                if (!$check['detected']) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'face_images' => 'AI Face Verification Failed: ' . ($check['reason'] ?? 'No clear human face detected in image.')
+                    ]);
+                }
+            }
+            foreach ($request->file('face_images') as $file) {
                 $staff->faceImages()->create([
                     'path' => $file->store('faces', 'public'),
                 ]);

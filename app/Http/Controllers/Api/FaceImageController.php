@@ -66,6 +66,15 @@ class FaceImageController extends Controller
                 continue;
             }
 
+            // Strictly validate that uploaded file contains a real human face
+            $check = \App\Services\FaceService::detectAndExtractSignature($file->getRealPath());
+            if (!$check['detected']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'AI Selfie Verification Failed: ' . ($check['reason'] ?? 'No clear human face detected in image. Please upload a clear photo of the employee\'s face.'),
+                ], 422);
+            }
+
             $path = $file->store('faces', 'public');
             $record = $user->faceImages()->create([
                 'path' => $path,
@@ -108,6 +117,18 @@ class FaceImageController extends Controller
 
             $decoded = base64_decode($b64);
             if ($decoded !== false && strlen($decoded) > 0) {
+                $tempPath = tempnam(sys_get_temp_dir(), 'face_');
+                file_put_contents($tempPath, $decoded);
+                $check = \App\Services\FaceService::detectAndExtractSignature($tempPath);
+                @unlink($tempPath);
+
+                if (!$check['detected']) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'AI Selfie Verification Failed: ' . ($check['reason'] ?? 'No clear human face detected in image. Please upload a clear photo of the employee\'s face.'),
+                    ], 422);
+                }
+
                 $filename = 'faces/' . Str::random(40) . '.' . $ext;
                 Storage::disk('public')->put($filename, $decoded);
 

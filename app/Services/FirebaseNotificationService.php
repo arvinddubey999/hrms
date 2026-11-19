@@ -44,18 +44,14 @@ class FirebaseNotificationService
                 ],
             ];
 
-            // 1. Direct device token if available
+            // 1. Send directly to employee (prefer direct token; fallback to topic user_{id} only if token is missing)
             if (!empty($employee->fcm_token)) {
                 self::sendFcmV1Message(array_merge(['token' => $employee->fcm_token], $basePayload));
+            } else {
+                self::sendFcmV1Message(array_merge(['topic' => 'user_' . $employee->id], $basePayload));
             }
 
-            // 2. Dedicated user topic so employee's phone receives it reliably
-            self::sendFcmV1Message(array_merge(['topic' => 'user_' . $employee->id], $basePayload));
-
-            // 3. Broadcast to "attendance" FCM topic (All subscribed devices)
-            self::sendFcmV1Message(array_merge(['topic' => 'attendance'], $basePayload));
-
-            // 4. Send directly to active managers & admins with registered tokens
+            // 2. Send directly to active managers & admins with registered tokens (avoid duplicates)
             $managerTokens = User::whereNotNull('fcm_token')
                 ->where('fcm_token', '!=', '')
                 ->where('id', '!=', $employee->id)
@@ -113,13 +109,12 @@ class FirebaseNotificationService
                 ],
             ];
 
-            // 1. Direct device token if available
+            // Send once to employee (prefer direct token; fallback to topic only if token is missing)
             if (!empty($employee->fcm_token)) {
                 self::sendFcmV1Message(array_merge(['token' => $employee->fcm_token], $basePayload));
+            } else {
+                self::sendFcmV1Message(array_merge(['topic' => 'user_' . $employee->id], $basePayload));
             }
-
-            // 2. Dedicated user topic
-            self::sendFcmV1Message(array_merge(['topic' => 'user_' . $employee->id], $basePayload));
 
             Log::info("Forgot Punch Out reminder dispatched for User #{$employee->id} ({$shiftEndTime})");
         } catch (\Throwable $e) {
@@ -156,13 +151,12 @@ class FirebaseNotificationService
                 ],
             ];
 
-            // 1. Direct device token if available
+            // Send once to employee (prefer direct token; fallback to topic only if token is missing)
             if (!empty($employee->fcm_token)) {
                 self::sendFcmV1Message(array_merge(['token' => $employee->fcm_token], $basePayload));
+            } else {
+                self::sendFcmV1Message(array_merge(['topic' => 'user_' . $employee->id], $basePayload));
             }
-
-            // 2. Dedicated user topic so employee's phone receives it reliably
-            self::sendFcmV1Message(array_merge(['topic' => 'user_' . $employee->id], $basePayload));
 
             Log::info("Task push notification dispatched for User #{$employee->id} (Task #{$taskId})");
         } catch (\Throwable $e) {

@@ -11,6 +11,8 @@ use App\Services\FirebaseNotificationService;
 use App\Services\GeoService;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class AttendanceService
@@ -530,6 +532,79 @@ class AttendanceService
         $holiday = $totalHoliday;
 
         return compact('present', 'absent', 'leave', 'weekOff', 'rawWeekOff', 'late', 'holiday', 'rawHoliday', 'half', 'doubleDuty', 'wop', 'hop', 'holidayPresent', 'days', 'rows', 'payable', 'totalOtMinutes', 'totalShortMinutes', 'totalOtHoursFormatted', 'totalShortHoursFormatted');
+    }
+
+    /**
+     * Check active employees who punched IN today but haven't punched OUT,
+     * and if 30 minutes have passed since their shift ended, dispatch a Push Notification reminder.
+     */
+    public function checkAndSendForgotPunchOutReminders(): int
+    {
+        $today = now('Asia/Kolkata')->toDateString();
+        $currentTime = now('Asia/Kolkata');
+
+        // Find all active employees who have an open punch IN today
+        $punchedInUserIds = AttendancePunch::query()
+            ->whereDate('work_date', $today)
+            ->where('type', 'in')
+            ->pluck('user_id')
+            ->unique();
+
+        if ($punchedInUserIds->isEmpty()) {
+            return 0;
+        }
+
+        $users = User::query()
+            ->with('shift')
+            ->whereIn('id', $punchedInUserIds)
+            ->where('status', 'active')
+            ->get();
+
+        $remindersSent = 0;
+
+        foreach ($users as $user) {
+            // Check latest punch today for this user
+            $latestPunch = AttendancePunch::query()
+                ->where('user_id', $user->id)
+                ->whereDate('work_date', $today)
+                ->orderByDesc('punched_at')
+                ->first();
+
+            // Only remind if currently still punched IN (latest punch is 'in')
+            if (!$latestPunch || $latestPunch->type !== 'in') {
+                continue;
+            }
+
+            // Prevent spam: Check if reminder was already sent today for this user
+            $cacheKey = "forgot_punchout_reminder_{$user->id}_{$today}";
+            try {
+                if (Cache::has($cacheKey)) {
+                    continue;
+                }
+            } catch (\Throwable $e) {}
+
+            // Determine shift end time (default to 7:00 PM if no specific shift assigned)
+            $shiftEndTimeStr = $user->shift?->end_time ?: '19:00:00';
+            try {
+                $shiftEnd = Carbon::parse($today . ' ' . $shiftEndTimeStr, 'Asia/Kolkata');
+            } catch (\Throwable $e) {
+                $shiftEnd = Carbon::parse($today . ' 19:00:00', 'Asia/Kolkata');
+            }
+
+            // Threshold: 30 minutes after shift end
+            $reminderThreshold = $shiftEnd->copy()->addMinutes(30);
+
+            if ($currentTime->greaterThanOrEqualTo($reminderThreshold)) {
+                FirebaseNotificationService::sendPunchOutReminderNotification($user, $shiftEnd->format('h:i A'));
+                try {
+                    Cache::put($cacheKey, true, now('Asia/Kolkata')->endOfDay());
+                } catch (\Throwable $e) {}
+                $remindersSent++;
+                Log::info("Forgot Punch Out notification dispatched to User #{$user->id} ({$user->name})");
+            }
+        }
+
+        return $remindersSent;
     }
 
     private function fallbackLocation(?float $lat, ?float $lng, Setting $setting): string

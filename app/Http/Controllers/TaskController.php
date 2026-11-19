@@ -637,6 +637,14 @@ class TaskController extends Controller
             }
         }
 
+        if ($request->wantsJson() || $request->is('api/*') || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'Task deadline and status updated successfully.',
+                'task' => $task->fresh(['creator', 'assignee', 'assignees', 'department', 'category']),
+            ]);
+        }
+
         $redirectParams = $request->except(['open_task', 'tab', '_token', 'due_date', 'due_time', 'status', 'remarks']);
         return redirect()->route('tasks.index', $redirectParams)
             ->with('ok', 'Task deadline and status updated successfully.');
@@ -747,6 +755,13 @@ class TaskController extends Controller
         $task->update(['is_pinned' => !$task->is_pinned]);
         $state = $task->is_pinned ? 'pinned to top' : 'unpinned';
         $task->logHistory('pinned', "Task {$state} by " . $request->user()->displayName(), $request->user()->id);
+        if ($request->wantsJson() || $request->is('api/*') || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'message' => "Task {$state} successfully.",
+                'is_pinned' => (bool)$task->is_pinned,
+            ]);
+        }
         return back()->with('ok', "Task {$state} successfully.");
     }
 
@@ -1000,6 +1015,17 @@ class TaskController extends Controller
         if ($count > 0) {
             $fileNames = collect($uploaded)->pluck('file_name')->implode(', ');
             $task->logHistory('attachment_added', "Uploaded {$count} attachment file(s): {$fileNames}", $request->user()->id);
+
+            // Notify participants via FCM push & Email
+            $participants = $task->getParticipants($request->user()->id);
+            foreach ($participants as $notifyUser) {
+                \App\Services\FirebaseNotificationService::sendTaskNotification(
+                    $notifyUser,
+                    'New Attachment on Task: ' . $task->title,
+                    $request->user()->displayName() . " uploaded: {$fileNames}",
+                    $task->id
+                );
+            }
         }
 
         if ($request->wantsJson() || $request->ajax()) {

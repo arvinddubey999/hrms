@@ -724,6 +724,19 @@ class TaskController extends Controller
         $count = count($uploaded);
         $task->logHistory('attachment_added', "Uploaded {$count} attachment(s) by " . $request->user()->displayName(), $request->user()->id);
 
+        if ($count > 0) {
+            $participants = $task->getParticipants($request->user()->id);
+            $fileNames = collect($uploaded)->pluck('file_name')->implode(', ');
+            foreach ($participants as $notifyUser) {
+                FirebaseNotificationService::sendTaskNotification(
+                    $notifyUser,
+                    'New Attachment on Task: ' . $task->title,
+                    $request->user()->displayName() . " uploaded: {$fileNames}",
+                    $task->id
+                );
+            }
+        }
+
         return response()->json([
             'ok' => true,
             'message' => "{$count} file(s) attached successfully.",

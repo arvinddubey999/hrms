@@ -538,6 +538,16 @@ class AttendanceController extends Controller
         return response()->json(['ok' => true, 'message' => 'Attendance punch deleted successfully.']);
     }
 
+    public function checkForgotPunchout(AttendanceService $attendance)
+    {
+        $count = $attendance->checkAndSendForgotPunchOutReminders();
+        return response()->json([
+            'ok' => true,
+            'message' => "Dispatched {$count} reminder notification(s) for employees who forgot to punch out.",
+            'reminders_sent' => $count,
+        ]);
+    }
+
     private function serialize(AttendancePunch $punch): array
     {
         return [

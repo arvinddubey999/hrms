@@ -46,6 +46,7 @@ Route::middleware('api.token')->group(function () {
     Route::post('/attendance/manual-store', [AttendanceController::class, 'manualStore']);
     Route::post('/attendance/{punch}/update', [AttendanceController::class, 'updatePunch']);
     Route::delete('/attendance/{punch}', [AttendanceController::class, 'destroyPunch']);
+    Route::match(['get', 'post'], '/attendance/check-forgot-punchout', [AttendanceController::class, 'checkForgotPunchout']);
     Route::post('/register-fcm-token', [AttendanceController::class, 'registerFcmToken']);
     Route::post('/fcm-token', [AttendanceController::class, 'registerFcmToken']);
     Route::post('/user/fcm-token', [AttendanceController::class, 'registerFcmToken']);
@@ -134,5 +135,9 @@ Route::get('/tasks/{task}/replies-pdf', [\App\Http\Controllers\TaskController::c
 // FCM Token registration fallback routes
 Route::post('/register-fcm-token', [AttendanceController::class, 'registerFcmToken']);
 Route::post('/fcm-token', [AttendanceController::class, 'registerFcmToken']);
+
+// Forgot punchout webhook for external / server cron
+Route::get('/attendance/cron/check-forgot-punchout', [AttendanceController::class, 'checkForgotPunchout']);
+
 
 

@@ -499,14 +499,22 @@ class AttendanceController extends Controller
         }
 
         $updates = [];
-        if (!empty($data['status'])) {
-            $updates['type'] = in_array($status, ['wop', 'hop']) ? 'in' : $status;
-        }
-        if (in_array($status, ['wop', 'hop'])) {
-            $existingRemarks = $data['remarks'] ?? $punch->remarks ?? '';
-            $updates['remarks'] = trim(($existingRemarks ? $existingRemarks . ' | ' : '') . strtoupper($status));
-        } elseif (isset($data['remarks'])) {
-            $updates['remarks'] = $data['remarks'];
+        if ($status === 'half_day') {
+            $updates['type'] = 'in';
+            $cleanedRemarks = trim(str_ireplace(['DOUBLE_DUTY', 'HALF_DAY'], '', $data['remarks'] ?? $punch->remarks ?? ''));
+            $updates['remarks'] = trim(($cleanedRemarks ? $cleanedRemarks . ' | ' : '') . 'HALF_DAY');
+        } elseif ($status === 'double_duty') {
+            $updates['type'] = 'in';
+            $cleanedRemarks = trim(str_ireplace(['DOUBLE_DUTY', 'HALF_DAY'], '', $data['remarks'] ?? $punch->remarks ?? ''));
+            $updates['remarks'] = trim(($cleanedRemarks ? $cleanedRemarks . ' | ' : '') . 'DOUBLE_DUTY');
+        } elseif (in_array($status, ['wop', 'hop'])) {
+            $updates['type'] = 'in';
+            $cleanedRemarks = trim(str_ireplace(['DOUBLE_DUTY', 'HALF_DAY', 'WOP', 'HOP'], '', $data['remarks'] ?? $punch->remarks ?? ''));
+            $updates['remarks'] = trim(($cleanedRemarks ? $cleanedRemarks . ' | ' : '') . strtoupper($status));
+        } else {
+            $updates['type'] = in_array($status, ['in', 'out']) ? $status : 'in';
+            $cleanedRemarks = trim(str_ireplace(['DOUBLE_DUTY', 'HALF_DAY', 'WOP', 'HOP'], '', $data['remarks'] ?? $punch->remarks ?? ''));
+            $updates['remarks'] = $cleanedRemarks;
         }
 
         if (!empty($data['time'])) {

@@ -825,6 +825,10 @@
     }
 
     const SURAT_LANDMARKS = [
+        { title: 'Happy Residency (Vesu)', address: 'Udhana - Magdalla Rd, opp. Safal Square, Vesu, Surat, Gujarat 395007', lat: '21.146406', lon: '72.763138', keywords: ['happy residency', 'happy residency vesu', 'safal square', 'vesu', 'happy', 'residency'] },
+        { title: 'Happy Residency (Amroli)', address: 'Kosad - Amroli Rd, Amroli, Surat, Gujarat 394107', lat: '21.248300', lon: '72.859600', keywords: ['happy residency', 'happy residency amroli', 'amroli', 'happy', 'residency'] },
+        { title: 'Happy Elegance', address: 'Vesu Main Road, Vesu, Surat, Gujarat 395007', lat: '21.148500', lon: '72.772500', keywords: ['happy elegance', 'vesu', 'happy'] },
+        { title: 'Happy Goldmines', address: 'Near V.I.P. Road, Vesu, Surat, Gujarat 395007', lat: '21.142000', lon: '72.781000', keywords: ['happy goldmines', 'vesu', 'happy'] },
         { title: 'Kohinoor Textile Market', address: 'Ring Road, Sahara Darwaja, Begumpura, Surat, Gujarat 395002', lat: '21.191200', lon: '72.846800', keywords: ['kohinoor', 'kohinoor market', 'kohinoor textile market', 'textile market', 'ring road', 'sahara darwaja'] },
         { title: 'Kohinoor AC Market', address: 'Opp. JJ Market, Ring Road, Surat, Gujarat 395002', lat: '21.191800', lon: '72.847500', keywords: ['kohinoor', 'kohinoor ac market', 'kohinoor market', 'ring road'] },
         { title: 'Millennium Textile Market', address: 'Ring Road, Sahara Darwaja, Surat, Gujarat 395002', lat: '21.192500', lon: '72.848200', keywords: ['millennium', 'millennium market', 'ring road'] },
@@ -944,6 +948,40 @@
                                     isSuratVerified: isSurat,
                                     priorityScore: isSurat ? 900 : (isGujarat ? 400 : 100)
                                 });
+                            });
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            // 4. Photon Geocoder API (indexes POIs, residential complexes, societies & landmarks)
+            if (items.length < 8) {
+                try {
+                    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=21.17&lon=72.83&limit=8`;
+                    const pRes = await fetch(photonUrl);
+                    if (pRes.ok) {
+                        const pData = await pRes.json();
+                        if (pData && pData.features) {
+                            pData.features.forEach(f => {
+                                const p = f.properties || {};
+                                const geom = f.geometry || {};
+                                if (p.countrycode === 'IN' || !p.countrycode) {
+                                    const title = p.name || p.street || query;
+                                    const fullParts = [p.name, p.street, p.district, p.city, p.state, p.postcode, 'India'].filter(Boolean);
+                                    const fullLabel = Array.from(new Set(fullParts)).join(', ');
+                                    const isSurat = fullLabel.toLowerCase().includes('surat');
+                                    const isGujarat = fullLabel.toLowerCase().includes('gujarat');
+                                    if (geom.coordinates && geom.coordinates.length >= 2) {
+                                        items.push({
+                                            lat: parseFloat(geom.coordinates[1]).toFixed(6),
+                                            lon: parseFloat(geom.coordinates[0]).toFixed(6),
+                                            title: title,
+                                            label: fullLabel,
+                                            isSuratVerified: isSurat,
+                                            priorityScore: isSurat ? 850 : (isGujarat ? 350 : 80)
+                                        });
+                                    }
+                                }
                             });
                         }
                     }

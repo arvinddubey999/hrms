@@ -83,6 +83,12 @@ class TaskController extends Controller
             });
         }
 
+        // Creator filter (Matching web 'From User')
+        if ($request->filled('from_user_id')) {
+            $fromUid = (int) $request->get('from_user_id');
+            $baseQuery->where('created_by', $fromUid);
+        }
+
         // Calculate counts for tab badges based on current search & filters (except status)
         $todayStr = now()->toDateString();
         $countsQuery = clone $baseQuery;

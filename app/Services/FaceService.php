@@ -76,19 +76,19 @@ class FaceService
         $stdDev = sqrt($variance / $totalPixels);
 
         // STRICT REJECTION OF NON-FACE OBJECTS (Table, Chair, Walls, Floor, Dark room)
-        if ($skinRatio < 0.12) {
+        if ($skinRatio < 0.20) {
             imagedestroy($faceCrop);
             imagedestroy($image);
             return ['detected' => false, 'reason' => 'No human face detected! Skin tone not found. Please position your face clearly inside the circular guide.'];
         }
 
-        if ($stdDev < 14) {
+        if ($stdDev < 18) {
             imagedestroy($faceCrop);
             imagedestroy($image);
-            return ['detected' => false, 'reason' => 'No human face detected! The photo appears blank or dark. Please face the camera directly in good lighting.'];
+            return ['detected' => false, 'reason' => 'No human face detected! The photo appears blank or lacks facial features. Please face the camera directly in good lighting.'];
         }
 
-        if ($skinRatio > 0.96 && $stdDev < 18) {
+        if ($skinRatio > 0.96 && $stdDev < 20) {
             imagedestroy($faceCrop);
             imagedestroy($image);
             return ['detected' => false, 'reason' => 'Facial features (eyes, nose, mouth) not clearly visible. Please position your face inside the circle.'];
@@ -261,9 +261,8 @@ class FaceService
             }
         }
 
-        // Verification threshold: 0.46 (46%) allows cross-day lighting tolerance for the real employee,
-        // while strictly rejecting chairs, tables, and different individuals (which score < 0.30).
-        $threshold = 0.46;
+        // Verification threshold: 0.55 (55%) strictly rejects chairs, tables, and different individuals
+        $threshold = 0.55;
         if ($maxScore >= $threshold) {
             return [
                 'matched' => true,
@@ -273,7 +272,7 @@ class FaceService
 
         return [
             'matched' => false,
-            'reason' => "Face verification failed! Captured face does not match registered image in Edit Staff Member. (Match score: " . round($maxScore * 100, 1) . "%, required: 46%)",
+            'reason' => "Face verification failed! Captured face does not match registered image in Edit Staff Member. (Match score: " . round($maxScore * 100, 1) . "%, required: 55%)",
             'confidence' => round($maxScore * 100, 1),
         ];
     }
@@ -332,7 +331,8 @@ class FaceService
             }
         }
 
-        $threshold = 0.46;
+        // 1-to-many recognition threshold: 0.65 (65%) to avoid falsely identifying the wrong employee
+        $threshold = 0.65;
         if ($bestUser && $highestScore >= $threshold) {
             return [
                 'recognized' => true,
@@ -343,7 +343,7 @@ class FaceService
 
         return [
             'recognized' => false,
-            'reason' => 'Face not recognized! No registered employee matched the captured face. Please register face in Edit Staff Member.',
+            'reason' => 'Face not recognized! No registered employee matched the captured face with sufficient confidence. (Match score: ' . round($highestScore * 100, 1) . '%, required: 65%)',
             'confidence' => round($highestScore * 100, 1),
         ];
     }

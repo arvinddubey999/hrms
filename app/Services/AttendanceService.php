@@ -93,7 +93,7 @@ class AttendanceService
             'punched_at' => $now,
             'lat' => $lat,
             'lng' => $lng,
-            'location_text' => $locationText ?: $this->fallbackLocation($lat, $lng, $setting),
+            'location_text' => $locationText ?: $this->fallbackLocation($lat, $lng, $setting, $user),
             'photo' => $path,
             'face_detected' => $faceDetected,
             'greeting' => $greeting,
@@ -607,12 +607,30 @@ class AttendanceService
         return $remindersSent;
     }
 
-    private function fallbackLocation(?float $lat, ?float $lng, Setting $setting): string
+    private function fallbackLocation(?float $lat, ?float $lng, Setting $setting, ?User $user = null): string
     {
-        if ($lat && $lng && GeoService::insideOffice($lat, $lng, $setting)) {
-            return $setting->company_name.' office';
-        }
         if ($lat && $lng) {
+            // Rule: If user has 'anywhere' mode active, ALWAYS resolve real GPS address (Delhi, Surat, etc.)
+            // Never hardcode or return company office when punched from elsewhere!
+            if ($user && $user->punch_from === 'anywhere') {
+                $realAddr = GeoService::reverseGeocode($lat, $lng);
+                if (!empty($realAddr)) {
+                    return $realAddr;
+                }
+                return round($lat, 5).', '.round($lng, 5);
+            }
+
+            // If user is restricted to geofence and inside office
+            if (GeoService::insideOffice($lat, $lng, $setting, $user)) {
+                return $setting->company_name.' office';
+            }
+
+            // Outside office or field punch: reverse geocode to full street/city location
+            $realAddr = GeoService::reverseGeocode($lat, $lng);
+            if (!empty($realAddr)) {
+                return $realAddr;
+            }
+
             return round($lat, 5).', '.round($lng, 5);
         }
 

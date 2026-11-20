@@ -118,30 +118,56 @@ class GeoService
             }
         } catch (\Throwable $e) {}
 
-        // 3. Reverse geocode via Nominatim with caching
+        // 3. Reverse geocode via Nominatim and Photon with caching
         $cacheKey = "rev_geo_" . round($lat, 4) . "_" . round($lng, 4);
         return Cache::remember($cacheKey, 86400 * 7, function () use ($lat, $lng) {
             try {
                 $url = "https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}&zoom=18&addressdetails=1";
-                $res = Http::withHeaders(['User-Agent' => 'TulsiHRMS/1.0'])->timeout(3)->get($url);
+                $res = Http::withHeaders(['User-Agent' => 'TulsiHRMS/1.0'])->timeout(4)->get($url);
                 if ($res->successful()) {
                     $json = $res->json();
+                    if (!empty($json['display_name'])) {
+                        return Str::limit($json['display_name'], 120);
+                    }
                     $addr = $json['address'] ?? [];
                     $parts = array_filter([
-                        $addr['amenity'] ?? $addr['building'] ?? $addr['shop'] ?? null,
+                        $addr['amenity'] ?? $addr['building'] ?? $addr['shop'] ?? $addr['office'] ?? null,
                         $addr['road'] ?? $addr['neighbourhood'] ?? $addr['suburb'] ?? null,
                         $addr['city_district'] ?? $addr['city'] ?? $addr['town'] ?? null,
-                        $addr['state_district'] ?? $addr['state'] ?? null,
+                        $addr['state'] ?? null,
+                        $addr['postcode'] ?? null,
+                        'India',
                     ]);
                     if (!empty($parts)) {
                         return implode(', ', array_unique($parts));
                     }
-                    if (!empty($json['display_name'])) {
-                        return Str::limit($json['display_name'], 80);
+                }
+            } catch (\Throwable $e) {}
+
+            // Fallback to Photon reverse geocode
+            try {
+                $pUrl = "https://photon.komoot.io/reverse?lat={$lat}&lon={$lng}";
+                $pRes = Http::timeout(4)->get($pUrl);
+                if ($pRes->successful()) {
+                    $pJson = $pRes->json();
+                    $feat = $pJson['features'][0]['properties'] ?? null;
+                    if ($feat) {
+                        $pParts = array_filter([
+                            $feat['name'] ?? null,
+                            $feat['street'] ?? null,
+                            $feat['district'] ?? $feat['city'] ?? null,
+                            $feat['state'] ?? null,
+                            $feat['postcode'] ?? null,
+                            'India',
+                        ]);
+                        if (!empty($pParts)) {
+                            return Str::limit(implode(', ', array_unique($pParts)), 120);
+                        }
                     }
                 }
             } catch (\Throwable $e) {}
-            return null;
+
+            return round($lat, 5) . ', ' . round($lng, 5);
         });
     }
 }

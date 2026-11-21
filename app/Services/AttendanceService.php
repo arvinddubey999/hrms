@@ -613,7 +613,7 @@ class AttendanceService
             // Rule: If user has 'anywhere' mode active, ALWAYS resolve real GPS address (Delhi, Surat, etc.)
             // Never hardcode or return company office when punched from elsewhere!
             if ($user && $user->punch_from === 'anywhere') {
-                $realAddr = GeoService::reverseGeocode($lat, $lng);
+                $realAddr = GeoService::reverseGeocode($lat, $lng, true);
                 if (!empty($realAddr)) {
                     return $realAddr;
                 }

@@ -26,19 +26,56 @@ class FaceService
         $w = imagesx($image);
         $h = imagesy($image);
 
-        if ($w < 80 || $h < 80) {
+        if ($w < 60 || $h < 60) {
             imagedestroy($image);
             return ['detected' => false, 'reason' => 'Image resolution too low for face recognition.'];
         }
 
-        // Analyze central 60% circular/oval region where face is positioned in the circle frame
-        $cropX = (int)($w * 0.20);
-        $cropY = (int)($h * 0.15);
-        $cropW = (int)($w * 0.60);
-        $cropH = (int)($h * 0.70);
+        // Downsample to 48x48 to find skin centroid in upper 75% of frame
+        $thumbW = 48;
+        $thumbH = 48;
+        $thumb = imagecreatetruecolor($thumbW, $thumbH);
+        imagecopyresampled($thumb, $image, 0, 0, 0, 0, $thumbW, $thumbH, $w, $h);
+
+        $skinCount = 0;
+        $sumSkinX = 0;
+        $sumSkinY = 0;
+
+        for ($ty = 0; $ty < (int)($thumbH * 0.75); $ty++) {
+            for ($tx = 0; $tx < $thumbW; $tx++) {
+                $rgb = imagecolorat($thumb, $tx, $ty);
+                $r = ($rgb >> 16) & 0xFF;
+                $g = ($rgb >> 8) & 0xFF;
+                $b = $rgb & 0xFF;
+
+                $cb = 128 - 0.168736 * $r - 0.331264 * $g + 0.5 * $b;
+                $cr = 128 + 0.5 * $r - 0.418688 * $g - 0.081312 * $b;
+
+                if ($cb >= 75 && $cb <= 140 && $cr >= 128 && $cr <= 185 && $r > $b && $r > 35) {
+                    $skinCount++;
+                    $sumSkinX += $tx;
+                    $sumSkinY += $ty;
+                }
+            }
+        }
+        imagedestroy($thumb);
+
+        // Center on skin cluster or face upper center
+        if ($skinCount > 20) {
+            $centerOrigX = (int)(($sumSkinX / $skinCount) * ($w / $thumbW));
+            $centerOrigY = (int)(($sumSkinY / $skinCount) * ($h / $thumbH));
+        } else {
+            $centerOrigX = (int)($w * 0.50);
+            $centerOrigY = (int)($h * 0.38);
+        }
+
+        // Tightly crop a 1:1 SQUARE centered strictly on the face (excluding clothes/shirt)
+        $boxSize = (int)(min($w, $h) * 0.60);
+        $cropX = max(0, min($w - $boxSize, (int)($centerOrigX - $boxSize / 2)));
+        $cropY = max(0, min($h - $boxSize, (int)($centerOrigY - $boxSize / 2)));
 
         $faceCrop = imagecreatetruecolor(64, 64);
-        imagecopyresampled($faceCrop, $image, 0, 0, $cropX, $cropY, 64, 64, $cropW, $cropH);
+        imagecopyresampled($faceCrop, $image, 0, 0, $cropX, $cropY, 64, 64, $boxSize, $boxSize);
 
         // 1. Human skin tone & feature contrast analysis
         $skinPixels = 0;
@@ -99,10 +136,12 @@ class FaceService
         imagecopyresampled($norm16, $faceCrop, 0, 0, 0, 0, 16, 16, 64, 64);
 
         $matrix16 = [];
+        $grid2D = [];
         $rowSums = array_fill(0, 16, 0.0);
         $colSums = array_fill(0, 16, 0.0);
 
         for ($y = 0; $y < 16; $y++) {
+            $grid2D[$y] = [];
             for ($x = 0; $x < 16; $x++) {
                 $rgb = imagecolorat($norm16, $x, $y);
                 $r = ($rgb >> 16) & 0xFF;
@@ -110,6 +149,7 @@ class FaceService
                 $b = $rgb & 0xFF;
                 $lumVal = (int)(0.299 * $r + 0.587 * $g + 0.114 * $b);
                 $matrix16[] = $lumVal;
+                $grid2D[$y][$x] = $lumVal;
                 $rowSums[$y] += $lumVal;
                 $colSums[$x] += $lumVal;
             }
@@ -159,6 +199,7 @@ class FaceService
         return [
             'detected' => true,
             'signature' => [
+                'grid_2d' => $grid2D,
                 'unit_matrix' => $unitMatrix,
                 'prof_h' => $profH,
                 'prof_v' => $profV,
@@ -172,17 +213,69 @@ class FaceService
 
     /**
      * Compute similarity score (0.0 to 1.0) between two face signatures.
-     * Uses zero-centered Pearson NCC + facial profile correlation + dHash.
+     * Uses 2D multi-shift Pearson NCC with face mask + facial profile correlation + dHash.
      */
     public static function compareSignatures(array $sig1, array $sig2): float
     {
-        // 1. Zero-Centered Pearson Correlation of 16x16 Face Matrix
-        $u1 = $sig1['unit_matrix'] ?? null;
-        $u2 = $sig2['unit_matrix'] ?? null;
-        $pearsonR = 0.0;
-        if ($u1 && $u2 && count($u1) === 256 && count($u2) === 256) {
-            for ($i = 0; $i < 256; $i++) {
-                $pearsonR += $u1[$i] * $u2[$i];
+        $grid1 = $sig1['grid_2d'] ?? null;
+        $grid2 = $sig2['grid_2d'] ?? null;
+
+        $bestPearson = 0.0;
+
+        if (is_array($grid1) && is_array($grid2) && count($grid1) === 16 && count($grid2) === 16) {
+            // Multi-shift cross correlation (25 spatial alignments: dx in [-2..2], dy in [-2..2])
+            for ($dy = -2; $dy <= 2; $dy++) {
+                for ($dx = -2; $dx <= 2; $dx++) {
+                    $vals1 = [];
+                    $vals2 = [];
+                    for ($y = 0; $y < 16; $y++) {
+                        $y2 = $y + $dy;
+                        if ($y2 < 0 || $y2 >= 16) continue;
+                        for ($x = 0; $x < 16; $x++) {
+                            $x2 = $x + $dx;
+                            if ($x2 < 0 || $x2 >= 16) continue;
+
+                            // Elliptical face mask: ignore corners/background
+                            $nx = ($x - 7.5) / 7.5;
+                            $ny = ($y - 7.5) / 7.5;
+                            if (($nx * $nx + $ny * $ny) > 1.25) continue;
+
+                            $vals1[] = $grid1[$y][$x];
+                            $vals2[] = $grid2[$y2][$x2];
+                        }
+                    }
+
+                    $n = count($vals1);
+                    if ($n >= 80) {
+                        $mean1 = array_sum($vals1) / $n;
+                        $mean2 = array_sum($vals2) / $n;
+                        $cov = 0.0;
+                        $var1 = 0.0;
+                        $var2 = 0.0;
+                        for ($k = 0; $k < $n; $k++) {
+                            $d1 = $vals1[$k] - $mean1;
+                            $d2 = $vals2[$k] - $mean2;
+                            $cov += $d1 * $d2;
+                            $var1 += $d1 * $d1;
+                            $var2 += $d2 * $d2;
+                        }
+                        if ($var1 > 1e-4 && $var2 > 1e-4) {
+                            $r = $cov / sqrt($var1 * $var2);
+                            if ($r > $bestPearson) {
+                                $bestPearson = $r;
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Fallback to 1D Pearson correlation if grid_2d not present
+            $u1 = $sig1['unit_matrix'] ?? null;
+            $u2 = $sig2['unit_matrix'] ?? null;
+            if ($u1 && $u2 && count($u1) === 256 && count($u2) === 256) {
+                for ($i = 0; $i < 256; $i++) {
+                    $bestPearson += $u1[$i] * $u2[$i];
+                }
             }
         }
 
@@ -213,7 +306,7 @@ class FaceService
         }
 
         // Composite match score (0.0 to 1.0)
-        $score = (0.55 * max(0.0, $pearsonR)) + (0.30 * $profSim) + (0.15 * $dhashSim);
+        $score = (0.60 * max(0.0, $bestPearson)) + (0.25 * $profSim) + (0.15 * $dhashSim);
         return (float) min(1.0, max(0.0, $score));
     }
 
@@ -261,8 +354,8 @@ class FaceService
             }
         }
 
-        // Verification threshold: 0.55 (55%) strictly rejects chairs, tables, and different individuals
-        $threshold = 0.55;
+        // Verification threshold: 0.38 (38%) matches same person across different days/clothes while rejecting others
+        $threshold = 0.38;
         if ($maxScore >= $threshold) {
             return [
                 'matched' => true,
@@ -272,7 +365,7 @@ class FaceService
 
         return [
             'matched' => false,
-            'reason' => "Face verification failed! Captured face does not match registered image in Edit Staff Member. (Match score: " . round($maxScore * 100, 1) . "%, required: 55%)",
+            'reason' => "Face verification failed! Captured face does not match registered image in Edit Staff Member. (Match score: " . round($maxScore * 100, 1) . "%, required: 38%)",
             'confidence' => round($maxScore * 100, 1),
         ];
     }
@@ -331,8 +424,8 @@ class FaceService
             }
         }
 
-        // 1-to-many recognition threshold: 0.65 (65%) to avoid falsely identifying the wrong employee
-        $threshold = 0.65;
+        // 1-to-many recognition threshold: 0.45 (45%) to balance recognition with false positives
+        $threshold = 0.45;
         if ($bestUser && $highestScore >= $threshold) {
             return [
                 'recognized' => true,
@@ -343,7 +436,7 @@ class FaceService
 
         return [
             'recognized' => false,
-            'reason' => 'Face not recognized! No registered employee matched the captured face with sufficient confidence. (Match score: ' . round($highestScore * 100, 1) . '%, required: 65%)',
+            'reason' => 'Face not recognized! No registered employee matched the captured face with sufficient confidence. (Match score: ' . round($highestScore * 100, 1) . '%, required: 45%)',
             'confidence' => round($highestScore * 100, 1),
         ];
     }
@@ -396,18 +489,52 @@ class FaceService
         }
 
         $mime = $info['mime'] ?? '';
+        $img = null;
         switch ($mime) {
             case 'image/jpeg':
             case 'image/jpg':
-                return @imagecreatefromjpeg($path);
+                $img = @imagecreatefromjpeg($path);
+                break;
             case 'image/png':
-                return @imagecreatefrompng($path);
+                $img = @imagecreatefrompng($path);
+                break;
             case 'image/webp':
-                return function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($path) : false;
+                $img = function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($path) : false;
+                break;
             case 'image/bmp':
-                return function_exists('imagecreatefrombmp') ? @imagecreatefrombmp($path) : false;
+                $img = function_exists('imagecreatefrombmp') ? @imagecreatefrombmp($path) : false;
+                break;
             default:
                 return false;
         }
+
+        if (!$img) {
+            return false;
+        }
+
+        // Auto-orient based on EXIF for JPEG/JPG (mobile front camera selfies are captured rotated)
+        if (function_exists('exif_read_data') && ($mime === 'image/jpeg' || $mime === 'image/jpg')) {
+            try {
+                $exif = @exif_read_data($path);
+                if (!empty($exif['Orientation'])) {
+                    switch ((int)$exif['Orientation']) {
+                        case 3:
+                            $rotated = imagerotate($img, 180, 0);
+                            if ($rotated) { imagedestroy($img); $img = $rotated; }
+                            break;
+                        case 6:
+                            $rotated = imagerotate($img, -90, 0);
+                            if ($rotated) { imagedestroy($img); $img = $rotated; }
+                            break;
+                        case 8:
+                            $rotated = imagerotate($img, 90, 0);
+                            if ($rotated) { imagedestroy($img); $img = $rotated; }
+                            break;
+                    }
+                }
+            } catch (\Throwable $e) {}
+        }
+
+        return $img;
     }
 }

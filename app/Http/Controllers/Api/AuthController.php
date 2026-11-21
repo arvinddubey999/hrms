@@ -258,6 +258,8 @@ class AuthController extends Controller
             'is_anywhere_active' => $user->isAnywherePunchValid(),
             'anywhere_from_date' => $user->anywhere_from_date?->format('Y-m-d'),
             'anywhere_to_date' => $user->anywhere_to_date?->format('Y-m-d'),
+            'is_super_admin' => $user->isSuperAdmin(),
+            'accessible_company_ids' => $user->accessibleCompanyIds(),
             'view_self_salary' => $user->view_self_salary,
             'photo' => $user->profile_photo ? url('storage/'.$user->profile_photo) : null,
         ];

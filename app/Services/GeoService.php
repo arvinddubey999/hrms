@@ -88,35 +88,37 @@ class GeoService
         return "{$part} {$name}";
     }
 
-    public static function reverseGeocode(?float $lat, ?float $lng): ?string
+    public static function reverseGeocode(?float $lat, ?float $lng, bool $skipOfficeCheck = false): ?string
     {
         if ($lat === null || $lng === null || ($lat == 0.0 && $lng == 0.0)) {
             return null;
         }
 
-        // 1. Check if near any active company geofence
-        try {
-            $geofences = CompanyGeofence::where('status', 'active')->get();
-            foreach ($geofences as $fence) {
-                if ($fence->latitude && $fence->longitude) {
-                    $dist = self::distanceMeters($lat, $lng, (float)$fence->latitude, (float)$fence->longitude);
-                    if ($dist <= max((int)$fence->radius + 150, 300)) {
-                        return $fence->name;
+        if (!$skipOfficeCheck) {
+            // 1. Check if near any active company geofence
+            try {
+                $geofences = CompanyGeofence::where('status', 'active')->get();
+                foreach ($geofences as $fence) {
+                    if ($fence->latitude && $fence->longitude) {
+                        $dist = self::distanceMeters($lat, $lng, (float)$fence->latitude, (float)$fence->longitude);
+                        if ($dist <= max((int)$fence->radius + 150, 300)) {
+                            return $fence->name;
+                        }
                     }
                 }
-            }
-        } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {}
 
-        // 2. Check office setting
-        try {
-            $setting = Setting::current();
-            if ($setting && $setting->office_lat && $setting->office_lng) {
-                $dist = self::distanceMeters($lat, $lng, (float)$setting->office_lat, (float)$setting->office_lng);
-                if ($dist <= max((int)($setting->geofence_radius_m ?: 100) + 150, 400)) {
-                    return $setting->office_address ?: 'Company Office';
+            // 2. Check office setting
+            try {
+                $setting = Setting::current();
+                if ($setting && $setting->office_lat && $setting->office_lng) {
+                    $dist = self::distanceMeters($lat, $lng, (float)$setting->office_lat, (float)$setting->office_lng);
+                    if ($dist <= max((int)($setting->geofence_radius_m ?: 100) + 150, 400)) {
+                        return $setting->office_address ?: 'Company Office';
+                    }
                 }
-            }
-        } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {}
+        }
 
         // 3. Reverse geocode via Nominatim and Photon with caching
         $cacheKey = "rev_geo_" . round($lat, 4) . "_" . round($lng, 4);

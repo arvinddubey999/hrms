@@ -172,9 +172,22 @@ class AttendanceController extends Controller
         $targetDate = $request->get('date') ? \Carbon\Carbon::parse($request->get('date'))->setTimezone('Asia/Kolkata') : now('Asia/Kolkata');
         $targetDateStr = $targetDate->toDateString();
 
-        $usersQuery = User::query();
-        if (!$user->isManager()) {
-            $usersQuery->where('id', $user->id);
+        if ($user->isSuperAdmin()) {
+            $usersQuery = User::query();
+        } else {
+            $compIds = $user->accessibleCompanyIds();
+            if ($user->isAdmin() || $user->isManager() || $user->hasPermission('employee.view') || $user->hasPermission('attendance.view')) {
+                $usersQuery = User::query();
+                if (!empty($compIds)) {
+                    $usersQuery->whereIn('company_id', $compIds);
+                } elseif ($user->company_id) {
+                    $usersQuery->where('company_id', $user->company_id);
+                } else {
+                    $usersQuery->where('id', $user->id);
+                }
+            } else {
+                $usersQuery = User::query()->where('id', $user->id);
+            }
         }
 
         $allUsers = $usersQuery->get();
@@ -281,9 +294,18 @@ class AttendanceController extends Controller
         }
 
         $todayObj = now('Asia/Kolkata')->startOfDay();
-        $todayBirthdays = User::whereNotNull('birthday')
-            ->where('status', 'active')
-            ->get()
+        $bdayQuery = User::whereNotNull('birthday')->where('status', 'active');
+        if (!$user->isSuperAdmin()) {
+            $compIds = $user->accessibleCompanyIds();
+            if (!empty($compIds)) {
+                $bdayQuery->whereIn('company_id', $compIds);
+            } elseif ($user->company_id) {
+                $bdayQuery->where('company_id', $user->company_id);
+            } else {
+                $bdayQuery->where('id', $user->id);
+            }
+        }
+        $todayBirthdays = $bdayQuery->get()
             ->filter(function ($b) use ($todayObj) {
                 if (!$b->birthday) return false;
                 $bdayThisYear = \Carbon\Carbon::createFromDate($todayObj->year, $b->birthday->month, $b->birthday->day)->startOfDay();
@@ -326,9 +348,15 @@ class AttendanceController extends Controller
             'employee' => $activeUsers->filter(fn($u) => !in_array(strtolower(trim($u->role ?? '')), ['admin', 'super admin', 'superadmin', 'manager'], true))->count(),
         ];
 
+        $accessibleCompanies = $user->isSuperAdmin()
+            ? \App\Models\Company::select('id', 'name')->get()
+            : \App\Models\Company::whereIn('id', $user->accessibleCompanyIds())->select('id', 'name')->get();
+
         return response()->json([
             'date' => $targetDate->format('M d, Y'),
             'raw_date' => $targetDateStr,
+            'is_super_admin' => $user->isSuperAdmin(),
+            'accessible_companies' => $accessibleCompanies,
             'counts' => $counts,
             'employees' => $employeesList,
             'birthdays' => $todayBirthdays,
